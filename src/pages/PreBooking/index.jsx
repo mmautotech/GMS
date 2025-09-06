@@ -1,4 +1,3 @@
-// src/pages/PreBooking/PreBookingPage.jsx
 import React, { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import useBookings from "../../hooks/useBookings.js";
@@ -11,15 +10,12 @@ import Modal from "../../components/Modal.jsx";
 export default function PreBookingPage() {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
-  const [editingBooking, setEditingBooking] = useState(null); // null = create, object = update
-  const [loadingCarInId, setLoadingCarInId] = useState(null);
+  const [editingBooking, setEditingBooking] = useState(null);
 
   const {
     list: bookings,
     loadingList,
     saving,
-    error,
-    setError,
     create,
     update,
     updateStatus,
@@ -27,115 +23,98 @@ export default function PreBookingPage() {
     setPage,
     totalPages,
     totalItems,
+    refresh, // <-- refresh function from hook
   } = useBookings({ status: "pending", pageSize: 20 });
 
-  // --- Inline update handler from table ---
   const handleUpdate = useCallback(
     async (id, payload) => {
       const res = await update(id, payload);
-      if (!res.ok) toast.error(res.error || "Failed to update booking");
+      if (!res.ok) {
+        toast.error(res.error || "Failed to update booking");
+        return res;
+      }
+      // refresh bookings list after successful update
+      refresh();
       return res;
     },
-    [update]
+    [update, refresh]
   );
 
-  // --- Mark car as arrived ---
   const handleCarIn = useCallback(
     async (booking) => {
-      setLoadingCarInId(booking._id);
       const res = await updateStatus(booking._id, "arrived");
       if (res.ok) {
         toast.success("Car marked as arrived!");
+        refresh();
         navigate("/car-in");
       } else toast.error(res.error || "Failed to mark car as arrived");
-      setLoadingCarInId(null);
     },
-    [updateStatus, navigate]
+    [updateStatus, navigate, refresh]
   );
 
-  // --- Open create booking modal ---
   const handleAddBooking = () => {
-    setEditingBooking(null); // null = create
+    setEditingBooking(null);
     setShowModal(true);
   };
 
-  // --- Open edit booking modal ---
   const handleEditBooking = (booking) => {
-    setEditingBooking(booking); // pass booking to prefill form
+    setEditingBooking(booking);
     setShowModal(true);
   };
 
-  // --- Handle create or update submit ---
   const handleFormSubmit = useCallback(
     async ({ payload, reset, error: errMsg }) => {
       if (errMsg) return toast.error(errMsg);
 
       if (editingBooking) {
-        // Update existing booking
         const res = await update(editingBooking._id, payload);
         if (res.ok) {
           toast.success("Booking updated successfully!");
+          reset?.();
           setShowModal(false);
           setEditingBooking(null);
+          refresh(); // <-- refresh list
         } else toast.error(res.error || "Failed to update booking");
       } else {
-        // Create new booking
         const res = await create(payload);
         if (res.ok) {
           toast.success("Booking created successfully!");
           reset?.();
           setShowModal(false);
+          refresh(); // <-- refresh list
         } else toast.error(res.error || "Failed to create booking");
       }
     },
-    [create, update, editingBooking]
+    [create, update, editingBooking, refresh]
   );
 
   return (
-    <div className="p-4 relative">
-      <h1 className="text-3xl font-bold text-blue-900 mb-6">Pre-Booking</h1>
+    <div className="p-6 relative min-h-screen bg-gray-50">
+      <h1 className="text-3xl md:text-4xl font-bold text-blue-900 mb-6 drop-shadow-sm">
+        Pre-Booking
+      </h1>
 
       {loadingList ? (
-        <div className="bg-white rounded-lg shadow border border-blue-100 p-4 text-center text-gray-500 inline-flex items-center justify-center gap-2">
-          <InlineSpinner /> Loading bookings…
+        <div className="bg-white rounded-xl shadow-md border border-blue-100 p-6 flex items-center justify-center gap-3">
+          <InlineSpinner />
+          <span className="text-gray-500 text-lg">Loading bookings…</span>
         </div>
       ) : bookings.length === 0 ? (
-        <div className="p-6 bg-yellow-100 text-yellow-800 rounded">No pending bookings found.</div>
+        <div className="p-6 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-md shadow-sm">
+          No pending bookings found. Click <strong>+</strong> to add a new booking.
+        </div>
       ) : (
-        <>
-          <BookingsTable
-            bookings={bookings}
-            onUpdate={handleUpdate}
-            onEdit={handleEditBooking} // pass edit callback for row modal
-          />
-
-          {totalPages > 1 && (
-            <div className="mt-4 flex justify-center gap-2">
-              <button
-                disabled={page <= 1}
-                className="px-3 py-1 border rounded disabled:opacity-50"
-                onClick={() => setPage(page - 1)}
-              >
-                Previous
-              </button>
-              <span className="px-3 py-1 border rounded">
-                Page {page} of {totalPages} ({totalItems} bookings)
-              </span>
-              <button
-                disabled={page >= totalPages}
-                className="px-3 py-1 border rounded disabled:opacity-50"
-                onClick={() => setPage(page + 1)}
-              >
-                Next
-              </button>
-            </div>
-          )}
-        </>
+        <BookingsTable
+          bookings={bookings}
+          onUpdate={handleUpdate}
+          onCarIn={handleCarIn}
+          onEdit={handleEditBooking}
+        />
       )}
 
       <button
         onClick={handleAddBooking}
-        className="fixed bottom-6 right-6 bg-blue-600 hover:bg-blue-700 text-white w-14 h-14 rounded-full text-3xl font-bold flex items-center justify-center shadow-lg"
+        className="fixed bottom-6 right-6 bg-gradient-to-br from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white w-16 h-16 rounded-full text-4xl font-bold flex items-center justify-center shadow-xl transition-transform hover:scale-110"
         title="Add New Booking"
       >
         +
@@ -144,7 +123,7 @@ export default function PreBookingPage() {
       <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
         <BookingForm
           loading={saving}
-          booking={editingBooking} // prefill form if editing
+          initialData={editingBooking}
           onSubmit={handleFormSubmit}
           onCancel={() => setShowModal(false)}
         />

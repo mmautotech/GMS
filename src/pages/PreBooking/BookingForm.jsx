@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { parseNum, numberFmt, percentFmt } from "../../utils/fmt.js";
 import { getServices } from "../../lib/api/servicesApi.js";
 import Select from "react-select";
+import toast from "react-hot-toast";
 
 const EMPTY = {
   vehicleRegNo: "",
@@ -12,8 +13,8 @@ const EMPTY = {
   ownerPostalCode: "",
   ownerNumber: "",
   source: "",
-  services: [],
   scheduledDate: "",
+  prebookingServices: [],
   prebookingBookingPrice: "",
   prebookingLabourCost: "",
   prebookingPartsCost: "",
@@ -34,6 +35,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         );
       } catch (err) {
         console.error("Failed to fetch services:", err.message);
+        toast.error("Failed to fetch services.");
       }
     })();
   }, []);
@@ -52,14 +54,19 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         scheduledDate: initialData.scheduledDate
           ? new Date(initialData.scheduledDate).toISOString().slice(0, 10)
           : "",
-        prebookingBookingPrice: initialData.bookingPrice || "",
-        prebookingLabourCost: initialData.labourCost || "",
-        prebookingPartsCost: initialData.partsCost || "",
-        services: Array.isArray(initialData.services)
-          ? initialData.services.map((s) => ({
-              value: s._id || s.value || s,
-              label: s.label || s.name || s.serviceName || s,
-            }))
+        prebookingBookingPrice:
+          initialData.prebookingBookingPrice || initialData.bookingPrice || "",
+        prebookingLabourCost:
+          initialData.prebookingLabourCost || initialData.labourCost || "",
+        prebookingPartsCost:
+          initialData.prebookingPartsCost || initialData.partsCost || "",
+        prebookingServices: Array.isArray(
+          initialData.prebookingServices || initialData.services
+        )
+          ? (initialData.prebookingServices || initialData.services).map((s) => ({
+            value: s._id || s.value || s,
+            label: s.label || s.name || s.serviceName || s,
+          }))
           : [],
         remarks: initialData.remarks || "",
       });
@@ -74,7 +81,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
   }, []);
 
   const handleServicesChange = (selected) =>
-    setForm((f) => ({ ...f, services: selected || [] }));
+    setForm((f) => ({ ...f, prebookingServices: selected || [] }));
 
   // --- Profit calculation ---
   const { profit, profitPct } = useMemo(() => {
@@ -97,51 +104,62 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
       "ownerPostalCode",
       "ownerNumber",
       "source",
+      "prebookingServices",
+      "prebookingBookingPrice",
+      "prebookingLabourCost",
+      "prebookingPartsCost",
+      "remarks",
     ];
     const missing = required.filter((k) => !String(form[k]).trim());
     if (missing.length) return `Please fill: ${missing.join(", ")}`;
-    if (
-      form.ownerNumber &&
-      String(form.ownerNumber).replace(/\D/g, "").length < 7
-    )
+    if (form.ownerNumber && String(form.ownerNumber).replace(/\D/g, "").length < 7)
       return "Please enter a valid phone number.";
+    if (!form.prebookingServices.length) return "Please select at least one service.";
     return "";
   };
 
-  // --- Handle submit for both create and update ---
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
       const problem = validate();
-      if (problem) return onSubmit({ error: problem });
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
 
-      const selectedServices = form.services.map((s) => s.value);
+      const payload = {
+        vehicleRegNo: form.vehicleRegNo.trim(),
+        makeModel: form.makeModel.trim(),
+        ownerName: form.ownerName.trim(),
+        ownerAddress: form.ownerAddress.trim(),
+        ownerPostalCode: form.ownerPostalCode.trim(),
+        ownerNumber: String(form.ownerNumber).trim(),
+        source: String(form.source).trim(),
+        scheduledDate: form.scheduledDate
+          ? new Date(form.scheduledDate).toISOString()
+          : new Date().toISOString(),
+        prebookingBookingPrice: parseNum(form.prebookingBookingPrice),
+        prebookingLabourCost: parseNum(form.prebookingLabourCost),
+        prebookingPartsCost: parseNum(form.prebookingPartsCost),
+        prebookingServices: form.prebookingServices.map((s) => s.value),
+        remarks: form.remarks,
+      };
 
       onSubmit({
-        payload: {
-          vehicleRegNo: form.vehicleRegNo.trim(),
-          makeModel: form.makeModel.trim(),
-          ownerName: form.ownerName.trim(),
-          ownerAddress: form.ownerAddress.trim(),
-          ownerPostalCode: form.ownerPostalCode.trim(),
-          ownerNumber: String(form.ownerNumber).trim(),
-          source: String(form.source).trim(),
-          scheduledDate: form.scheduledDate
-            ? new Date(form.scheduledDate).toISOString()
-            : new Date().toISOString(),
-          bookingPrice: parseNum(form.prebookingBookingPrice),
-          labourCost: parseNum(form.prebookingLabourCost),
-          partsCost: parseNum(form.prebookingPartsCost),
-          services: selectedServices,
-          remarks: form.remarks,
+        payload,
+        reset: () => {
+          setForm(EMPTY);
+          toast.success("Booking saved successfully!");
         },
-        reset: () => setForm(EMPTY),
       });
     },
     [form, onSubmit]
   );
 
-  const handleReset = useCallback(() => setForm(initialData || EMPTY), [initialData]);
+  const handleReset = useCallback(() => {
+    setForm(initialData || EMPTY);
+    toast("Form reset", { icon: "🔄" });
+  }, [initialData]);
 
   const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -229,10 +247,11 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         <Select
           isMulti
           options={serviceOptions}
-          value={form.services}
+          value={form.prebookingServices}
           onChange={handleServicesChange}
           placeholder="Choose services..."
           className="text-sm"
+          required
         />
       </div>
 
@@ -253,6 +272,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         className="border border-gray-300 rounded p-2"
         min="0"
         step="0.01"
+        required
       />
       <input
         type="number"
@@ -263,6 +283,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         className="border border-gray-300 rounded p-2"
         min="0"
         step="0.01"
+        required
       />
       <input
         type="number"
@@ -273,6 +294,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         className="border border-gray-300 rounded p-2"
         min="0"
         step="0.01"
+        required
       />
 
       <input
@@ -301,6 +323,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         value={form.remarks}
         onChange={handleChange}
         className="border border-gray-300 rounded p-2 md:col-span-2"
+        required
       />
 
       <div className="md:col-span-2 flex gap-2">
