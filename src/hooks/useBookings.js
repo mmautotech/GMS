@@ -2,7 +2,14 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
-export default function useBookings({ status, initialPage = 1, pageSize = 20, sortBy = "createdAt", sortDir = "desc" } = {}) {
+export default function useBookings({
+    status,
+    initialPage = 1,
+    pageSize = 20,
+    sortBy = "createdAt",
+    sortDir = "desc",
+    search = "",
+} = {}) {
     const [items, setItems] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -17,9 +24,16 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
         setLoadingList(true);
         setError("");
         try {
-            const res = await BookingApi.getBookings({ status, page, limit: pageSize, sortBy, sortDir });
+            const res = await BookingApi.getBookings({
+                status,
+                page,
+                limit: pageSize,
+                sortBy,
+                sortDir,
+                search, // pass search term to backend
+            });
+
             if (res.ok) {
-                // normalize _id for all bookings
                 const normalizedItems = res.items.map(b => ({ ...b, _id: b._id || b.id }));
                 setItems(normalizedItems);
                 setTotalPages(res.totalPages);
@@ -32,7 +46,7 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
         } finally {
             setLoadingList(false);
         }
-    }, [status, page, pageSize, sortBy, sortDir]);
+    }, [status, page, pageSize, sortBy, sortDir, search]);
 
     useEffect(() => {
         fetchBookings();
@@ -77,7 +91,6 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
             }
         } catch (err) {
             const msg = err.message || "Failed to update booking";
-            setError(msg);
             return { ok: false, error: msg };
         } finally {
             setSaving(false);
@@ -85,23 +98,15 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
     };
 
     // --- Update booking status ---
-    const updateStatus = async (id, status) => {
+    const updateStatus = async (id, newStatus) => {
         setError("");
         setSaving(true);
         try {
-            if (!id || !status) throw new Error("Booking ID and status are required");
-
-            const res = await BookingApi.updateBookingStatus(id, status);
+            if (!id || !newStatus) throw new Error("Booking ID and status are required");
+            const res = await BookingApi.updateBookingStatus(id, newStatus);
             if (res.ok) {
                 const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
-
-                // Remove from list if status no longer matches filter
-                if (status !== status) { // redundant check, can skip
-                    setItems(prev => prev.filter(b => b._id !== id));
-                } else {
-                    setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
-                }
-
+                setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
                 return { ok: true, booking: updatedBooking };
             } else {
                 setError(res.error);
@@ -109,19 +114,18 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
             }
         } catch (err) {
             const msg = err.message || "Failed to update booking status";
-            setError(msg);
             return { ok: false, error: msg };
         } finally {
             setSaving(false);
         }
     };
 
-    // --- Refresh list ---
     const refresh = () => fetchBookings();
 
     return {
         items,
         list: useMemo(() => items, [items]),
+        setList: setItems, // <-- add this
         loadingList,
         saving,
         error,
@@ -137,4 +141,5 @@ export default function useBookings({ status, initialPage = 1, pageSize = 20, so
         update,
         updateStatus,
     };
+
 }

@@ -5,6 +5,7 @@ import Modal from "../../components/Modal.jsx";
 export default function BookingRow({ booking: initialBooking, index, onUpdate, onCarIn, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
   const [booking, setBooking] = useState(initialBooking);
 
   useEffect(() => {
@@ -20,7 +21,11 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
 
   const formatDate = (date) => {
     if (!date) return "—";
-    return new Date(date).toLocaleDateString();
+    return new Date(date).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric"
+    });
   };
 
   const profit = (booking.bookingPrice || 0) - ((booking.labourCost || 0) + (booking.partsCost || 0));
@@ -44,7 +49,7 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
         <td className="p-2 border">{formatValue(booking.ownerNumber)}</td>
         <td className="p-2 border">{formatValue(booking.ownerPostalCode)}</td>
         <td className="p-2 border">{booking.bookingPrice?.toLocaleString() || 0}</td>
-        <td className="p-2 border">{formatValue(booking.createdBy.username)}</td>
+        <td className="p-2 border">{formatValue(booking.createdBy?.username)}</td>
         <td className="p-2 flex gap-2 border">
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
@@ -60,7 +65,6 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
             ✏️ Edit
           </button>
         </td>
-
       </tr>
 
       {/* Expanded Row */}
@@ -68,12 +72,15 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
         <tr className="bg-gray-50">
           <td colSpan={9} className="p-3">
             <div className="bg-white rounded-lg shadow p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
 
                 {/* Client & Vehicle */}
                 <div className="p-4 rounded-md border border-gray-100">
                   <p className="text-gray-500 text-xs font-bold uppercase mb-1">👤 Client</p>
                   <p className="text-gray-900">{formatValue(booking.ownerName)}</p>
+
+                  <p className="text-gray-500 text-xs font-bold uppercase mt-3 mb-1">📧 Email</p>
+                  <p className="text-gray-800">{formatValue(booking.ownerEmail)}</p>
 
                   <p className="text-gray-500 text-xs font-bold uppercase mt-3 mb-1">🚗 Make & Model</p>
                   <p className="text-gray-900">{formatValue(booking.makeModel)}</p>
@@ -106,10 +113,41 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
                   <p className="text-gray-800">{formatValue(booking.source)}</p>
                 </div>
 
+                {/* Booking Confirmation Photo */}
+                <div className="p-4 rounded-md border border-green-100 flex flex-col items-center justify-start">
+                  {booking.bookingConfirmationPhoto ? (
+                    <>
+                      <p className="text-gray-500 text-xs font-bold uppercase mb-2">📷 Confirmation Photo</p>
+                      <img
+                        src={booking.bookingConfirmationPhoto}
+                        alt="Booking Confirmation"
+                        className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80"
+                        onClick={() => setShowPhoto(true)}
+                      />
+                    </>
+                  ) : (
+                    <p className="text-gray-500 text-xs">No Photo</p>
+                  )}
+                </div>
+
               </div>
             </div>
           </td>
         </tr>
+      )}
+
+      {/* Photo Popup (Lightbox) */}
+      {showPhoto && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+          onClick={() => setShowPhoto(false)}
+        >
+          <img
+            src={booking.bookingConfirmationPhoto}
+            alt="Full Booking Confirmation"
+            className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
+          />
+        </div>
       )}
 
       {/* Edit Modal */}

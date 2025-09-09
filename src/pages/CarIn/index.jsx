@@ -1,18 +1,23 @@
-import React, { useCallback, useState } from "react";
+// src/pages/CarIn/CarInPage.jsx
+import React, { useCallback, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+
 import useBookings from "../../hooks/useBookings.js";
 import BookingTable from "./bookingTable.jsx";
-import { toast } from "react-toastify";
 import BookingsContent from "./BookingsContent.jsx";
 import BookingDetailModal from "./BookingDetailModal.jsx";
 import UpsellModal from "./UpsellModal.jsx";
 
 export default function CarInPage() {
     const navigate = useNavigate();
+    const bookingDetailRef = useRef(null);
+
     const [loadingCarOutId, setLoadingCarOutId] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [activeModal, setActiveModal] = useState(null); // "booking" | "upsell" | null
 
+    // --- Bookings hook ---
     const {
         list: bookings,
         setList: setBookings,
@@ -57,20 +62,25 @@ export default function CarInPage() {
         setActiveModal("booking");
     };
 
-    // --- Switch to Upsell Modal from Booking Detail ---
+    // --- Open Upsell Modal ---
     const handleAddUpsell = () => {
         setActiveModal("upsell");
     };
 
     // --- After Upsell Saved ---
-    const handleUpsellClose = () => {
-        setActiveModal("booking"); // reopen BookingDetailModal
+    const handleUpsellClose = async () => {
+        // Reopen BookingDetailModal and refresh upsells
+        setActiveModal("booking");
+        if (bookingDetailRef.current?.refreshUpsells) {
+            bookingDetailRef.current.refreshUpsells();
+        }
     };
 
     return (
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4 text-blue-900">Arrived Cars</h1>
 
+            {/* Bookings Table */}
             <BookingsContent
                 loading={loadingList}
                 error={error}
@@ -80,6 +90,7 @@ export default function CarInPage() {
                     bookings,
                     onCarOut: handleCarOut,
                     onSelectBooking: handleSelectBooking,
+                    onAddUpsell: handleAddUpsell,
                     loadingCarOutId,
                 }}
                 emptyMessage="No arrived bookings found."
@@ -88,6 +99,7 @@ export default function CarInPage() {
             {/* Booking Detail Modal */}
             {activeModal === "booking" && selectedBooking && (
                 <BookingDetailModal
+                    ref={bookingDetailRef}
                     booking={selectedBooking}
                     isOpen={true}
                     onClose={() => setActiveModal(null)}
