@@ -2,13 +2,17 @@ import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { toast } from "react-toastify";
 
+// Simple deep comparison
+const deepEqual = (obj1, obj2) => JSON.stringify(obj1) === JSON.stringify(obj2);
+
 export default function InvoiceModal({ bookingId, isOpen, onClose }) {
     const [invoiceData, setInvoiceData] = useState(null);
-    const [originalData, setOriginalData] = useState(null); // store backend copy
+    const [originalData, setOriginalData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+    const [isDirty, setIsDirty] = useState(false);
 
-    // ✅ Fetch invoice on modal open
     useEffect(() => {
         if (!isOpen || !bookingId) return;
 
@@ -19,7 +23,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
 
                 if (data?._id) {
                     setInvoiceData(data);
-                    setOriginalData(data); // snapshot of backend
+                    setOriginalData(data);
                 } else {
                     toast.info("No invoice found for this booking");
                     setInvoiceData(null);
@@ -38,19 +42,23 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         fetchInvoice();
     }, [isOpen, bookingId]);
 
-    if (!isOpen) return null;
+    // 🔁 Update isDirty when invoiceData changes
+    useEffect(() => {
+        if (invoiceData && originalData) {
+            setIsDirty(!deepEqual(invoiceData, originalData));
+        }
+    }, [invoiceData, originalData]);
 
-    // ✅ Utility: check if changes are made
-    const isDirty = JSON.stringify(invoiceData) !== JSON.stringify(originalData);
-
-    // ✅ Handlers
     const handleFieldChange = (field, value) => {
         setInvoiceData(prev => ({ ...prev, [field]: value }));
     };
 
     const handleItemChange = (index, field, value) => {
         const updatedItems = [...(invoiceData.items || [])];
-        updatedItems[index][field] = field === "amount" ? Number(value) : value;
+        updatedItems[index] = {
+            ...updatedItems[index],
+            [field]: field === "amount" ? Number(value) : value,
+        };
         setInvoiceData(prev => ({ ...prev, items: updatedItems }));
     };
 
@@ -76,7 +84,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         }
     };
 
-    const handleSave = async () => {
+    const confirmSave = async () => {
         if (!invoiceData?._id) {
             toast.error("Invoice ID missing, cannot update.");
             return;
@@ -94,9 +102,10 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
 
             const updated = await InvoiceApi.updateInvoice(invoiceData._id, payload);
             setInvoiceData(updated);
-            setOriginalData(updated); // update snapshot after saving
+            setOriginalData(updated);
 
             toast.success("Invoice updated successfully");
+            setShowConfirm(false);
         } catch (err) {
             toast.error(err.message || "Failed to update invoice");
         } finally {
@@ -120,9 +129,11 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         }
     };
 
+    if (!isOpen) return null;
+
     return (
         <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-            <div className="bg-white rounded-lg shadow-lg w-3/4 max-w-3xl p-6">
+            <div className="bg-white rounded-lg shadow-lg w-3/4 max-w-3xl p-6 relative">
                 <h2 className="text-2xl font-bold mb-6 text-center">
                     Invoice {invoiceData?.invoiceNo || ""}
                 </h2>
@@ -131,7 +142,6 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                     <p className="text-center py-4">Loading invoice...</p>
                 ) : invoiceData ? (
                     <>
-                        {/* Editable Info */}
                         <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
                             <div>
                                 <p>
@@ -155,20 +165,12 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                 </label>
                             </div>
                             <div>
-                                <p>
-                                    <strong>Customer:</strong> {invoiceData.customerName}
-                                </p>
-                                <p>
-                                    <strong>Contact:</strong> {invoiceData.contactNo}
-                                </p>
-                                <p>
-                                    <strong>Vehicle:</strong> {invoiceData.vehicleRegNo} (
-                                    {invoiceData.makeModel})
-                                </p>
+                                <p><strong>Customer:</strong> {invoiceData.customerName}</p>
+                                <p><strong>Contact:</strong> {invoiceData.contactNo}</p>
+                                <p><strong>Vehicle:</strong> {invoiceData.vehicleRegNo} ({invoiceData.makeModel})</p>
                             </div>
                         </div>
 
-                        {/* Add Item Button */}
                         <button
                             type="button"
                             className="px-2 py-1 bg-green-600 text-white rounded text-sm mb-2"
@@ -177,7 +179,6 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             Add Item
                         </button>
 
-                        {/* Editable Items */}
                         <table className="w-full mb-6 border text-sm">
                             <thead>
                                 <tr className="bg-gray-100">
@@ -213,7 +214,6 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             </tbody>
                         </table>
 
-                        {/* Totals */}
                         <div className="flex justify-end text-sm">
                             <div className="w-1/3">
                                 <div className="flex justify-between py-1">
@@ -260,7 +260,6 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                     </p>
                 )}
 
-                {/* Actions */}
                 <div className="flex justify-end mt-6 gap-2">
                     <button
                         className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded"
@@ -278,7 +277,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                     <button
                         disabled={saving || !invoiceData?._id || !isDirty}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
-                        onClick={handleSave}
+                        onClick={() => setShowConfirm(true)}
                     >
                         {saving ? "Saving..." : "Save Changes"}
                     </button>
@@ -290,6 +289,30 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                         Download PDF
                     </button>
                 </div>
+
+                {showConfirm && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                        <div className="bg-white p-6 rounded shadow-lg max-w-sm">
+                            <p className="mb-4 text-center">
+                                Are you sure you want to save changes to this invoice?
+                            </p>
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    className="px-4 py-2 bg-gray-500 text-white rounded"
+                                    onClick={() => setShowConfirm(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="px-4 py-2 bg-blue-600 text-white rounded"
+                                    onClick={confirmSave}
+                                >
+                                    Confirm Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
