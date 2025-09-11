@@ -43,4 +43,31 @@ export const InvoiceApi = {
             );
         }
     },
+
+    // ✅ Download invoice as PDF
+    downloadInvoicePdf: async (id, filename = "invoice.pdf") => {
+        try {
+            const res = await axios.get(`/invoices/${id}/pdf`, {
+                responseType: "blob", // important for binary data
+            });
+
+            // Create blob and trigger download
+            const blob = new Blob([res.data], { type: "application/pdf" });
+            const url = window.URL.createObjectURL(blob);
+
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", filename);
+            document.body.appendChild(link);
+            link.click();
+
+            // Cleanup
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            throw new Error(
+                err?.response?.data?.error || err.message || "Failed to download invoice PDF"
+            );
+        }
+    },
 };

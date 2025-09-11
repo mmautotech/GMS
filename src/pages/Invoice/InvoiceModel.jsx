@@ -1,10 +1,10 @@
-// src/components/InvoiceModal.jsx
 import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { toast } from "react-toastify";
 
 export default function InvoiceModal({ bookingId, isOpen, onClose }) {
     const [invoiceData, setInvoiceData] = useState(null);
+    const [originalData, setOriginalData] = useState(null); // store backend copy
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -19,14 +19,17 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
 
                 if (data?._id) {
                     setInvoiceData(data);
+                    setOriginalData(data); // snapshot of backend
                 } else {
                     toast.info("No invoice found for this booking");
                     setInvoiceData(null);
+                    setOriginalData(null);
                 }
             } catch (err) {
                 console.error("Failed to fetch invoice", err);
                 toast.error("Failed to fetch invoice");
                 setInvoiceData(null);
+                setOriginalData(null);
             } finally {
                 setLoading(false);
             }
@@ -36,6 +39,9 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
     }, [isOpen, bookingId]);
 
     if (!isOpen) return null;
+
+    // ✅ Utility: check if changes are made
+    const isDirty = JSON.stringify(invoiceData) !== JSON.stringify(originalData);
 
     // ✅ Handlers
     const handleFieldChange = (field, value) => {
@@ -63,6 +69,13 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         return subtotal - Number(invoiceData.discountAmount || 0);
     };
 
+    const handleReset = () => {
+        if (originalData) {
+            setInvoiceData(originalData);
+            toast.info("Changes reset to last saved state");
+        }
+    };
+
     const handleSave = async () => {
         if (!invoiceData?._id) {
             toast.error("Invoice ID missing, cannot update.");
@@ -81,13 +94,29 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
 
             const updated = await InvoiceApi.updateInvoice(invoiceData._id, payload);
             setInvoiceData(updated);
+            setOriginalData(updated); // update snapshot after saving
 
             toast.success("Invoice updated successfully");
-            onClose();
         } catch (err) {
             toast.error(err.message || "Failed to update invoice");
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleDownload = async () => {
+        if (!invoiceData?._id) {
+            toast.error("Invoice ID missing, cannot download.");
+            return;
+        }
+        try {
+            await InvoiceApi.downloadInvoicePdf(
+                invoiceData._id,
+                `${invoiceData.invoiceNo || "invoice"}.pdf`
+            );
+            toast.success("Invoice PDF downloaded");
+        } catch (err) {
+            toast.error(err.message || "Failed to download invoice PDF");
         }
     };
 
@@ -240,11 +269,25 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                         Close
                     </button>
                     <button
-                        disabled={saving || !invoiceData?._id}
+                        disabled={!isDirty}
+                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
+                        onClick={handleReset}
+                    >
+                        Reset Changes
+                    </button>
+                    <button
+                        disabled={saving || !invoiceData?._id || !isDirty}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
                         onClick={handleSave}
                     >
                         {saving ? "Saving..." : "Save Changes"}
+                    </button>
+                    <button
+                        disabled={isDirty || !invoiceData?._id}
+                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
+                        onClick={handleDownload}
+                    >
+                        Download PDF
                     </button>
                 </div>
             </div>
