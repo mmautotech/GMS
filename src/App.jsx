@@ -11,6 +11,7 @@ import CarIn from "./pages/CarIn/index.jsx";
 import Login from "./pages/Login.jsx";
 import Settings from "./pages/Settings/index.jsx";
 import Entities from "./pages/Entities/index.jsx";
+import Invoices from "./pages/Invoice/invoice.jsx"; // ✅ Import Invoices page
 
 // ✅ Import AuthApi only
 import { AuthApi } from "./lib/api/authApi.js";
@@ -18,18 +19,17 @@ import { AuthApi } from "./lib/api/authApi.js";
 export default function App() {
   const [user, setUser] = useState(null);
 
-  // ✅ Restore session on page load
+  // Restore session on page load
   useEffect(() => {
     const saved = localStorage.getItem("gms_user");
     if (saved) setUser(JSON.parse(saved));
   }, []);
 
-  // ✅ Login handler (calls backend + saves session)
+  // Login handler
   const handleLogin = useCallback(async (username, password) => {
     try {
       const { token, user } = await AuthApi.login(username, password);
 
-      // store token in axios + localStorage
       AuthApi.setToken(token);
       localStorage.setItem("gms_user", JSON.stringify(user));
 
@@ -40,7 +40,7 @@ export default function App() {
     }
   }, []);
 
-  // ✅ Logout handler (clears everything)
+  // Logout handler
   const handleLogout = useCallback(() => {
     AuthApi.clearToken();
     localStorage.removeItem("gms_user");
@@ -67,6 +67,7 @@ export default function App() {
             <Route path="/car-in" element={<CarIn />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/entities" element={<Entities />} />
+            <Route path="/invoice" element={<Invoices />} /> {/* ✅ Add Invoices route */}
           </Route>
         </Route>
 
@@ -77,7 +78,7 @@ export default function App() {
         />
       </Routes>
 
-      {/* ✅ Toast container (v9+) */}
+      {/* Toast container */}
       <ToastContainer
         position="top-right"
         autoClose={3000}

@@ -3,7 +3,7 @@ import axios from "axios";
 
 // ✅ Resolve API URL from Vite env (fallback to localhost)
 const API_URL =
-    import.meta.env?.VITE_API_URL || "http://localhost:5000/api";
+    import.meta.env?.VITE_API_URL || "http://192.168.18.89:5000/api";
 
 // ✅ Create Axios instance
 const axiosInstance = axios.create({

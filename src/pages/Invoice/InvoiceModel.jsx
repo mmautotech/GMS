@@ -1,3 +1,4 @@
+// src/components/InvoiceModal.jsx
 import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { toast } from "react-toastify";
@@ -42,7 +43,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         fetchInvoice();
     }, [isOpen, bookingId]);
 
-    // 🔁 Update isDirty when invoiceData changes
+    // Update isDirty when invoiceData changes
     useEffect(() => {
         if (invoiceData && originalData) {
             setIsDirty(!deepEqual(invoiceData, originalData));
@@ -69,12 +70,19 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         }));
     };
 
+    const calculateSubtotal = () =>
+        (invoiceData.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    const calculateDiscount = () => Number(invoiceData.discountAmount || 0);
+
+    const calculateVAT = () => {
+        const subtotalAfterDiscount = calculateSubtotal() - calculateDiscount();
+        return invoiceData.vatIncluded ? subtotalAfterDiscount * 0.2 : 0;
+    };
+
     const calculateTotal = () => {
-        const subtotal = (invoiceData.items || []).reduce(
-            (sum, item) => sum + Number(item.amount || 0),
-            0
-        );
-        return subtotal - Number(invoiceData.discountAmount || 0);
+        const subtotalAfterDiscount = calculateSubtotal() - calculateDiscount();
+        return subtotalAfterDiscount + calculateVAT();
     };
 
     const handleReset = () => {
@@ -218,13 +226,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             <div className="w-1/3">
                                 <div className="flex justify-between py-1">
                                     <span>Subtotal:</span>
-                                    <span>
-                                        £
-                                        {(invoiceData.items || []).reduce(
-                                            (sum, item) => sum + Number(item.amount || 0),
-                                            0
-                                        )}
-                                    </span>
+                                    <span>£{calculateSubtotal().toFixed(2)}</span>
                                 </div>
                                 <div className="flex justify-between py-1">
                                     <span>Discount:</span>
@@ -237,9 +239,13 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                         }
                                     />
                                 </div>
+                                <div className="flex justify-between py-1">
+                                    <span>VAT (20%):</span>
+                                    <span>£{calculateVAT().toFixed(2)}</span>
+                                </div>
                                 <div className="flex justify-between py-1 font-bold border-t mt-2 pt-2">
                                     <span>Total:</span>
-                                    <span>£{calculateTotal()}</span>
+                                    <span>£{calculateTotal().toFixed(2)}</span>
                                 </div>
                                 <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
                                     <input

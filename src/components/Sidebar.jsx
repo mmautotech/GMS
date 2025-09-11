@@ -35,11 +35,15 @@ export default function Sidebar({ onClose, onLogout, username }) {
             <NavLink to="/car-in" className={itemClass}>CarIn</NavLink>
           </li>
           <li>
+            <NavLink to="/invoice" className={itemClass}>Invoices</NavLink>
+          </li>
+          <li>
             <NavLink to="/settings" className={itemClass}>Settings</NavLink>
           </li>
           <li>
             <NavLink to="/entities" className={itemClass}>Entities</NavLink>
           </li>
+
         </ul>
       </nav>
 

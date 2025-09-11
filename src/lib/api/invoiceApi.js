@@ -70,4 +70,15 @@ export const InvoiceApi = {
             );
         }
     },
+
+    // ✅ Get all invoices
+    getAllInvoices: async () => {
+        try {
+            const res = await axios.get("/invoices"); // Use relative URL
+            return res.data; // Adjust if API wraps data in { data: [...] }
+        } catch (err) {
+            console.error("Failed to fetch all invoices:", err);
+            return [];
+        }
+    },
 };
