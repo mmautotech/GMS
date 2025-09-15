@@ -1,31 +1,66 @@
 // src/pages/Dashboard/index.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import BookingsTable from "./bookingsTable.jsx";
 import StatCard from "./statCard.jsx";
+import { Line, Bar } from "react-chartjs-2";
+import {
+    Chart as ChartJS,
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    Title,
+    Tooltip,
+    Legend,
+} from "chart.js";
+import { getDashboardCharts } from "../../lib/api/statsApi.js";
+
+ChartJS.register(
+    CategoryScale,
+    LinearScale,
+    PointElement,
+    LineElement,
+    BarElement,
+    Title,
+    Tooltip,
+    Legend
+);
 
 export default function Dashboard({ user }) {
-    const {
-        list: bookings,
-        loadingList,
-        error,
-        page,
-        setPage,
-        totalPages,
-        totalItems,
-        pageSize,
-    } = useBookings({ pageSize: 20 });
+    const { list: bookings, loadingList, error, page, setPage, totalPages, totalItems } =
+        useBookings({ pageSize: 20 });
 
     // --- Filters ---
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [date, setDate] = useState("");
 
-    // Filter bookings
+    // --- Chart data ---
+    const [monthlyRevenue, setMonthlyRevenue] = useState(Array(12).fill(0));
+    const [serviceTrends, setServiceTrends] = useState([]);
+    const [loadingCharts, setLoadingCharts] = useState(true);
+
+    useEffect(() => {
+        const fetchCharts = async () => {
+            try {
+                const data = await getDashboardCharts();
+                setMonthlyRevenue(data.monthlyRevenue || Array(12).fill(0));
+                setServiceTrends(data.serviceTrends || []);
+            } catch (err) {
+                console.error("Failed to fetch dashboard charts:", err);
+            } finally {
+                setLoadingCharts(false);
+            }
+        };
+        fetchCharts();
+    }, []);
+
+    // --- Filter bookings ---
     const filteredBookings = useMemo(() => {
         return bookings.filter((b) => {
             const searchLower = search.toLowerCase();
-
             const matchesSearch =
                 !search ||
                 b.ownerName?.toLowerCase().includes(searchLower) ||
@@ -34,10 +69,8 @@ export default function Dashboard({ user }) {
                 b.makeModel?.toLowerCase().includes(searchLower) ||
                 b.ownerPostalCode?.toLowerCase().includes(searchLower);
 
-            const matchesStatus =
-                !status || b.status?.toLowerCase() === status.toLowerCase();
+            const matchesStatus = !status || b.status?.toLowerCase() === status.toLowerCase();
 
-            // Use scheduledDate and compare only YYYY-MM-DD
             let matchesDate = true;
             if (date) {
                 const bookingDateStr = b.scheduledDate
@@ -50,11 +83,11 @@ export default function Dashboard({ user }) {
         });
     }, [bookings, search, status, date]);
 
-    // Compute stats
+    // --- Compute stats ---
     const stats = useMemo(() => {
         return filteredBookings.reduce(
             (acc, b) => {
-                const s = b.status?.toLowerCase() || "unknown";
+                const s = b.status?.toLowerCase() || "other";
                 switch (s) {
                     case "completed":
                         acc.completed += 1;
@@ -75,18 +108,55 @@ export default function Dashboard({ user }) {
         );
     }, [filteredBookings]);
 
+    // --- Chart datasets ---
+    const monthlyRevenueData = {
+        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        datasets: [
+            {
+                label: "Revenue",
+                data: monthlyRevenue,
+                borderColor: "blue",
+                backgroundColor: "rgba(0,0,255,0.1)",
+                tension: 0.3,
+            },
+        ],
+    };
+
+    const serviceTrendsData = {
+        labels: serviceTrends.map((s) => s._id),
+        datasets: [
+            {
+                label: "Services",
+                data: serviceTrends.map((s) => s.count),
+                backgroundColor: "blue",
+            },
+        ],
+    };
+
     return (
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4 text-blue-900">
                 Welcome Back{user?.username ? `, ${user.username}` : "!"}
             </h1>
 
-            {/* Stats */}
+            {/* StatCards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                 <StatCard title="Total Bookings" value={stats.total} />
                 <StatCard title="Completed" value={stats.completed} />
                 <StatCard title="Pending" value={stats.pending} />
                 <StatCard title="Arrived" value={stats.arrived} />
+            </div>
+
+            {/* Charts */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="border p-4 rounded">
+                    <h2 className="font-semibold mb-2">Monthly Revenue</h2>
+                    {loadingCharts ? <p>Loading...</p> : <Line data={monthlyRevenueData} />}
+                </div>
+                <div className="border p-4 rounded">
+                    <h2 className="font-semibold mb-2">Service Trends</h2>
+                    {loadingCharts ? <p>Loading...</p> : <Bar data={serviceTrendsData} />}
+                </div>
             </div>
 
             {/* Filters */}
@@ -126,12 +196,8 @@ export default function Dashboard({ user }) {
                 </button>
             </div>
 
-            {/* Bookings */}
-            <BookingsTable
-                bookings={filteredBookings}
-                loading={loadingList}
-                error={error}
-            />
+            {/* Bookings Table */}
+            <BookingsTable bookings={filteredBookings} loading={loadingList} error={error} />
 
             {/* Pagination */}
             {totalPages > 1 && (

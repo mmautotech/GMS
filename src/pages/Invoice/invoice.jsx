@@ -147,6 +147,7 @@ export default function Invoices() {
                                 <th className="py-2 px-4 text-left">Vehicle Reg No</th>
                                 <th className="py-2 px-4 text-left">Post code</th>
                                 <th className="py-2 px-4 text-left">Amount</th>
+                                <th className="py-2 px-4 text-left">Status</th> {/* NEW */}
                                 <th className="py-2 px-4 text-left">Actions</th>
                             </tr>
                         </thead>
@@ -158,8 +159,18 @@ export default function Invoices() {
                                     <td className="py-2 px-4">{invoice.contactNo}</td>
                                     <td className="py-2 px-4">{invoice.vehicleRegNo}</td>
                                     <td className="py-2 px-4">{invoice.postalCode}</td>
+                                    <td className="py-2 px-4">£{invoice.totalAmount?.toFixed(2) || "0.00"}</td>
                                     <td className="py-2 px-4">
-                                        £{invoice.totalAmount?.toFixed(2) || "0.00"}
+                                        <span
+                                            className={`px-2 py-1 rounded-full text-white ${invoice.status === "Paid"
+                                                    ? "bg-green-600"
+                                                    : invoice.status === "Unpaid"
+                                                        ? "bg-red-600"
+                                                        : "bg-gray-500"
+                                                }`}
+                                        >
+                                            {invoice.status}
+                                        </span>
                                     </td>
                                     <td className="py-2 px-4">
                                         <button
@@ -174,6 +185,7 @@ export default function Invoices() {
                                 </tr>
                             ))}
                         </tbody>
+
                     </table>
                 </div>
             )}
