@@ -69,8 +69,8 @@ export default function Sidebar({ onClose, onLogout, username }) {
             </NavLink>
           </li>
           <li>
-            <NavLink to="/services" className={itemClass}>
-              <Settings size={18} /> Services
+            <NavLink to="/entities" className={itemClass}>
+              <Settings size={18} /> Entities
             </NavLink>
           </li>
           <li>
