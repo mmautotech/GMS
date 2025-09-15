@@ -11,7 +11,10 @@ import CarIn from "./pages/CarIn/index.jsx";
 import Login from "./pages/Login.jsx";
 import Settings from "./pages/Settings/index.jsx";
 import Entities from "./pages/Entities/index.jsx";
-import Invoices from "./pages/Invoice/invoice.jsx"; // ✅ Import Invoices page
+import Invoices from "./pages/Invoice/invoice.jsx";
+import { PartsInventory } from "./pages/PartsInventory/parts-inventory.jsx";
+import { Suppliers } from "./pages/Suppliers/supplier.jsx";
+
 
 // ✅ Import AuthApi only
 import { AuthApi } from "./lib/api/authApi.js";
@@ -67,7 +70,9 @@ export default function App() {
             <Route path="/car-in" element={<CarIn />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/entities" element={<Entities />} />
-            <Route path="/invoice" element={<Invoices />} /> {/* ✅ Add Invoices route */}
+            <Route path="/invoice" element={<Invoices />} />
+            <Route path="/parts-inventory" element={<PartsInventory />} />
+            <Route path="/suppliers" element={<Suppliers />} />
           </Route>
         </Route>
 

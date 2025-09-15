@@ -351,7 +351,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
           value={form.remarks}
           onChange={handleChange}
           className="border border-gray-300 rounded p-2 md:col-span-2"
-          required
+
         />
 
         {/* File Upload */}
