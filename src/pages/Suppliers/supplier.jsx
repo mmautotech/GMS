@@ -1,10 +1,11 @@
+// src/pages/Suppliers/index.jsx
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Badge } from "../../ui/badge";
-import { Users, Plus, Edit, Trash2, DollarSign } from "lucide-react";
+import { Users, Plus, Edit, Trash2, RotateCcw } from "lucide-react";
 import {
     Table,
     TableBody,
@@ -14,13 +15,21 @@ import {
     TableRow,
 } from "../../ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialog";
-import * as supplierAPI from "../../lib/api/suppliersApi";
+import {
+    getSuppliers,
+    createSupplier,
+    updateSupplier,
+    deleteSupplier,
+    restoreSupplier,
+} from "../../lib/api/suppliersApi";
+import { toast } from "react-toastify";
 
 export function Suppliers() {
     const [suppliersList, setSuppliersList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState(null);
+    const [filter, setFilter] = useState("all"); // all | active | inactive
     const [formData, setFormData] = useState({
         name: "",
         contact: "",
@@ -29,7 +38,7 @@ export function Suppliers() {
         bankAccount: "",
     });
 
-    // Fetch suppliers
+    // Fetch suppliers (include inactive)
     useEffect(() => {
         fetchSuppliers();
     }, []);
@@ -37,17 +46,20 @@ export function Suppliers() {
     const fetchSuppliers = async () => {
         setLoading(true);
         try {
-            const data = await supplierAPI.getSuppliers();
-            setSuppliersList(data);
+            const data = await getSuppliers({ includeInactive: true });
+            setSuppliersList(data.suppliers || data);
         } catch (err) {
             console.error(err);
+            toast.error("Failed to load suppliers");
             setSuppliersList([]);
         } finally {
             setLoading(false);
         }
     };
 
-    // Open dialog for adding or editing
+    const getActiveSuppliers = () => suppliersList.filter((s) => s.isActive).length;
+    const getInactiveSuppliers = () => suppliersList.filter((s) => !s.isActive).length;
+
     const openDialog = (supplier = null) => {
         setEditingSupplier(supplier);
         setFormData(
@@ -62,26 +74,22 @@ export function Suppliers() {
         setIsDialogOpen(true);
     };
 
-    // Handle form input changes
     const handleChange = (e) => {
         const { id, value } = e.target;
         setFormData((prev) => ({ ...prev, [id]: value }));
     };
 
-    // Save supplier (create or update)
     const handleSaveSupplier = async () => {
         try {
             if (editingSupplier) {
-                const updated = await supplierAPI.updateSupplier(editingSupplier._id, formData);
-                setSuppliersList(
-                    suppliersList.map((s) => (s._id === updated._id ? updated : s))
-                );
+                await updateSupplier(editingSupplier._id, formData);
+                toast.success("Supplier updated");
             } else {
-                const added = await supplierAPI.createSupplier(formData);
-                setSuppliersList([...suppliersList, added]);
+                await createSupplier(formData);
+                toast.success("Supplier created");
             }
             setIsDialogOpen(false);
-            // Reset form
+            setEditingSupplier(null);
             setFormData({
                 name: "",
                 contact: "",
@@ -89,29 +97,41 @@ export function Suppliers() {
                 address: "",
                 bankAccount: "",
             });
-            setEditingSupplier(null);
+            fetchSuppliers();
         } catch (err) {
             console.error(err);
+            toast.error("Failed to save supplier");
         }
     };
 
-    // Delete supplier
     const handleDeleteSupplier = async (_id) => {
         if (!confirm("Are you sure you want to delete this supplier?")) return;
         try {
-            await supplierAPI.deleteSupplier(_id);
-            setSuppliersList(suppliersList.filter((s) => s._id !== _id));
+            await deleteSupplier(_id);
+            toast.success("Supplier deleted");
+            fetchSuppliers();
         } catch (err) {
             console.error(err);
+            toast.error("Failed to delete supplier");
         }
     };
 
-    const getTotalOutstanding = () =>
-        suppliersList
-            .filter((s) => s.isActive)
-            .reduce((sum, s) => sum + (s.outstandingBalance || 0), 0);
+    const handleRestoreSupplier = async (_id) => {
+        try {
+            await restoreSupplier(_id);
+            toast.success("Supplier restored");
+            fetchSuppliers();
+        } catch (err) {
+            console.error(err);
+            toast.error("Failed to restore supplier");
+        }
+    };
 
-    const getActiveSuppliers = () => suppliersList.filter((s) => s.isActive).length;
+    const filteredSuppliers = suppliersList.filter((s) => {
+        if (filter === "active") return s.isActive;
+        if (filter === "inactive") return !s.isActive;
+        return true;
+    });
 
     if (loading) return <p>Loading suppliers...</p>;
 
@@ -161,17 +181,37 @@ export function Suppliers() {
                     <CardContent className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm text-gray-600">Outstanding Balance</p>
-                                <p className="text-2xl font-bold">
-                                    ${getTotalOutstanding().toFixed(2)}
-                                </p>
+                                <p className="text-sm text-gray-600">Inactive Suppliers</p>
+                                <p className="text-2xl font-bold">{getInactiveSuppliers()}</p>
                             </div>
-                            <div className="p-3 rounded-lg bg-yellow-50">
-                                <DollarSign className="h-6 w-6 text-yellow-600" />
+                            <div className="p-3 rounded-lg bg-red-50">
+                                <Users className="h-6 w-6 text-red-600" />
                             </div>
                         </div>
                     </CardContent>
                 </Card>
+            </div>
+
+            {/* Filter Buttons */}
+            <div className="flex gap-2">
+                <Button
+                    variant={filter === "all" ? "default" : "outline"}
+                    onClick={() => setFilter("all")}
+                >
+                    All
+                </Button>
+                <Button
+                    variant={filter === "active" ? "default" : "outline"}
+                    onClick={() => setFilter("active")}
+                >
+                    Active
+                </Button>
+                <Button
+                    variant={filter === "inactive" ? "default" : "outline"}
+                    onClick={() => setFilter("inactive")}
+                >
+                    Inactive
+                </Button>
             </div>
 
             {/* Supplier Table */}
@@ -182,7 +222,7 @@ export function Suppliers() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {suppliersList.length === 0 ? (
+                    {filteredSuppliers.length === 0 ? (
                         <p className="text-gray-500">No suppliers found.</p>
                     ) : (
                         <Table>
@@ -193,13 +233,12 @@ export function Suppliers() {
                                     <TableHead>Email</TableHead>
                                     <TableHead>Address</TableHead>
                                     <TableHead>Bank Account</TableHead>
-                                    <TableHead>Outstanding</TableHead>
                                     <TableHead>Status</TableHead>
                                     <TableHead>Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {suppliersList.map((supplier) => (
+                                {filteredSuppliers.map((supplier) => (
                                     <TableRow
                                         key={supplier._id}
                                         className={!supplier.isActive ? "opacity-60" : ""}
@@ -209,16 +248,6 @@ export function Suppliers() {
                                         <TableCell>{supplier.email}</TableCell>
                                         <TableCell>{supplier.address}</TableCell>
                                         <TableCell>{supplier.bankAccount || "-"}</TableCell>
-                                        <TableCell>
-                                            <span
-                                                className={`font-medium ${supplier.outstandingBalance > 0
-                                                    ? "text-red-600"
-                                                    : "text-green-600"
-                                                    }`}
-                                            >
-                                                ${supplier.outstandingBalance?.toFixed(2) || "0.00"}
-                                            </span>
-                                        </TableCell>
                                         <TableCell>
                                             <Badge
                                                 className={
@@ -239,14 +268,25 @@ export function Suppliers() {
                                                 >
                                                     <Edit className="h-4 w-4" />
                                                 </Button>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="text-red-600"
-                                                    onClick={() => handleDeleteSupplier(supplier._id)}
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </Button>
+                                                {supplier.isActive ? (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-red-600"
+                                                        onClick={() => handleDeleteSupplier(supplier._id)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                ) : (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="text-green-600"
+                                                        onClick={() => handleRestoreSupplier(supplier._id)}
+                                                    >
+                                                        <RotateCcw className="h-4 w-4" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         </TableCell>
                                     </TableRow>

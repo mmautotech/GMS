@@ -28,9 +28,16 @@ export async function updateSupplier(id, payload) {
     return data;
 }
 
-// ✅ Delete a supplier
+// ✅ Soft delete a supplier
 export async function deleteSupplier(id) {
     if (!id) throw new Error("❌ deleteSupplier: ID is required");
     const { data } = await axiosInstance.delete(`/suppliers/${id}`);
+    return data;
+}
+
+// ✅ Restore a soft-deleted supplier
+export async function restoreSupplier(id) {
+    if (!id) throw new Error("❌ restoreSupplier: ID is required");
+    const { data } = await axiosInstance.patch(`/suppliers/${id}/restore`);
     return data;
 }
