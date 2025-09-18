@@ -2,13 +2,13 @@
 import axios from "./axiosInstance.js";
 
 export const InvoiceApi = {
+    // Get invoice by booking ID (adjusted for /booking/:bookingId)
     getInvoiceByBookingId: async (bookingId) => {
         try {
-            const res = await axios.get(`/invoices/${bookingId}`);
+            const res = await axios.get(`/invoices/booking/${bookingId}`);
             const data = res.data;
 
-            if (data?.id || data?._id) {
-                // normalize id
+            if (data?._id || data?.id) {
                 return {
                     ...data,
                     _id: data._id || data.id,
@@ -17,7 +17,6 @@ export const InvoiceApi = {
                     vatIncluded: data.vatIncluded || false,
                 };
             }
-
             return null;
         } catch (err) {
             console.error("Invoice API error:", err);
@@ -29,7 +28,6 @@ export const InvoiceApi = {
         try {
             const res = await axios.put(`/invoices/${id}`, payload);
             const data = res.data;
-
             return {
                 ...data,
                 _id: data._id || data.id,
@@ -44,24 +42,20 @@ export const InvoiceApi = {
         }
     },
 
-    // ✅ Download invoice as PDF
+    // Download invoice PDF
     downloadInvoicePdf: async (id, filename = "invoice.pdf") => {
         try {
             const res = await axios.get(`/invoices/${id}/pdf`, {
-                responseType: "blob", // important for binary data
+                responseType: "blob",
             });
 
-            // Create blob and trigger download
             const blob = new Blob([res.data], { type: "application/pdf" });
             const url = window.URL.createObjectURL(blob);
-
             const link = document.createElement("a");
             link.href = url;
             link.setAttribute("download", filename);
             document.body.appendChild(link);
             link.click();
-
-            // Cleanup
             link.remove();
             window.URL.revokeObjectURL(url);
         } catch (err) {
@@ -71,14 +65,27 @@ export const InvoiceApi = {
         }
     },
 
-    // ✅ Get all invoices
-    getAllInvoices: async () => {
+    // Get all invoices with optional pagination
+    getAllInvoices: async ({ page = 1, limit = 20, search = "", sortBy = "createdAt", sortDir = "desc" } = {}) => {
         try {
-            const res = await axios.get("/invoices"); // Use relative URL
-            return res.data; // Adjust if API wraps data in { data: [...] }
+            const res = await axios.get("/invoices", {
+                params: { page, limit, search, sortBy, sortDir },
+            });
+            return res.data; // Expected: { data: [...], total, page, pages }
         } catch (err) {
             console.error("Failed to fetch all invoices:", err);
-            return [];
+            return { data: [], total: 0, page: 1, pages: 1 };
+        }
+    },
+
+    // Get invoice stats
+    getInvoiceStats: async () => {
+        try {
+            const res = await axios.get("/invoices/stats");
+            return res.data; // { total, paid, unpaid }
+        } catch (err) {
+            console.error("Failed to fetch invoice stats:", err);
+            return { total: 0, paid: 0, unpaid: 0 };
         }
     },
 };

@@ -8,13 +8,13 @@ const PurchasePartsApi = {
         return data;
     },
 
-    // Get logged-in user's invoices with optional query params
+    // Get logged-in user's invoices
     getMyInvoices: async (params = {}) => {
         const { data } = await axiosInstance.get("/purchase-invoices/my", { params });
         return data;
     },
 
-    // Get invoice by ID
+    // Get invoice by ID (works for user/admin)
     getInvoiceById: async (id) => {
         const { data } = await axiosInstance.get(`/purchase-invoices/${id}`);
         return data;
@@ -26,26 +26,27 @@ const PurchasePartsApi = {
         return data;
     },
 
-    // Admin: get all invoices with optional query params
+    // Admin: get all invoices
     getAllInvoices: async (params = {}) => {
         const { data } = await axiosInstance.get("/purchase-invoices", { params });
         return data;
     },
 
-    // Admin: update an invoice
+    // Admin: update invoice
     updateInvoice: async (id, payload) => {
         const { data } = await axiosInstance.put(`/purchase-invoices/${id}`, payload);
         return data;
     },
 
-    // Admin: soft delete an invoice
+    // Admin: soft delete invoice
     deleteInvoice: async (id) => {
         const { data } = await axiosInstance.delete(`/purchase-invoices/${id}`);
         return data;
     },
 
-    // Download invoice PDF (user or admin)
-    downloadInvoicePdf: async (id, isProforma = false) => {
+    // Download invoice PDF (user/admin)
+    downloadInvoicePdf: async (id, isProforma = false, isAdmin = false) => {
+        // If admin, optionally pass a header or query param if needed
         const { data } = await axiosInstance.get(`/purchase-invoices/${id}/download`, {
             params: { proforma: isProforma },
             responseType: "blob",
@@ -54,8 +55,8 @@ const PurchasePartsApi = {
     },
 
     // Helper: download and save PDF directly
-    downloadAndSaveInvoice: async (id, isProforma = false) => {
-        const blob = await PurchasePartsApi.downloadInvoicePdf(id, isProforma);
+    downloadAndSaveInvoice: async (id, isProforma = false, isAdmin = false) => {
+        const blob = await PurchasePartsApi.downloadInvoicePdf(id, isProforma, isAdmin);
         saveAs(blob, `invoice_${id}.pdf`);
     },
 };

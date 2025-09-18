@@ -24,7 +24,6 @@ import {
 
 import { getParts, createPart, deactivatePart, activatePart } from "../../lib/api/partsApi.js";
 import { getSuppliers } from "../../lib/api/suppliersApi.js";
-import PurchasePartsApi from "../../lib/api/purchasepartsApi.js";
 import { toast } from "react-toastify";
 
 // Simulated auth role check
@@ -38,10 +37,6 @@ export function PartsInventory() {
     const [meta, setMeta] = useState({ totalParts: 0, activeParts: 0, inactiveParts: 0 });
     const [suppliers, setSuppliers] = useState([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
-    const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-    const [invoicePart, setInvoicePart] = useState(null);
-    const [invoiceQuantity, setInvoiceQuantity] = useState(1);
-    const [invoiceRate, setInvoiceRate] = useState(0);
 
     const [formData, setFormData] = useState({
         partName: "",
@@ -132,66 +127,6 @@ export function PartsInventory() {
             console.error("Failed to activate:", err);
         }
     };
-
-    const handleOpenInvoiceDialog = (part) => {
-        if (!part.supplier?._id) {
-            toast.error("This part does not have a supplier assigned.");
-            return;
-        }
-        setInvoicePart(part);
-        setInvoiceQuantity(1);
-        setInvoiceRate(part.price || 0);
-        setInvoiceDialogOpen(true);
-    };
-
-    const handleCreateInvoice = async () => {
-        if (!invoicePart || !invoicePart._id || !invoicePart.supplier?._id) {
-            toast.error("Invalid part or supplier selected");
-            return;
-        }
-
-        const qty = Number(invoiceQuantity);
-        const rate = Number(invoiceRate);
-
-        if (!qty || qty <= 0) {
-            toast.error("Quantity must be greater than 0");
-            return;
-        }
-
-        if (!rate || rate < 0) {
-            toast.error("Rate must be 0 or greater");
-            return;
-        }
-
-        // Generate a unique vendor invoice number to prevent duplicate key errors
-        const vendorInvoiceNumber = `INV-${Date.now()}`;
-
-        const payload = {
-            supplier: invoicePart.supplier._id,
-            vatIncluded: true, // toggle if needed
-            paymentDate: new Date().toISOString(),
-            vendorInvoiceNumber: vendorInvoiceNumber,
-            items: [
-                {
-                    part: invoicePart._id,
-                    quantity: qty,
-                    rate: rate,
-                },
-            ],
-        };
-
-        try {
-            const invoice = await PurchasePartsApi.createInvoice(payload);
-            toast.success(`Invoice #${invoice.vendorInvoiceNumber} created for ${invoicePart.partName}`);
-            setInvoiceDialogOpen(false);
-            setInvoicePart(null);
-        } catch (err) {
-            console.error(err.response?.data || err);
-            toast.error(err.response?.data?.error || "Failed to create invoice");
-        }
-    };
-
-
 
     const filteredParts = parts.filter((p) => {
         if (statusFilter === "active") return p.isActive;
@@ -317,22 +252,13 @@ export function PartsInventory() {
                                         <TableCell className="flex gap-2">
                                             {isAdmin &&
                                                 (part.isActive ? (
-                                                    <>
-                                                        <Button
-                                                            className="bg-red-600 hover:bg-red-700 text-white"
-                                                            size="sm"
-                                                            onClick={() => handleDeactivate(part._id)}
-                                                        >
-                                                            Deactivate
-                                                        </Button>
-                                                        <Button
-                                                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                                                            size="sm"
-                                                            onClick={() => handleOpenInvoiceDialog(part)}
-                                                        >
-                                                            Create Invoice
-                                                        </Button>
-                                                    </>
+                                                    <Button
+                                                        className="bg-red-600 hover:bg-red-700 text-white"
+                                                        size="sm"
+                                                        onClick={() => handleDeactivate(part._id)}
+                                                    >
+                                                        Deactivate
+                                                    </Button>
                                                 ) : (
                                                     <Button
                                                         className="bg-green-500 hover:bg-green-600 text-white"
@@ -349,58 +275,6 @@ export function PartsInventory() {
                     </Table>
                 </CardContent>
             </Card>
-
-            {/* Invoice Modal */}
-            <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Create Invoice</DialogTitle>
-                    </DialogHeader>
-                    {invoicePart && (
-                        <div className="space-y-4 py-2">
-                            <p>
-                                Creating invoice for: <strong>{invoicePart.partName}</strong>
-                            </p>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="space-y-1">
-                                    <Label htmlFor="quantity">Quantity</Label>
-                                    <Input
-                                        id="quantity"
-                                        type="number"
-                                        min={1}
-                                        value={invoiceQuantity}
-                                        onChange={(e) => setInvoiceQuantity(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label htmlFor="rate">Rate</Label>
-                                    <Input
-                                        id="rate"
-                                        type="number"
-                                        min={0}
-                                        value={invoiceRate}
-                                        onChange={(e) => setInvoiceRate(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-2 mt-4">
-                                <Button
-                                    className="bg-gray-200 hover:bg-gray-300 text-gray-800"
-                                    onClick={() => setInvoiceDialogOpen(false)}
-                                >
-                                    Cancel
-                                </Button>
-                                <Button
-                                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={handleCreateInvoice}
-                                >
-                                    Create Invoice
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }
