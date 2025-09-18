@@ -2,21 +2,26 @@
 import axios from "./axiosInstance.js";
 
 export const BookingApi = {
-  // --- List bookings with pagination + filters ---
+  // --- List bookings with pagination + multi-field filters ---
   getBookings: async ({
     status,
-    carRegNo,
-    clientName,
+    ownerName,
+    vehicleRegNo,
+    makeModel,
+    ownerPostalCode,
     page = 1,
     limit = 20,
     sortBy = "createdAt",
     sortDir = "desc",
   } = {}) => {
     try {
-      // Build query params for backend
-      const params = { status, page, limit, sortBy, sortDir };
-      if (carRegNo) params.carRegNo = carRegNo;
-      if (clientName) params.clientName = clientName;
+      const params = { page, limit, sortBy, sortDir };
+
+      if (status) params.status = status;
+      if (ownerName) params.ownerName = ownerName;
+      if (vehicleRegNo) params.vehicleRegNo = vehicleRegNo;
+      if (makeModel) params.makeModel = makeModel;
+      if (ownerPostalCode) params.ownerPostalCode = ownerPostalCode;
 
       const res = await axios.get("/bookings", { params });
       const data = res.data || {};

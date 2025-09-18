@@ -29,11 +29,18 @@ ChartJS.register(
     Legend
 );
 
+const ALLOWED_STATUSES = ["pending", "arrived", "completed", "cancelled"];
+
 export default function Dashboard({ user }) {
     const pageSize = 20;
-    const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [date, setDate] = useState("");
+
+    // Multi-field search states
+    const [searchName, setSearchName] = useState("");
+    const [searchRegNo, setSearchRegNo] = useState("");
+    const [searchModel, setSearchModel] = useState("");
+    const [searchPostcode, setSearchPostcode] = useState("");
 
     const {
         list: bookings,
@@ -43,9 +50,16 @@ export default function Dashboard({ user }) {
         page,
         setPage,
         fetchBookings,
-        totalItems,
-    } = useBookings({ pageSize, status, search });
+    } = useBookings({
+        pageSize,
+        status,
+        ownerName: searchName,
+        vehicleRegNo: searchRegNo,
+        makeModel: searchModel,
+        ownerPostalCode: searchPostcode,
+    });
 
+    // --- Chart states ---
     const [monthlyRevenue, setMonthlyRevenue] = useState(Array(12).fill(0));
     const [serviceTrends, setServiceTrends] = useState([]);
     const [bookingStats, setBookingStats] = useState({
@@ -56,7 +70,7 @@ export default function Dashboard({ user }) {
     });
     const [loadingCharts, setLoadingCharts] = useState(true);
 
-    // --- Fetch charts and booking stats ---
+    // --- Fetch charts & booking stats ---
     useEffect(() => {
         const fetchCharts = async () => {
             try {
@@ -73,10 +87,10 @@ export default function Dashboard({ user }) {
         fetchCharts();
     }, []);
 
-    // --- Refetch bookings when filters or page change ---
+    // --- Refetch bookings when filters/page change ---
     useEffect(() => {
         fetchBookings();
-    }, [status, search, page, fetchBookings]);
+    }, [status, searchName, searchRegNo, searchModel, searchPostcode, page, fetchBookings]);
 
     // --- Filter by date locally ---
     const filteredByDate = bookings.filter((b) =>
@@ -150,32 +164,64 @@ export default function Dashboard({ user }) {
             </div>
 
             {/* Filters */}
-            <div className="mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                 <input
                     type="text"
-                    placeholder="Search by name, phone, reg no, model, postcode"
-                    value={search}
-                    onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+                    placeholder="Owner Name"
+                    value={searchName}
+                    onChange={(e) => { setSearchName(e.target.value); setPage(1); }}
+                    className="border rounded px-3 py-2 w-full"
+                />
+                <input
+                    type="text"
+                    placeholder="Vehicle Reg No"
+                    value={searchRegNo}
+                    onChange={(e) => { setSearchRegNo(e.target.value); setPage(1); }}
+                    className="border rounded px-3 py-2 w-full"
+                />
+                <input
+                    type="text"
+                    placeholder="Make / Model"
+                    value={searchModel}
+                    onChange={(e) => { setSearchModel(e.target.value); setPage(1); }}
+                    className="border rounded px-3 py-2 w-full"
+                />
+                <input
+                    type="text"
+                    placeholder="Postal Code"
+                    value={searchPostcode}
+                    onChange={(e) => { setSearchPostcode(e.target.value); setPage(1); }}
                     className="border rounded px-3 py-2 w-full"
                 />
                 <select
                     value={status}
-                    onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+                    onChange={(e) => {
+                        const val = e.target.value;
+                        setStatus(ALLOWED_STATUSES.includes(val) ? val : "");
+                        setPage(1);
+                    }}
                     className="border rounded px-3 py-2 w-full"
                 >
                     <option value="">All Status</option>
-                    <option value="pending">Pending</option>
-                    <option value="arrived">Arrived</option>
-                    <option value="completed">Completed</option>
+                    {ALLOWED_STATUSES.map((s) => (
+                        <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                    ))}
                 </select>
+            </div>
+
+            {/* Date filter & Reset */}
+            <div className="mb-6 flex gap-4">
                 <input
                     type="date"
                     value={date}
                     onChange={(e) => { setDate(e.target.value); setPage(1); }}
-                    className="border rounded px-3 py-2 w-full"
+                    className="border rounded px-3 py-2"
                 />
                 <button
-                    onClick={() => { setSearch(""); setStatus(""); setDate(""); setPage(1); }}
+                    onClick={() => {
+                        setSearchName(""); setSearchRegNo(""); setSearchModel(""); setSearchPostcode("");
+                        setStatus(""); setDate(""); setPage(1);
+                    }}
                     className="bg-gray-200 px-3 py-2 rounded"
                 >
                     Reset

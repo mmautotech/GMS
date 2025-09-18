@@ -2,7 +2,16 @@
 import React from "react";
 import BookingRow from "./BookingRow.jsx";
 
-export default function BookingsTable({ bookings, onUpdate, onCarIn, onEdit, sortField, sortOrder, setSortField, setSortOrder }) {
+export default function BookingsTable({
+  bookings,
+  onUpdate,
+  onCarIn,
+  onEdit,
+  sortField,
+  sortOrder,
+  setSortField,
+  setSortOrder,
+}) {
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -24,7 +33,7 @@ export default function BookingsTable({ bookings, onUpdate, onCarIn, onEdit, sor
       <table className="w-full border-collapse text-sm min-w-[900px]">
         <thead>
           <tr className="bg-gray-200 text-left">
-            <th className="p-1 cursor-pointer" onClick={() => handleSort("index")}>#</th>
+            <th className="p-1 cursor-pointer" onClick={() => handleSort("rowNumber")}>#</th>
             <th className="p-2 cursor-pointer" onClick={() => handleSort("createdAt")}>
               Booking Date{renderSortArrow("createdAt")}
             </th>
@@ -42,11 +51,11 @@ export default function BookingsTable({ bookings, onUpdate, onCarIn, onEdit, sor
           </tr>
         </thead>
         <tbody>
-          {bookings.map((booking, idx) => (
+          {bookings.map((booking) => (
             <BookingRow
-              key={booking._id || idx}
+              key={booking._id}
               booking={booking}
-              index={idx}
+              index={booking.rowNumber} // ✅ use backend rowNumber
               onUpdate={onUpdate}
               onCarIn={onCarIn}
               onEdit={onEdit}

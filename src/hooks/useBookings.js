@@ -4,12 +4,15 @@ import { BookingApi } from "../lib/api/bookingApi.js";
 
 export default function useBookings({
     status,
-    type = "booking", // 👈 NEW: "booking" | "prebooking"
+    ownerName = "",
+    vehicleRegNo = "",
+    makeModel = "",
+    ownerPostalCode = "",
+    type = "booking", // "booking" | "prebooking"
     initialPage = 1,
     pageSize = 20,
     sortBy = "createdAt",
     sortDir = "desc",
-    search = "",
 } = {}) {
     const [items, setItems] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
@@ -32,20 +35,22 @@ export default function useBookings({
                 limit: pageSize,
                 sortBy,
                 sortDir,
+                type, // send type to backend
             };
             if (status) params.status = status;
-            if (search) params.search = search;
+            if (ownerName) params.ownerName = ownerName;
+            if (vehicleRegNo) params.vehicleRegNo = vehicleRegNo;
+            if (makeModel) params.makeModel = makeModel;
+            if (ownerPostalCode) params.ownerPostalCode = ownerPostalCode;
 
-            // ✅ decide which API to call
-            const res =
-                type === "prebooking"
-                    ? await BookingApi.getPrebookings(params)
-                    : await BookingApi.getBookings(params);
+            const res = await BookingApi.getBookings(params);
 
             if (res.ok) {
+                // Use backend-provided rowNumber for continuous numbering
                 const normalizedItems = res.items.map((b) => ({
                     ...b,
                     _id: b._id || b.id,
+                    rowNumber: b.rowNumber || 0,
                 }));
                 setItems(normalizedItems);
                 setTotalPages(res.totalPages);
@@ -60,7 +65,18 @@ export default function useBookings({
         } finally {
             setLoadingList(false);
         }
-    }, [status, page, pageSize, sortBy, sortDir, search, type]);
+    }, [
+        status,
+        ownerName,
+        vehicleRegNo,
+        makeModel,
+        ownerPostalCode,
+        page,
+        pageSize,
+        sortBy,
+        sortDir,
+        type,
+    ]);
 
     useEffect(() => {
         fetchBookings();
@@ -73,10 +89,7 @@ export default function useBookings({
         try {
             const res = await BookingApi.createBooking(payload);
             if (res.ok) {
-                const newBooking = {
-                    ...res.booking,
-                    _id: res.booking._id || res.booking.id,
-                };
+                const newBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
                 setItems((prev) => [newBooking, ...prev]);
                 return { ok: true, booking: newBooking };
             } else {
@@ -99,13 +112,8 @@ export default function useBookings({
         try {
             const res = await BookingApi.updateBooking(id, patch);
             if (res.ok) {
-                const updatedBooking = {
-                    ...res.booking,
-                    _id: res.booking._id || res.booking.id,
-                };
-                setItems((prev) =>
-                    prev.map((b) => (b._id === id ? updatedBooking : b))
-                );
+                const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
+                setItems((prev) => prev.map((b) => (b._id === id ? updatedBooking : b)));
                 return { ok: true, booking: updatedBooking };
             } else {
                 setError(res.error);
@@ -125,18 +133,10 @@ export default function useBookings({
         setError("");
         setSaving(true);
         try {
-            if (!id || !newStatus)
-                throw new Error("Booking ID and status are required");
-
             const res = await BookingApi.updateBookingStatus(id, newStatus);
             if (res.ok) {
-                const updatedBooking = {
-                    ...res.booking,
-                    _id: res.booking._id || res.booking.id,
-                };
-                setItems((prev) =>
-                    prev.map((b) => (b._id === id ? updatedBooking : b))
-                );
+                const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
+                setItems((prev) => prev.map((b) => (b._id === id ? updatedBooking : b)));
                 return { ok: true, booking: updatedBooking };
             } else {
                 setError(res.error);

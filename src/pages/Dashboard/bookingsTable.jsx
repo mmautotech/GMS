@@ -2,8 +2,8 @@
 import React, { useMemo } from "react";
 import BookingRow from "./bookingRow.jsx";
 
-export default function BookingsTable({ bookings, loading, error, page = 1, pageSize = 20 }) {
-    // Sort by createdAt descending
+export default function BookingsTable({ bookings, loading, error }) {
+    // Sort by createdAt descending (optional if backend already sorted)
     const sortedBookings = useMemo(() => {
         return [...bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }, [bookings]);
@@ -50,13 +50,11 @@ export default function BookingsTable({ bookings, loading, error, page = 1, page
                             </td>
                         </tr>
                     ) : (
-                        sortedBookings.map((booking, idx) => (
+                        sortedBookings.map((booking) => (
                             <BookingRow
-                                key={booking._id || idx}
+                                key={booking._id}
                                 booking={booking}
-                                index={idx}
-                                page={page}
-                                pageSize={pageSize}
+                                rowNumber={booking.rowNumber} // ✅ use backend rowNumber
                             />
                         ))
                     )}

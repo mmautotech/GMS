@@ -9,11 +9,16 @@ import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../../ui/dialog";
 import { Plus } from "lucide-react";
+import Pagination from "../../components/Pagination.jsx";
 
 export default function PartsPurchase() {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [downloadingId, setDownloadingId] = useState(null);
+
+    const [page, setPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(1);
+    const [pageSize] = useState(10);
 
     // Modal states
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -28,12 +33,21 @@ export default function PartsPurchase() {
         vendorInvoiceNumber: "",
     });
 
-    // Fetch invoices
-    const fetchInvoices = async () => {
+    // Fetch invoices with pagination
+    const fetchInvoices = async (pageNumber = 1) => {
         try {
             setLoading(true);
-            const res = await PurchasePartsApi.getMyInvoices({ status: "Pending" });
-            setInvoices(res.data || []);
+            const res = await PurchasePartsApi.getMyInvoices({
+                page: pageNumber,
+                limit: pageSize,
+            });
+            if (res.success) {
+                setInvoices(res.data);
+                setTotalPages(res.meta.pages);
+                setPage(res.meta.page);
+            } else {
+                toast.error(res.error || "Failed to fetch invoices");
+            }
         } catch (err) {
             console.error(err);
             toast.error("Failed to fetch invoices");
@@ -64,12 +78,12 @@ export default function PartsPurchase() {
     };
 
     useEffect(() => {
-        fetchInvoices();
+        fetchInvoices(page);
         fetchSuppliers();
         fetchParts();
-    }, []);
+    }, [page]);
 
-    // Handle form input
+    // Form handlers
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData((prev) => ({
@@ -94,7 +108,6 @@ export default function PartsPurchase() {
         setFormData((prev) => ({ ...prev, items: newItems }));
     };
 
-    // Submit invoice
     const handleCreateInvoice = async () => {
         if (!formData.supplier) return toast.error("Please select a supplier");
         if (!formData.items.length || formData.items.some((i) => !i.part)) return toast.error("Please select at least one part");
@@ -112,14 +125,13 @@ export default function PartsPurchase() {
                 vatIncluded: true,
                 vendorInvoiceNumber: "",
             });
-            fetchInvoices();
+            fetchInvoices(page);
         } catch (err) {
             console.error(err.response || err);
             toast.error(err.response?.data?.error || "Failed to create invoice");
         }
     };
 
-    // Download PDF
     const handleDownloadPdf = async (invoiceId) => {
         try {
             setDownloadingId(invoiceId);
@@ -132,20 +144,6 @@ export default function PartsPurchase() {
             setDownloadingId(null);
         }
     };
-
-    // Flatten invoices to table rows
-    const rows = [];
-    invoices.forEach((inv) => {
-        inv.items.forEach((item) => {
-            rows.push({
-                invoiceId: inv._id,
-                partName: item.part?.partName || "Unknown",
-                price: item.rate != null ? `£${Number(item.rate).toFixed(2)}` : "-",
-                supplier: inv.supplier?.name || "Unknown",
-                status: inv.paymentStatus || "Pending",
-            });
-        });
-    });
 
     return (
         <div className="p-6 space-y-6">
@@ -245,32 +243,40 @@ export default function PartsPurchase() {
                 <table className="min-w-full border">
                     <thead className="bg-gray-100">
                         <tr>
-                            <th className="px-4 py-2 border">Part Name</th>
-                            <th className="px-4 py-2 border">Price</th>
+                            <th className="px-4 py-2 border">Parts</th>
+                            <th className="px-4 py-2 border">Total Price</th>
                             <th className="px-4 py-2 border">Supplier</th>
                             <th className="px-4 py-2 border">Status</th>
                             <th className="px-4 py-2 border">Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {rows.length === 0 && (
+                        {invoices.length === 0 && (
                             <tr>
                                 <td colSpan={5} className="text-center py-4">No invoices found</td>
                             </tr>
                         )}
-                        {rows.map((row, idx) => (
-                            <tr key={idx} className="text-center">
-                                <td className="border px-4 py-2">{row.partName}</td>
-                                <td className="border px-4 py-2">{row.price}</td>
-                                <td className="border px-4 py-2">{row.supplier}</td>
-                                <td className="border px-4 py-2">{row.status}</td>
+                        {invoices.map((inv) => (
+                            <tr key={inv._id} className="text-center">
+                                <td className="border px-4 py-2 text-left">
+                                    {inv.items.map((item, i) => (
+                                        <div key={i}>
+                                            {item.part?.partName || "Unknown"} x{item.quantity} (£{item.rate?.toFixed(2)})
+                                        </div>
+                                    ))}
+                                </td>
+                                <td className="border px-4 py-2">
+                                    £{inv.items.reduce((sum, item) => sum + (item.rate || 0) * (item.quantity || 1), 0).toFixed(2)}
+                                </td>
+                                <td className="border px-4 py-2">{inv.supplier?.name || "Unknown"}</td>
+                                <td className="border px-4 py-2">{inv.paymentStatus || "Pending"}</td>
                                 <td className="border px-4 py-2">
                                     <Button
-                                        className={`bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 ${downloadingId === row.invoiceId ? "opacity-50 cursor-not-allowed" : ""}`}
-                                        onClick={() => handleDownloadPdf(row.invoiceId)}
-                                        disabled={downloadingId === row.invoiceId}
+                                        className={`bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 ${downloadingId === inv._id ? "opacity-50 cursor-not-allowed" : ""}`}
+                                        onClick={() => handleDownloadPdf(inv._id)}
+                                        disabled={downloadingId === inv._id}
                                     >
-                                        {downloadingId === row.invoiceId ? "Downloading..." : "Download PDF"}
+                                        {downloadingId === inv._id ? "Downloading..." : "Download PDF"}
                                     </Button>
                                 </td>
                             </tr>
@@ -278,6 +284,15 @@ export default function PartsPurchase() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Pagination */}
+            <Pagination
+                page={page}
+                totalPages={totalPages}
+                hasNextPage={page < totalPages}
+                hasPrevPage={page > 1}
+                onPageChange={setPage}
+            />
         </div>
     );
 }

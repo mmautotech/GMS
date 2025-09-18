@@ -42,7 +42,8 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
     <>
       {/* Main Row */}
       <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(!expanded)}>
-        <td className="p-2 border">{index + 1}</td>
+        <td className="p-2 border">{booking.rowNumber || index + 1}</td>
+
         <td className="p-3 border">{formatDate(booking.createdAt)}</td>
         <td className="p-3 border">{formatDate(booking.scheduledDate)}</td>
         <td className="p-2 border">{formatValue(booking.vehicleRegNo)}</td>

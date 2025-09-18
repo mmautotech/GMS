@@ -2,10 +2,7 @@
 import React, { useMemo } from "react";
 import StatusBadge from "../../components/StatusBadge.jsx";
 
-export default function BookingRow({ booking, index, page = 1, pageSize = 20 }) {
-    // Compute global index for pagination
-    const globalIndex = (page - 1) * pageSize + index + 1;
-
+export default function BookingRow({ booking }) {
     // Compute profit percentage
     const profitPct = useMemo(() => {
         const totalCost = (Number(booking.labourCost) || 0) + (Number(booking.partsCost) || 0);
@@ -29,7 +26,7 @@ export default function BookingRow({ booking, index, page = 1, pageSize = 20 }) 
 
     return (
         <tr className="hover:bg-gray-50">
-            <td className="p-2 border">{globalIndex}</td>
+            <td className="p-2 border">{booking.rowNumber}</td> {/* ✅ Use backend rowNumber */}
             <td className="p-2 border">{booking.createdAt ? new Date(booking.createdAt).toLocaleDateString() : ""}</td>
             <td className="p-2 border">{booking.vehicleRegNo}</td>
             <td className="p-2 border">{booking.makeModel}</td>
