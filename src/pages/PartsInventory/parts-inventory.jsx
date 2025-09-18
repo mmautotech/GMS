@@ -47,6 +47,7 @@ export function PartsInventory() {
     });
     const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
     const [showInactive, setShowInactive] = useState(true);
+    const [searchTerm, setSearchTerm] = useState(""); // <-- Search state
 
     useEffect(() => {
         fetchParts();
@@ -128,11 +129,23 @@ export function PartsInventory() {
         }
     };
 
-    const filteredParts = parts.filter((p) => {
-        if (statusFilter === "active") return p.isActive;
-        if (statusFilter === "inactive") return !p.isActive;
-        return true;
-    });
+    // Filter by status and search
+    const filteredParts = parts
+        .filter((p) => {
+            if (statusFilter === "active") return p.isActive;
+            if (statusFilter === "inactive") return !p.isActive;
+            return true;
+        })
+        .filter((p) => {
+            if (!searchTerm) return true;
+            const term = searchTerm.toLowerCase();
+            return (
+                p.partName?.toLowerCase().includes(term) ||
+                p.partNumber?.toLowerCase().includes(term) ||
+                p.description?.toLowerCase().includes(term) ||
+                p.supplier?.name?.toLowerCase().includes(term)
+            );
+        });
 
     return (
         <div className="space-y-6">
@@ -216,6 +229,15 @@ export function PartsInventory() {
                     </select>
                 </div>
             )}
+
+            {/* Search Input */}
+            <div className="mb-4">
+                <Input
+                    placeholder="Search by part name, number, description, or supplier..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
+            </div>
 
             {/* Parts Table */}
             <Card>

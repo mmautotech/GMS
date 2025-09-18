@@ -17,6 +17,7 @@ export function Suppliers() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingSupplier, setEditingSupplier] = useState(null);
     const [filter, setFilter] = useState("all"); // all | active | inactive
+    const [searchTerm, setSearchTerm] = useState("");
     const [formData, setFormData] = useState({
         name: "",
         contact: "",
@@ -34,7 +35,6 @@ export function Suppliers() {
         setLoading(true);
         try {
             const res = await getSuppliers({ includeInactive: true });
-            // ✅ ensure we always have an array
             const suppliersArray = Array.isArray(res) ? res : res?.suppliers || res?.data || [];
             setSuppliersList(suppliersArray);
         } catch (err) {
@@ -110,11 +110,21 @@ export function Suppliers() {
         }
     };
 
-    const filteredSuppliers = suppliersList.filter((s) => {
-        if (filter === "active") return s.isActive;
-        if (filter === "inactive") return !s.isActive;
-        return true;
-    });
+    const filteredSuppliers = suppliersList
+        .filter((s) => {
+            if (filter === "active") return s.isActive;
+            if (filter === "inactive") return !s.isActive;
+            return true;
+        })
+        .filter((s) => {
+            if (!searchTerm) return true;
+            const term = searchTerm.toLowerCase();
+            return (
+                s.name?.toLowerCase().includes(term) ||
+                s.contact?.toLowerCase().includes(term) ||
+                s.email?.toLowerCase().includes(term)
+            );
+        });
 
     if (loading) return <p>Loading suppliers...</p>;
 
@@ -171,6 +181,15 @@ export function Suppliers() {
                 <Button variant={filter === "inactive" ? "default" : "outline"} onClick={() => setFilter("inactive")}>
                     Inactive
                 </Button>
+            </div>
+
+            {/* Search Input */}
+            <div className="my-4">
+                <Input
+                    placeholder="Search by name, phone, or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             {/* Supplier Table */}
