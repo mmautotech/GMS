@@ -14,6 +14,7 @@ import Entities from "./pages/Entities/index.jsx";
 import Invoices from "./pages/Invoice/invoice.jsx";
 import { PartsInventory } from "./pages/PartsInventory/parts-inventory.jsx";
 import { Suppliers } from "./pages/Suppliers/supplier.jsx";
+import PartsPurchase from "./pages/PartsPurchase/partsPurchase.jsx";
 
 
 // ✅ Import AuthApi only
@@ -73,6 +74,7 @@ export default function App() {
             <Route path="/invoice" element={<Invoices />} />
             <Route path="/parts-inventory" element={<PartsInventory />} />
             <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/PartsPurchase" element={<PartsPurchase />} />
           </Route>
         </Route>
 

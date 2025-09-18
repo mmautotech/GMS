@@ -4,6 +4,7 @@ import { BookingApi } from "../lib/api/bookingApi.js";
 
 export default function useBookings({
     status,
+    type = "booking", // 👈 NEW: "booking" | "prebooking"
     initialPage = 1,
     pageSize = 20,
     sortBy = "createdAt",
@@ -18,26 +19,39 @@ export default function useBookings({
     const [page, setPage] = useState(initialPage);
     const [totalPages, setTotalPages] = useState(1);
     const [totalItems, setTotalItems] = useState(0);
+    const [hasNextPage, setHasNextPage] = useState(false);
+    const [hasPrevPage, setHasPrevPage] = useState(false);
 
-    // --- Fetch bookings ---
+    // --- Fetch bookings / prebookings ---
     const fetchBookings = useCallback(async () => {
         setLoadingList(true);
         setError("");
         try {
-            const res = await BookingApi.getBookings({
-                status,
+            const params = {
                 page,
                 limit: pageSize,
                 sortBy,
                 sortDir,
-                search, // pass search term to backend
-            });
+            };
+            if (status) params.status = status;
+            if (search) params.search = search;
+
+            // ✅ decide which API to call
+            const res =
+                type === "prebooking"
+                    ? await BookingApi.getPrebookings(params)
+                    : await BookingApi.getBookings(params);
 
             if (res.ok) {
-                const normalizedItems = res.items.map(b => ({ ...b, _id: b._id || b.id }));
+                const normalizedItems = res.items.map((b) => ({
+                    ...b,
+                    _id: b._id || b.id,
+                }));
                 setItems(normalizedItems);
                 setTotalPages(res.totalPages);
                 setTotalItems(res.totalItems);
+                setHasNextPage(res.hasNextPage);
+                setHasPrevPage(res.hasPrevPage);
             } else {
                 setError(res.error || "Failed to fetch bookings");
             }
@@ -46,7 +60,7 @@ export default function useBookings({
         } finally {
             setLoadingList(false);
         }
-    }, [status, page, pageSize, sortBy, sortDir, search]);
+    }, [status, page, pageSize, sortBy, sortDir, search, type]);
 
     useEffect(() => {
         fetchBookings();
@@ -59,8 +73,11 @@ export default function useBookings({
         try {
             const res = await BookingApi.createBooking(payload);
             if (res.ok) {
-                const newBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
-                setItems(prev => [newBooking, ...prev]);
+                const newBooking = {
+                    ...res.booking,
+                    _id: res.booking._id || res.booking.id,
+                };
+                setItems((prev) => [newBooking, ...prev]);
                 return { ok: true, booking: newBooking };
             } else {
                 setError(res.error);
@@ -82,8 +99,13 @@ export default function useBookings({
         try {
             const res = await BookingApi.updateBooking(id, patch);
             if (res.ok) {
-                const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
-                setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
+                const updatedBooking = {
+                    ...res.booking,
+                    _id: res.booking._id || res.booking.id,
+                };
+                setItems((prev) =>
+                    prev.map((b) => (b._id === id ? updatedBooking : b))
+                );
                 return { ok: true, booking: updatedBooking };
             } else {
                 setError(res.error);
@@ -91,6 +113,7 @@ export default function useBookings({
             }
         } catch (err) {
             const msg = err.message || "Failed to update booking";
+            setError(msg);
             return { ok: false, error: msg };
         } finally {
             setSaving(false);
@@ -102,11 +125,18 @@ export default function useBookings({
         setError("");
         setSaving(true);
         try {
-            if (!id || !newStatus) throw new Error("Booking ID and status are required");
+            if (!id || !newStatus)
+                throw new Error("Booking ID and status are required");
+
             const res = await BookingApi.updateBookingStatus(id, newStatus);
             if (res.ok) {
-                const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
-                setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
+                const updatedBooking = {
+                    ...res.booking,
+                    _id: res.booking._id || res.booking.id,
+                };
+                setItems((prev) =>
+                    prev.map((b) => (b._id === id ? updatedBooking : b))
+                );
                 return { ok: true, booking: updatedBooking };
             } else {
                 setError(res.error);
@@ -114,6 +144,7 @@ export default function useBookings({
             }
         } catch (err) {
             const msg = err.message || "Failed to update booking status";
+            setError(msg);
             return { ok: false, error: msg };
         } finally {
             setSaving(false);
@@ -125,7 +156,7 @@ export default function useBookings({
     return {
         items,
         list: useMemo(() => items, [items]),
-        setList: setItems, // <-- add this
+        setList: setItems,
         loadingList,
         saving,
         error,
@@ -134,6 +165,8 @@ export default function useBookings({
         setPage,
         totalPages,
         totalItems,
+        hasNextPage,
+        hasPrevPage,
         pageSize,
         fetchBookings,
         refresh,
@@ -141,5 +174,4 @@ export default function useBookings({
         update,
         updateStatus,
     };
-
 }

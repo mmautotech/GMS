@@ -22,18 +22,13 @@ import {
     DialogTrigger,
 } from "../../ui/dialog";
 
-import {
-    getParts,
-    createPart,
-    deactivatePart,
-    activatePart,
-} from "../../lib/api/partsApi.js";
+import { getParts, createPart, deactivatePart, activatePart } from "../../lib/api/partsApi.js";
 import { getSuppliers } from "../../lib/api/suppliersApi.js";
+import PurchasePartsApi from "../../lib/api/purchasepartsApi.js";
+import { toast } from "react-toastify";
 
-// Simulated auth role check (replace with your actual auth context/store)
-const useAuth = () => {
-    return { user: { role: "admin" } }; // change "admin" to "user" to test non-admin view
-};
+// Simulated auth role check
+const useAuth = () => ({ user: { role: "admin" } });
 
 export function PartsInventory() {
     const { user } = useAuth();
@@ -43,6 +38,10 @@ export function PartsInventory() {
     const [meta, setMeta] = useState({ totalParts: 0, activeParts: 0, inactiveParts: 0 });
     const [suppliers, setSuppliers] = useState([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+    const [invoicePart, setInvoicePart] = useState(null);
+    const [invoiceQuantity, setInvoiceQuantity] = useState(1);
+    const [invoiceRate, setInvoiceRate] = useState(0);
 
     const [formData, setFormData] = useState({
         partName: "",
@@ -51,9 +50,8 @@ export function PartsInventory() {
         description: "",
         supplier: "",
     });
-
     const [statusFilter, setStatusFilter] = useState("all"); // all | active | inactive
-    const [showInactive, setShowInactive] = useState(true); // fetch inactive for admin
+    const [showInactive, setShowInactive] = useState(true);
 
     useEffect(() => {
         fetchParts();
@@ -75,7 +73,8 @@ export function PartsInventory() {
     const fetchSuppliers = async () => {
         try {
             const res = await getSuppliers();
-            setSuppliers(res || []);
+            const suppliersArray = Array.isArray(res) ? res : res?.suppliers || res?.data || [];
+            setSuppliers(suppliersArray);
         } catch (error) {
             console.error("Error fetching suppliers:", error);
             setSuppliers([]);
@@ -89,13 +88,11 @@ export function PartsInventory() {
 
     const handleAddPart = async () => {
         if (!isAdmin) return;
-
+        if (!formData.supplier) {
+            toast.error("Please select a supplier");
+            return;
+        }
         try {
-            if (!formData.supplier) {
-                alert("Please select a supplier");
-                return;
-            }
-
             const payload = {
                 partName: formData.partName,
                 partNumber: formData.partNumber || null,
@@ -103,13 +100,14 @@ export function PartsInventory() {
                 description: formData.description,
                 supplier: formData.supplier,
             };
-
             await createPart(payload);
             setIsAddDialogOpen(false);
             setFormData({ partName: "", partNumber: "", price: 0, description: "", supplier: "" });
             fetchParts();
+            toast.success("Part added successfully!");
         } catch (error) {
             console.error("Error adding part:", error.response?.data || error.message);
+            toast.error("Failed to add part");
         }
     };
 
@@ -118,6 +116,7 @@ export function PartsInventory() {
         try {
             await deactivatePart(id);
             fetchParts();
+            toast.success("Part deactivated");
         } catch (err) {
             console.error("Failed to deactivate:", err);
         }
@@ -128,12 +127,72 @@ export function PartsInventory() {
         try {
             await activatePart(id);
             fetchParts();
+            toast.success("Part activated");
         } catch (err) {
             console.error("Failed to activate:", err);
         }
     };
 
-    // Filtered parts based on status filter
+    const handleOpenInvoiceDialog = (part) => {
+        if (!part.supplier?._id) {
+            toast.error("This part does not have a supplier assigned.");
+            return;
+        }
+        setInvoicePart(part);
+        setInvoiceQuantity(1);
+        setInvoiceRate(part.price || 0);
+        setInvoiceDialogOpen(true);
+    };
+
+    const handleCreateInvoice = async () => {
+        if (!invoicePart || !invoicePart._id || !invoicePart.supplier?._id) {
+            toast.error("Invalid part or supplier selected");
+            return;
+        }
+
+        const qty = Number(invoiceQuantity);
+        const rate = Number(invoiceRate);
+
+        if (!qty || qty <= 0) {
+            toast.error("Quantity must be greater than 0");
+            return;
+        }
+
+        if (!rate || rate < 0) {
+            toast.error("Rate must be 0 or greater");
+            return;
+        }
+
+        // Generate a unique vendor invoice number to prevent duplicate key errors
+        const vendorInvoiceNumber = `INV-${Date.now()}`;
+
+        const payload = {
+            supplier: invoicePart.supplier._id,
+            vatIncluded: true, // toggle if needed
+            paymentDate: new Date().toISOString(),
+            vendorInvoiceNumber: vendorInvoiceNumber,
+            items: [
+                {
+                    part: invoicePart._id,
+                    quantity: qty,
+                    rate: rate,
+                },
+            ],
+        };
+
+        try {
+            const invoice = await PurchasePartsApi.createInvoice(payload);
+            toast.success(`Invoice #${invoice.vendorInvoiceNumber} created for ${invoicePart.partName}`);
+            setInvoiceDialogOpen(false);
+            setInvoicePart(null);
+        } catch (err) {
+            console.error(err.response?.data || err);
+            toast.error(err.response?.data?.error || "Failed to create invoice");
+        }
+    };
+
+
+
     const filteredParts = parts.filter((p) => {
         if (statusFilter === "active") return p.isActive;
         if (statusFilter === "inactive") return !p.isActive;
@@ -142,10 +201,9 @@ export function PartsInventory() {
 
     return (
         <div className="space-y-6">
-            {/* Header & Add Part Button */}
+            {/* Header */}
             <div className="flex justify-between items-center">
                 <h2 className="text-2xl font-bold">Parts Inventory Management</h2>
-
                 {isAdmin && (
                     <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                         <DialogTrigger asChild>
@@ -160,9 +218,7 @@ export function PartsInventory() {
                             <div className="grid grid-cols-2 gap-4 py-4">
                                 {["partName", "partNumber", "price", "description"].map((field) => (
                                     <div key={field} className="space-y-2">
-                                        <Label htmlFor={field}>
-                                            {field.charAt(0).toUpperCase() + field.slice(1)}
-                                        </Label>
+                                        <Label htmlFor={field}>{field.charAt(0).toUpperCase() + field.slice(1)}</Label>
                                         <Input
                                             name={field}
                                             id={field}
@@ -172,7 +228,6 @@ export function PartsInventory() {
                                         />
                                     </div>
                                 ))}
-
                                 <div className="space-y-2 col-span-2">
                                     <Label htmlFor="supplier">Supplier</Label>
                                     <select
@@ -183,11 +238,12 @@ export function PartsInventory() {
                                         className="w-full border rounded px-2 py-1"
                                     >
                                         <option value="">Select Supplier</option>
-                                        {suppliers.map((s) => (
-                                            <option key={s._id} value={s._id}>
-                                                {s.name}
-                                            </option>
-                                        ))}
+                                        {Array.isArray(suppliers) &&
+                                            suppliers.map((s) => (
+                                                <option key={s._id} value={s._id}>
+                                                    {s.name}
+                                                </option>
+                                            ))}
                                     </select>
                                 </div>
                             </div>
@@ -210,14 +266,10 @@ export function PartsInventory() {
                 )}
             </div>
 
-            {/* Admin toggle for inactive parts */}
+            {/* Status Filter */}
             {isAdmin && (
                 <div className="flex items-center mb-4 space-x-4">
-
-                    <label htmlFor="showInactive" className="text-sm text-gray-700">
-                        Include inactive parts
-                    </label>
-
+                    <label htmlFor="showInactive" className="text-sm text-gray-700">Include inactive parts</label>
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
@@ -229,45 +281,6 @@ export function PartsInventory() {
                     </select>
                 </div>
             )}
-
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600">Total Parts</p>
-                            <p className="text-2xl font-bold">{meta.totalParts}</p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-blue-50">
-                            <Package className="h-6 w-6 text-blue-600" />
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600">Active</p>
-                            <p className="text-2xl font-bold text-green-600">{meta.activeParts}</p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-green-50">
-                            <Badge className="bg-green-100 text-green-800">Active</Badge>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-6 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm text-gray-600">Inactive</p>
-                            <p className="text-2xl font-bold text-red-600">{meta.inactiveParts}</p>
-                        </div>
-                        <div className="p-3 rounded-lg bg-red-50">
-                            <Badge className="bg-red-100 text-red-800">Inactive</Badge>
-                        </div>
-                    </CardContent>
-                </Card>
-            </div>
 
             {/* Parts Table */}
             <Card>
@@ -289,47 +302,105 @@ export function PartsInventory() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredParts.map((part) => (
-                                <TableRow key={part._id}>
-                                    <TableCell>{part.partName}</TableCell>
-                                    <TableCell>{part.partNumber || "-"}</TableCell>
-                                    <TableCell>
-                                        {typeof part.price === "number" ? `$${part.price.toFixed(2)}` : "—"}
-                                    </TableCell>
-                                    <TableCell>{part.supplier?.name || "Unknown"}</TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            className={part.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}
-                                        >
-                                            {part.isActive ? "Active" : "Inactive"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        {isAdmin &&
-                                            (part.isActive ? (
-                                                <Button
-                                                    className="bg-red-600 hover:bg-red-700 text-white"
-                                                    size="sm"
-                                                    onClick={() => handleDeactivate(part._id)}
-                                                >
-                                                    Deactivate
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    className="bg-green-500 hover:bg-green-600 text-white"
-                                                    size="sm"
-                                                    onClick={() => handleActivate(part._id)}
-                                                >
-                                                    Activate
-                                                </Button>
-                                            ))}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                            {Array.isArray(filteredParts) &&
+                                filteredParts.map((part) => (
+                                    <TableRow key={part._id}>
+                                        <TableCell>{part.partName}</TableCell>
+                                        <TableCell>{part.partNumber || "-"}</TableCell>
+                                        <TableCell>{typeof part.price === "number" ? `$${part.price.toFixed(2)}` : "—"}</TableCell>
+                                        <TableCell>{part.supplier?.name || "Unknown"}</TableCell>
+                                        <TableCell>
+                                            <Badge className={part.isActive ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
+                                                {part.isActive ? "Active" : "Inactive"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="flex gap-2">
+                                            {isAdmin &&
+                                                (part.isActive ? (
+                                                    <>
+                                                        <Button
+                                                            className="bg-red-600 hover:bg-red-700 text-white"
+                                                            size="sm"
+                                                            onClick={() => handleDeactivate(part._id)}
+                                                        >
+                                                            Deactivate
+                                                        </Button>
+                                                        <Button
+                                                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                                                            size="sm"
+                                                            onClick={() => handleOpenInvoiceDialog(part)}
+                                                        >
+                                                            Create Invoice
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <Button
+                                                        className="bg-green-500 hover:bg-green-600 text-white"
+                                                        size="sm"
+                                                        onClick={() => handleActivate(part._id)}
+                                                    >
+                                                        Activate
+                                                    </Button>
+                                                ))}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
                         </TableBody>
                     </Table>
                 </CardContent>
             </Card>
+
+            {/* Invoice Modal */}
+            <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Create Invoice</DialogTitle>
+                    </DialogHeader>
+                    {invoicePart && (
+                        <div className="space-y-4 py-2">
+                            <p>
+                                Creating invoice for: <strong>{invoicePart.partName}</strong>
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <Label htmlFor="quantity">Quantity</Label>
+                                    <Input
+                                        id="quantity"
+                                        type="number"
+                                        min={1}
+                                        value={invoiceQuantity}
+                                        onChange={(e) => setInvoiceQuantity(e.target.value)}
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="rate">Rate</Label>
+                                    <Input
+                                        id="rate"
+                                        type="number"
+                                        min={0}
+                                        value={invoiceRate}
+                                        onChange={(e) => setInvoiceRate(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex justify-end gap-2 mt-4">
+                                <Button
+                                    className="bg-gray-200 hover:bg-gray-300 text-gray-800"
+                                    onClick={() => setInvoiceDialogOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={handleCreateInvoice}
+                                >
+                                    Create Invoice
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

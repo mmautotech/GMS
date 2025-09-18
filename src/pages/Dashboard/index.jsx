@@ -1,5 +1,5 @@
-// src/pages/Dashboard/index.jsx
-import React, { useMemo, useState, useEffect } from "react";
+// src/pages/Dashboard/Dashboard.jsx
+import React, { useState, useEffect, useMemo } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import BookingsTable from "./bookingsTable.jsx";
 import StatCard from "./statCard.jsx";
@@ -16,6 +16,7 @@ import {
     Legend,
 } from "chart.js";
 import { getDashboardCharts } from "../../lib/api/statsApi.js";
+import Pagination from "../../components/Pagination.jsx"; // ✅ import reusable pagination
 
 ChartJS.register(
     CategoryScale,
@@ -29,19 +30,31 @@ ChartJS.register(
 );
 
 export default function Dashboard({ user }) {
-    const { list: bookings, loadingList, error, page, setPage, totalPages, totalItems } =
-        useBookings({ pageSize: 20 });
-
-    // --- Filters ---
+    const pageSize = 20;
     const [search, setSearch] = useState("");
     const [status, setStatus] = useState("");
     const [date, setDate] = useState("");
 
-    // --- Chart data ---
+    // ✅ useBookings manages pagination internally
+    const {
+        list: bookings,
+        loadingList,
+        error,
+        totalPages,
+        page,
+        setPage,
+        fetchBookings,
+    } = useBookings({
+        pageSize,
+        status,
+        search,
+    });
+
     const [monthlyRevenue, setMonthlyRevenue] = useState(Array(12).fill(0));
     const [serviceTrends, setServiceTrends] = useState([]);
     const [loadingCharts, setLoadingCharts] = useState(true);
 
+    // --- Fetch charts ---
     useEffect(() => {
         const fetchCharts = async () => {
             try {
@@ -57,35 +70,24 @@ export default function Dashboard({ user }) {
         fetchCharts();
     }, []);
 
-    // --- Filter bookings ---
-    const filteredBookings = useMemo(() => {
-        return bookings.filter((b) => {
-            const searchLower = search.toLowerCase();
-            const matchesSearch =
-                !search ||
-                b.ownerName?.toLowerCase().includes(searchLower) ||
-                b.ownerNumber?.toLowerCase().includes(searchLower) ||
-                b.vehicleRegNo?.toLowerCase().includes(searchLower) ||
-                b.makeModel?.toLowerCase().includes(searchLower) ||
-                b.ownerPostalCode?.toLowerCase().includes(searchLower);
+    // --- Refetch bookings when filters or page change ---
+    useEffect(() => {
+        fetchBookings();
+    }, [status, search, page, fetchBookings]);
 
-            const matchesStatus = !status || b.status?.toLowerCase() === status.toLowerCase();
+    // --- Filter by date locally ---
+    const filteredByDate = useMemo(() => {
+        if (!date) return bookings;
+        return bookings.filter((b) =>
+            b.scheduledDate
+                ? new Date(b.scheduledDate).toISOString().split("T")[0] === date
+                : false
+        );
+    }, [bookings, date]);
 
-            let matchesDate = true;
-            if (date) {
-                const bookingDateStr = b.scheduledDate
-                    ? new Date(b.scheduledDate).toISOString().split("T")[0]
-                    : null;
-                matchesDate = bookingDateStr === date;
-            }
-
-            return matchesSearch && matchesStatus && matchesDate;
-        });
-    }, [bookings, search, status, date]);
-
-    // --- Compute stats ---
+    // --- Stats ---
     const stats = useMemo(() => {
-        return filteredBookings.reduce(
+        return filteredByDate.reduce(
             (acc, b) => {
                 const s = b.status?.toLowerCase() || "other";
                 switch (s) {
@@ -106,11 +108,14 @@ export default function Dashboard({ user }) {
             },
             { total: 0, completed: 0, pending: 0, arrived: 0, other: 0 }
         );
-    }, [filteredBookings]);
+    }, [filteredByDate]);
 
-    // --- Chart datasets ---
+    // --- Chart data ---
     const monthlyRevenueData = {
-        labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        labels: [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ],
         datasets: [
             {
                 label: "Revenue",
@@ -133,6 +138,35 @@ export default function Dashboard({ user }) {
         ],
     };
 
+    // --- Chart options ---
+    const monthlyRevenueOptions = {
+        responsive: true,
+        plugins: {
+            legend: { position: "top" },
+            title: { display: true, text: "Monthly Revenue" },
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                suggestedMax: 40000, // ✅ increase max value
+            },
+        },
+    };
+
+    const serviceTrendsOptions = {
+        responsive: true,
+        plugins: {
+            legend: { position: "top" },
+            title: { display: true, text: "Service Trends" },
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                suggestedMax: 50, // ✅ increase max value
+            },
+        },
+    };
+
     return (
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4 text-blue-900">
@@ -151,11 +185,11 @@ export default function Dashboard({ user }) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="border p-4 rounded">
                     <h2 className="font-semibold mb-2">Monthly Revenue</h2>
-                    {loadingCharts ? <p>Loading...</p> : <Line data={monthlyRevenueData} />}
+                    {loadingCharts ? <p>Loading...</p> : <Line data={monthlyRevenueData} options={monthlyRevenueOptions} />}
                 </div>
                 <div className="border p-4 rounded">
                     <h2 className="font-semibold mb-2">Service Trends</h2>
-                    {loadingCharts ? <p>Loading...</p> : <Bar data={serviceTrendsData} />}
+                    {loadingCharts ? <p>Loading...</p> : <Bar data={serviceTrendsData} options={serviceTrendsOptions} />}
                 </div>
             </div>
 
@@ -165,12 +199,18 @@ export default function Dashboard({ user }) {
                     type="text"
                     placeholder="Search by name, phone, reg no, model, postcode"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
+                    onChange={(e) => {
+                        setSearch(e.target.value);
+                        setPage(1);
+                    }}
                     className="border rounded px-3 py-2 w-full"
                 />
                 <select
                     value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    onChange={(e) => {
+                        setStatus(e.target.value);
+                        setPage(1);
+                    }}
                     className="border rounded px-3 py-2 w-full"
                 >
                     <option value="">All Status</option>
@@ -181,7 +221,10 @@ export default function Dashboard({ user }) {
                 <input
                     type="date"
                     value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    onChange={(e) => {
+                        setDate(e.target.value);
+                        setPage(1);
+                    }}
                     className="border rounded px-3 py-2 w-full"
                 />
                 <button
@@ -189,6 +232,7 @@ export default function Dashboard({ user }) {
                         setSearch("");
                         setStatus("");
                         setDate("");
+                        setPage(1);
                     }}
                     className="bg-gray-200 px-3 py-2 rounded"
                 >
@@ -197,30 +241,16 @@ export default function Dashboard({ user }) {
             </div>
 
             {/* Bookings Table */}
-            <BookingsTable bookings={filteredBookings} loading={loadingList} error={error} />
+            <BookingsTable bookings={filteredByDate} loading={loadingList} error={error} />
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-                <div className="mt-4 flex justify-center gap-2">
-                    <button
-                        disabled={page <= 1}
-                        className="px-3 py-1 border rounded disabled:opacity-50"
-                        onClick={() => setPage(page - 1)}
-                    >
-                        Previous
-                    </button>
-                    <span className="px-3 py-1 border rounded">
-                        Page {page} of {totalPages} ({totalItems} bookings)
-                    </span>
-                    <button
-                        disabled={page >= totalPages}
-                        className="px-3 py-1 border rounded disabled:opacity-50"
-                        onClick={() => setPage(page + 1)}
-                    >
-                        Next
-                    </button>
-                </div>
-            )}
+            {/* ✅ Reusable Pagination */}
+            <Pagination
+                page={page}
+                totalPages={totalPages}
+                hasNextPage={page < totalPages}
+                hasPrevPage={page > 1}
+                onPageChange={setPage}
+            />
         </div>
     );
 }

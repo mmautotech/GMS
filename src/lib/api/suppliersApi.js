@@ -1,5 +1,5 @@
-// src/lib/api/supplierApi.js
-import axiosInstance from "./axiosInstance.js";
+import axiosInstance from './axiosInstance';
+
 
 // ✅ Get all suppliers (with optional filters/pagination)
 export async function getSuppliers(params = {}) {

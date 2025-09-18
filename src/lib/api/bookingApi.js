@@ -3,9 +3,21 @@ import axios from "./axiosInstance.js";
 
 export const BookingApi = {
   // --- List bookings with pagination + filters ---
-  getBookings: async ({ status, page = 1, limit = 20, carRegNo, clientName, sortBy = "createdAt", sortDir = "desc" } = {}) => {
+  getBookings: async ({
+    status,
+    carRegNo,
+    clientName,
+    page = 1,
+    limit = 20,
+    sortBy = "createdAt",
+    sortDir = "desc",
+  } = {}) => {
     try {
-      const params = { status, page, limit, carRegNo, clientName, sortBy, sortDir };
+      // Build query params for backend
+      const params = { status, page, limit, sortBy, sortDir };
+      if (carRegNo) params.carRegNo = carRegNo;
+      if (clientName) params.clientName = clientName;
+
       const res = await axios.get("/bookings", { params });
       const data = res.data || {};
 
@@ -16,9 +28,14 @@ export const BookingApi = {
         page: data.pagination?.page ?? 1,
         limit: data.pagination?.limit ?? limit,
         totalPages: data.pagination?.totalPages ?? 1,
+        hasNextPage: data.pagination?.hasNextPage ?? false,
+        hasPrevPage: data.pagination?.hasPrevPage ?? false,
       };
     } catch (err) {
-      return { ok: false, error: err?.response?.data?.error || err.message || "Failed to fetch bookings" };
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch bookings",
+      };
     }
   },
 
@@ -29,7 +46,10 @@ export const BookingApi = {
       const data = res.data || {};
       return { ok: true, booking: data.booking || data };
     } catch (err) {
-      return { ok: false, error: err?.response?.data?.error || err.message || "Failed to fetch booking" };
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch booking",
+      };
     }
   },
 
@@ -40,11 +60,14 @@ export const BookingApi = {
       const data = res.data || {};
       return { ok: true, booking: data.booking || data };
     } catch (err) {
-      return { ok: false, error: err?.response?.data?.error || err.message || "Failed to create booking" };
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to create booking",
+      };
     }
   },
 
-  // --- Update booking (PATCH instead of PUT for partial updates) ---
+  // --- Update booking ---
   updateBooking: async (id, payload) => {
     try {
       if (!id || !payload) throw new Error("Booking ID and payload are required");
@@ -52,7 +75,10 @@ export const BookingApi = {
       const data = res.data || {};
       return { ok: true, booking: data.booking || data };
     } catch (err) {
-      return { ok: false, error: err?.response?.data?.error || err.message || "Failed to update booking" };
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to update booking",
+      };
     }
   },
 
@@ -65,7 +91,10 @@ export const BookingApi = {
       const data = res.data || {};
       return { ok: true, booking: data.booking || data };
     } catch (err) {
-      return { ok: false, error: err?.response?.data?.error || err.message || "Failed to update booking status" };
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to update booking status",
+      };
     }
   },
 };

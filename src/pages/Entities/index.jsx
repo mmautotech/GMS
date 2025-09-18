@@ -1,14 +1,13 @@
 // src/pages/EntityPage.jsx
 import React, { useState, useEffect } from "react";
-
 import {
     getServices,
     createService,
     updateService,
     deleteService,
 } from "../../lib/api/servicesApi.js";
+import { Plus, Edit2, Trash2, Search } from "lucide-react";
 
-// ✅ Config: which fields to show per entity
 const fieldConfig = {
     service: [{ key: "name", label: "Service Name" }],
 };
@@ -16,26 +15,19 @@ const fieldConfig = {
 export default function EntityPage() {
     const [services, setServices] = useState([]);
     const [searchServices, setSearchServices] = useState("");
-
     const [modalOpen, setModalOpen] = useState(false);
-    const [modalType, setModalType] = useState(null); // only "service"
     const [formData, setFormData] = useState({});
     const [isEditing, setIsEditing] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
 
-    const [selectEntityOpen, setSelectEntityOpen] = useState(false);
-
-    // --- Load data ---
     useEffect(() => {
         getServices().then(setServices);
     }, []);
 
-    // --- Helpers ---
     const filterItems = (items, query, field) =>
         items.filter((i) => i[field]?.toLowerCase().includes(query.toLowerCase()));
 
-    const openModal = (type, data = {}, mode = "view") => {
-        setModalType(type);
+    const openModal = (data = {}, mode = "view") => {
         setFormData(data);
         setIsEditing(mode === "edit");
         setIsCreating(mode === "create");
@@ -49,157 +41,144 @@ export default function EntityPage() {
         setIsCreating(false);
     };
 
-    // --- Save ---
     const handleSave = async () => {
         try {
-            if (modalType === "service") {
-                if (isCreating) await createService(formData);
-                else await updateService(formData._id, formData);
-                setServices(await getServices());
-            }
+            if (isCreating) await createService(formData);
+            else await updateService(formData._id, formData);
+            setServices(await getServices());
             closeModal();
         } catch (err) {
             console.error("Save failed:", err);
         }
     };
 
-    const handleDelete = async () => {
-        if (!formData._id) return;
+    const handleDelete = async (id) => {
         try {
-            if (modalType === "service") {
-                await deleteService(formData._id);
-                setServices(await getServices());
-            }
-            closeModal();
+            await deleteService(id);
+            setServices(await getServices());
         } catch (err) {
             console.error("Delete failed:", err);
         }
     };
 
     return (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold mb-6">Entity Management</h1>
+        <div className="p-8">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-gray-800">Services</h1>
+                <button
+                    onClick={() => openModal({}, "create")}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg shadow-md transition"
+                >
+                    <Plus size={18} /> Add Service
+                </button>
+            </div>
 
-            {/* Add Button */}
-            <button
-                onClick={() => setSelectEntityOpen(true)}
-                className="bg-blue-500 text-white px-4 py-2 rounded mb-4"
-            >
-                + Add
-            </button>
-
-            {/* Select Entity Modal */}
-            {selectEntityOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded shadow-lg">
-                        <h2 className="text-lg font-bold mb-4">Select Entity Type</h2>
-                        <button
-                            className="block w-full text-left px-4 py-2 mb-2 border rounded hover:bg-gray-100"
-                            onClick={() => {
-                                setSelectEntityOpen(false);
-                                openModal("service", {}, "create");
-                            }}
-                        >
-                            Service
-                        </button>
-                        <button
-                            onClick={() => setSelectEntityOpen(false)}
-                            className="mt-2 bg-gray-300 px-4 py-2 rounded"
-                        >
-                            Cancel
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Services List */}
-            <div className="border rounded p-3 max-h-96 overflow-y-auto">
-                <h3 className="font-semibold mb-2">Services</h3>
+            {/* Search */}
+            <div className="relative mb-6 max-w-sm">
+                <Search className="absolute left-3 top-2.5 text-gray-400" size={18} />
                 <input
                     type="text"
-                    placeholder="Search..."
+                    placeholder="Search services..."
                     value={searchServices}
                     onChange={(e) => setSearchServices(e.target.value)}
-                    className="border p-1 mb-2 w-full rounded"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 />
-                {filterItems(services, searchServices, "name").map((srv) => (
-                    <div
-                        key={srv._id}
-                        className="border-b py-1 cursor-pointer hover:bg-gray-100"
-                        onClick={() => openModal("service", srv, "view")}
-                    >
-                        {srv.name}
-                    </div>
-                ))}
+            </div>
+
+            {/* Services List */}
+            <div className="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
+                <table className="min-w-full bg-white">
+                    <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600">
+                                Service Name
+                            </th>
+                            <th className="px-6 py-3 text-right text-sm font-semibold text-gray-600">
+                                Actions
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filterItems(services, searchServices, "name").map((srv, idx) => (
+                            <tr
+                                key={srv._id}
+                                className={`hover:bg-gray-50 transition ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"
+                                    }`}
+                            >
+                                <td className="px-6 py-4 text-gray-800">{srv.name}</td>
+                                <td className="px-6 py-4 text-right flex justify-end gap-2">
+                                    <button
+                                        onClick={() => openModal(srv, "edit")}
+                                        className="p-2 bg-yellow-400 hover:bg-yellow-500 text-white rounded-lg"
+                                        title="Edit"
+                                    >
+                                        <Edit2 size={16} />
+                                    </button>
+                                    <button
+                                        onClick={() => handleDelete(srv._id)}
+                                        className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg"
+                                        title="Delete"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                </td>
+                            </tr>
+                        ))}
+                        {services.length === 0 && (
+                            <tr>
+                                <td
+                                    colSpan="2"
+                                    className="px-6 py-4 text-center text-gray-500"
+                                >
+                                    No services found
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
 
             {/* Modal */}
             {modalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center">
-                    <div className="bg-white p-6 rounded shadow-lg w-96">
+                <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                    <div className="bg-white p-6 rounded-xl shadow-lg w-96">
                         {isCreating || isEditing ? (
                             <>
                                 <h2 className="text-xl font-bold mb-4">
                                     {isCreating ? "Create" : "Edit"} Service
                                 </h2>
-                                {fieldConfig[modalType].map(({ key, label }) => (
+                                {fieldConfig.service.map(({ key, label }) => (
                                     <div key={key} className="mb-3">
-                                        <label className="block text-sm mb-1">{label}</label>
+                                        <label className="block text-sm font-medium mb-1">
+                                            {label}
+                                        </label>
                                         <input
                                             type="text"
                                             value={formData[key] || ""}
                                             onChange={(e) =>
                                                 setFormData({ ...formData, [key]: e.target.value })
                                             }
-                                            className="border p-2 rounded w-full"
+                                            className="border border-gray-300 p-2 rounded-lg w-full focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         />
                                     </div>
                                 ))}
-                                <div className="flex justify-end space-x-2 mt-4">
+                                <div className="flex justify-end gap-2 mt-4">
                                     <button
                                         onClick={closeModal}
-                                        className="bg-gray-300 px-4 py-2 rounded"
+                                        className="bg-gray-200 px-4 py-2 rounded-lg"
                                     >
                                         Cancel
                                     </button>
                                     <button
                                         onClick={handleSave}
-                                        className="bg-blue-500 text-white px-4 py-2 rounded"
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
                                     >
                                         Save
                                     </button>
                                 </div>
                             </>
-                        ) : (
-                            <>
-                                <h2 className="text-xl font-bold mb-4">Service Details</h2>
-                                {fieldConfig[modalType].map(({ key, label }) => (
-                                    <div key={key} className="mb-2">
-                                        <strong>{label}: </strong> {formData[key] || "-"}
-                                    </div>
-                                ))}
-                                <div className="flex justify-end space-x-2 mt-4">
-                                    <button
-                                        onClick={() => setIsEditing(true)}
-                                        className="bg-yellow-500 text-white px-4 py-2 rounded"
-                                    >
-                                        Edit
-                                    </button>
-                                    <button
-                                        onClick={handleDelete}
-                                        className="bg-red-500 text-white px-4 py-2 rounded"
-                                    >
-                                        Delete
-                                    </button>
-                                    <button
-                                        onClick={closeModal}
-                                        className="bg-gray-300 px-4 py-2 rounded"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </>
-                        )}
+                        ) : null}
                     </div>
                 </div>
             )}

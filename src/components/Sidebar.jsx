@@ -60,6 +60,11 @@ export default function Sidebar({ onClose, onLogout, username }) {
               </NavLink>
             </li>
             <li>
+              <NavLink to="/PartsPurchase" className={itemClass}>
+                <Users size={18} /> PartsPurchase
+              </NavLink>
+            </li>
+            <li>
               <NavLink to="/parts-inventory" className={itemClass}>
                 <Package size={18} /> Parts Inventory
               </NavLink>

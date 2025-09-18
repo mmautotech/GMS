@@ -2,14 +2,15 @@
 import React, { useMemo } from "react";
 import BookingRow from "./bookingRow.jsx";
 
-export default function BookingsTable({ bookings, loading, error }) {
-    const recentBookings = useMemo(() => {
-        return [...bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+export default function BookingsTable({ bookings, loading, error, page = 1, pageSize = 20 }) {
+    // Sort by createdAt descending
+    const sortedBookings = useMemo(() => {
+        return [...bookings].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     }, [bookings]);
 
     return (
         <div className="bg-white rounded shadow p-4 overflow-x-auto">
-            <h2 className="text-xl font-semibold mb-4">Recent Bookings</h2>
+            <h2 className="text-xl font-semibold mb-4">Bookings</h2>
 
             <table className="w-full border-collapse text-sm min-w-[1000px]">
                 <thead>
@@ -32,25 +33,31 @@ export default function BookingsTable({ bookings, loading, error }) {
                 <tbody>
                     {loading ? (
                         <tr>
-                            <td colSpan={11} className="p-4 text-center text-gray-500">
+                            <td colSpan={13} className="p-4 text-center text-gray-500">
                                 Loading bookings...
                             </td>
                         </tr>
                     ) : error ? (
                         <tr>
-                            <td colSpan={11} className="p-4 text-center text-red-500">
+                            <td colSpan={13} className="p-4 text-center text-red-500">
                                 {error}
                             </td>
                         </tr>
-                    ) : recentBookings.length === 0 ? (
+                    ) : sortedBookings.length === 0 ? (
                         <tr>
-                            <td colSpan={11} className="p-4 text-center text-gray-500">
+                            <td colSpan={13} className="p-4 text-center text-gray-500">
                                 No bookings found
                             </td>
                         </tr>
                     ) : (
-                        recentBookings.map((booking, idx) => (
-                            <BookingRow key={booking._id || idx} booking={booking} index={idx} />
+                        sortedBookings.map((booking, idx) => (
+                            <BookingRow
+                                key={booking._id || idx}
+                                booking={booking}
+                                index={idx}
+                                page={page}
+                                pageSize={pageSize}
+                            />
                         ))
                     )}
                 </tbody>
