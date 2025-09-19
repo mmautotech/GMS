@@ -237,10 +237,7 @@ export default function PartsPurchase() {
                                     <Label>Payment Date</Label>
                                     <Input type="date" name="paymentDate" value={formData.paymentDate} onChange={handleInputChange} className="w-full" />
                                 </div>
-                                <div>
-                                    <Label>Discount (£)</Label>
-                                    <Input type="number" name="discount" value={formData.discount} onChange={handleInputChange} className="w-full" />
-                                </div>
+
                                 <div className="flex items-center gap-2 mt-6">
                                     <input type="checkbox" id="vatIncluded" name="vatIncluded" checked={formData.vatIncluded} onChange={handleInputChange} className="accent-blue-600" />
                                     <Label htmlFor="vatIncluded">VAT Included</Label>
