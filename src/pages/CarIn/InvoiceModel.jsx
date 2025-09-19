@@ -1,19 +1,19 @@
 // src/components/InvoiceModal.jsx
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { toast } from "react-toastify";
 
-// Simple deep comparison
-const deepEqual = (obj1, obj2) => JSON.stringify(obj1) === JSON.stringify(obj2);
+const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export default function InvoiceModal({ bookingId, isOpen, onClose }) {
     const [invoiceData, setInvoiceData] = useState(null);
     const [originalData, setOriginalData] = useState(null);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [showConfirm, setShowConfirm] = useState(false);
-    const [isDirty, setIsDirty] = useState(false);
+    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
+    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
 
+    // ─────────────────────────────── Load invoice on open
     useEffect(() => {
         if (!isOpen || !bookingId) return;
 
@@ -21,12 +21,11 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
             setLoading(true);
             try {
                 const data = await InvoiceApi.getInvoiceByBookingId(bookingId);
-
                 if (data?._id) {
                     setInvoiceData(data);
                     setOriginalData(data);
                 } else {
-                    toast.info("No invoice found for this booking");
+                    toast.info("No invoice found for this booking.");
                     setInvoiceData(null);
                     setOriginalData(null);
                 }
@@ -43,96 +42,124 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         fetchInvoice();
     }, [isOpen, bookingId]);
 
-    // Update isDirty when invoiceData changes
-    useEffect(() => {
-        if (invoiceData && originalData) {
-            setIsDirty(!deepEqual(invoiceData, originalData));
-        }
+    // ─────────────────────────────── Derived state
+    const isDirty = useMemo(() => {
+        if (!invoiceData || !originalData) return false;
+        return !deepEqual(invoiceData, originalData);
     }, [invoiceData, originalData]);
 
-    const handleFieldChange = (field, value) => {
-        setInvoiceData(prev => ({ ...prev, [field]: value }));
-    };
+    const hasInvoice = Boolean(invoiceData?._id);
+    const isBusy = loading || saving;
+    const isStable = hasInvoice && !isDirty && !isBusy;
+
+    // ─────────────────────────────── Buttons state
+    const canReset = isDirty && !isBusy && hasInvoice;
+    const canSave = isDirty && !isBusy && hasInvoice;
+    const canView = isStable;
+    const canRegenerate = !isBusy && Boolean(bookingId);
+
+    // ─────────────────────────────── Helpers
+    const handleFieldChange = (field, value) =>
+        setInvoiceData((prev) => ({ ...prev, [field]: value }));
 
     const handleItemChange = (index, field, value) => {
-        const updatedItems = [...(invoiceData.items || [])];
-        updatedItems[index] = {
-            ...updatedItems[index],
+        const updated = [...(invoiceData?.items || [])];
+        updated[index] = {
+            ...updated[index],
             [field]: field === "amount" ? Number(value) : value,
         };
-        setInvoiceData(prev => ({ ...prev, items: updatedItems }));
+        setInvoiceData((prev) => ({ ...prev, items: updated }));
     };
 
-    const handleAddItem = () => {
-        setInvoiceData(prev => ({
+    const handleAddItem = () =>
+        setInvoiceData((prev) => ({
             ...prev,
             items: [...(prev.items || []), { description: "", amount: 0 }],
         }));
-    };
 
     const calculateSubtotal = () =>
-        (invoiceData.items || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        (invoiceData?.items || []).reduce((sum, it) => sum + Number(it?.amount || 0), 0);
 
-    const calculateDiscount = () => Number(invoiceData.discountAmount || 0);
+    const calculateDiscount = () => Number(invoiceData?.discountAmount || 0);
 
     const calculateVAT = () => {
-        const subtotalAfterDiscount = calculateSubtotal() - calculateDiscount();
-        return invoiceData.vatIncluded ? subtotalAfterDiscount * 0.2 : 0;
+        const afterDiscount = calculateSubtotal() - calculateDiscount();
+        return invoiceData?.vatIncluded ? afterDiscount * 0.2 : 0;
     };
 
     const calculateTotal = () => {
-        const subtotalAfterDiscount = calculateSubtotal() - calculateDiscount();
-        return subtotalAfterDiscount + calculateVAT();
+        const afterDiscount = calculateSubtotal() - calculateDiscount();
+        return afterDiscount + calculateVAT();
     };
 
+    // ─────────────────────────────── Reset
     const handleReset = () => {
-        if (originalData) {
-            setInvoiceData(originalData);
-            toast.info("Changes reset to last saved state");
-        }
+        if (!originalData) return;
+        setInvoiceData(originalData);
+        toast.info("Changes reset to last saved state");
     };
 
+    // ─────────────────────────────── Save
     const confirmSave = async () => {
         if (!invoiceData?._id) {
             toast.error("Invoice ID missing, cannot update.");
             return;
         }
-
         try {
             setSaving(true);
-
             const payload = {
                 items: invoiceData.items,
-                discountAmount: invoiceData.discountAmount,
-                vatIncluded: invoiceData.vatIncluded,
+                discountAmount: Number(invoiceData.discountAmount || 0),
+                vatIncluded: Boolean(invoiceData.vatIncluded),
                 status: invoiceData.status,
             };
-
             const updated = await InvoiceApi.updateInvoice(invoiceData._id, payload);
             setInvoiceData(updated);
             setOriginalData(updated);
-
             toast.success("Invoice updated successfully");
-            setShowConfirm(false);
+            setShowSaveConfirm(false);
+            onClose(); // ✅ auto-close after save
         } catch (err) {
-            toast.error(err.message || "Failed to update invoice");
+            console.error(err);
+            toast.error(err?.message || "Failed to update invoice");
         } finally {
             setSaving(false);
         }
     };
 
-    // ✅ New: View PDF instead of Download
+    // ─────────────────────────────── View PDF
     const handleViewPdf = () => {
         if (!invoiceData?._id) {
             toast.error("Invoice ID missing, cannot open PDF.");
             return;
         }
+        InvoiceApi.viewInvoicePdf(invoiceData._id);
+    };
+
+    // ─────────────────────────────── Regenerate
+    const doRegenerate = async () => {
         try {
-            InvoiceApi.viewInvoicePdf(invoiceData._id, false); // normal invoice PDF
+            setLoading(true);
+            const regenerated = await InvoiceApi.generateInvoiceByBookingId(bookingId);
+            setInvoiceData(regenerated);
+            setOriginalData(regenerated);
+            toast.success("Invoice regenerated successfully");
+            setShowRegenConfirm(false);
+            onClose(); // ✅ auto-close after regenerate
         } catch (err) {
-            console.error("Error opening PDF:", err);
-            toast.error(err.message || "Failed to open PDF");
+            console.error("Failed to regenerate invoice", err);
+            toast.error(err?.message || "Failed to regenerate invoice");
+        } finally {
+            setLoading(false);
         }
+    };
+
+    const handleRegenerate = () => {
+        if (isDirty) {
+            setShowRegenConfirm(true);
+            return;
+        }
+        doRegenerate();
     };
 
     if (!isOpen) return null;
@@ -148,39 +175,46 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                     <p className="text-center py-4">Loading invoice...</p>
                 ) : invoiceData ? (
                     <>
+                        {/* Invoice details */}
                         <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
                             <div>
                                 <p>
                                     <strong>Date:</strong>{" "}
-                                    {new Date(invoiceData.invoiceDate).toLocaleDateString()}
+                                    {invoiceData?.invoiceDate
+                                        ? new Date(invoiceData.invoiceDate).toLocaleDateString()
+                                        : "-"}
                                 </p>
                                 <label className="block mt-2">
                                     <strong>Status:</strong>
                                     <select
                                         className="ml-2 border rounded p-1"
-                                        value={invoiceData.status}
-                                        onChange={e =>
-                                            handleFieldChange("status", e.target.value)
-                                        }
+                                        value={invoiceData.status || "Unpaid"}
+                                        onChange={(e) => handleFieldChange("status", e.target.value)}
+                                        disabled={isBusy}
                                     >
                                         <option value="Unpaid">Unpaid</option>
                                         <option value="Paid">Paid</option>
                                         <option value="Partial">Partial</option>
-                                        <option value="Cancelled">Cancelled</option>
                                     </select>
                                 </label>
                             </div>
                             <div>
-                                <p><strong>Customer:</strong> {invoiceData.customerName}</p>
-                                <p><strong>Contact:</strong> {invoiceData.contactNo}</p>
-                                <p><strong>Vehicle:</strong> {invoiceData.vehicleRegNo} ({invoiceData.makeModel})</p>
+                                <p><strong>Customer:</strong> {invoiceData.customerName || "-"}</p>
+                                <p><strong>Contact:</strong> {invoiceData.contactNo || "-"}</p>
+                                <p>
+                                    <strong>Vehicle:</strong>{" "}
+                                    {invoiceData.vehicleRegNo || "-"}{" "}
+                                    {invoiceData.makeModel ? `(${invoiceData.makeModel})` : ""}
+                                </p>
                             </div>
                         </div>
 
+                        {/* Items table */}
                         <button
                             type="button"
-                            className="px-2 py-1 bg-green-600 text-white rounded text-sm mb-2"
+                            className="px-2 py-1 bg-green-600 text-white rounded text-sm mb-2 disabled:opacity-50"
                             onClick={handleAddItem}
+                            disabled={isBusy}
                         >
                             Add Item
                         </button>
@@ -200,9 +234,10 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                                 type="text"
                                                 className="w-full border rounded p-1"
                                                 value={item.description}
-                                                onChange={e =>
+                                                onChange={(e) =>
                                                     handleItemChange(index, "description", e.target.value)
                                                 }
+                                                disabled={isBusy}
                                             />
                                         </td>
                                         <td className="border p-2 text-right">
@@ -210,9 +245,10 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                                 type="number"
                                                 className="w-24 border rounded p-1 text-right"
                                                 value={item.amount}
-                                                onChange={e =>
+                                                onChange={(e) =>
                                                     handleItemChange(index, "amount", e.target.value)
                                                 }
+                                                disabled={isBusy}
                                             />
                                         </td>
                                     </tr>
@@ -220,6 +256,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             </tbody>
                         </table>
 
+                        {/* Totals */}
                         <div className="flex justify-end text-sm">
                             <div className="w-1/3">
                                 <div className="flex justify-between py-1">
@@ -230,11 +267,12 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                     <span>Discount:</span>
                                     <input
                                         type="number"
-                                        className="w-20 border rounded p-1 text-right"
-                                        value={invoiceData.discountAmount}
-                                        onChange={e =>
-                                            handleFieldChange("discountAmount", e.target.value)
+                                        className="w-24 border rounded p-1 text-right"
+                                        value={invoiceData.discountAmount || 0}
+                                        onChange={(e) =>
+                                            handleFieldChange("discountAmount", Number(e.target.value || 0))
                                         }
+                                        disabled={isBusy}
                                     />
                                 </div>
                                 <div className="flex justify-between py-1">
@@ -248,10 +286,9 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                 <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
                                     <input
                                         type="checkbox"
-                                        checked={invoiceData.vatIncluded}
-                                        onChange={e =>
-                                            handleFieldChange("vatIncluded", e.target.checked)
-                                        }
+                                        checked={Boolean(invoiceData.vatIncluded)}
+                                        onChange={(e) => handleFieldChange("vatIncluded", e.target.checked)}
+                                        disabled={isBusy}
                                     />
                                     VAT Included
                                 </label>
@@ -259,42 +296,54 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                         </div>
                     </>
                 ) : (
-                    <p className="text-center py-4 text-gray-500">
-                        No invoice found for this booking.
-                    </p>
+                    <p className="text-center py-4 text-gray-500">No invoice found for this booking.</p>
                 )}
 
-                <div className="flex justify-end mt-6 gap-2">
+                {/* ───────────────────────── Buttons row */}
+                <div className="flex flex-wrap justify-end mt-6 gap-2">
                     <button
                         className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded"
                         onClick={onClose}
                     >
                         Close
                     </button>
+
                     <button
-                        disabled={!isDirty}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50"
+                        onClick={handleRegenerate}
+                        disabled={!canRegenerate}
+                        title={isDirty ? "Regenerating will discard unsaved changes" : ""}
+                    >
+                        Regenerate
+                    </button>
+
+                    <button
                         className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
                         onClick={handleReset}
+                        disabled={!canReset}
                     >
-                        Reset Changes
+                        Reset
                     </button>
+
                     <button
-                        disabled={saving || !invoiceData?._id || !isDirty}
                         className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
-                        onClick={() => setShowConfirm(true)}
+                        onClick={() => setShowSaveConfirm(true)}
+                        disabled={!canSave}
                     >
-                        {saving ? "Saving..." : "Save Changes"}
+                        {saving ? "Saving..." : "Save"}
                     </button>
+
                     <button
-                        disabled={isDirty || !invoiceData?._id}
                         className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
                         onClick={handleViewPdf}
+                        disabled={!canView}
                     >
                         View PDF
                     </button>
                 </div>
 
-                {showConfirm && (
+                {/* Save confirm */}
+                {showSaveConfirm && (
                     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
                         <div className="bg-white p-6 rounded shadow-lg max-w-sm">
                             <p className="mb-4 text-center">
@@ -303,7 +352,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             <div className="flex justify-center gap-4">
                                 <button
                                     className="px-4 py-2 bg-gray-500 text-white rounded"
-                                    onClick={() => setShowConfirm(false)}
+                                    onClick={() => setShowSaveConfirm(false)}
                                 >
                                     Cancel
                                 </button>
@@ -312,6 +361,31 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                     onClick={confirmSave}
                                 >
                                     Confirm Save
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Regenerate confirm */}
+                {showRegenConfirm && (
+                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                        <div className="bg-white p-6 rounded shadow-lg max-w-sm">
+                            <p className="mb-4 text-center">
+                                Regenerating will discard your unsaved changes. Continue?
+                            </p>
+                            <div className="flex justify-center gap-4">
+                                <button
+                                    className="px-4 py-2 bg-gray-500 text-white rounded"
+                                    onClick={() => setShowRegenConfirm(false)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="px-4 py-2 bg-purple-600 text-white rounded"
+                                    onClick={doRegenerate}
+                                >
+                                    Yes, Regenerate
                                 </button>
                             </div>
                         </div>
