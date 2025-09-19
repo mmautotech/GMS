@@ -1,7 +1,6 @@
-// app/src/main.js
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session } = require("electron");
 
-let mainWindow; // single window ref
+let mainWindow;
 
 const DEV_CSP = [
   "default-src 'self' data: blob:",
@@ -10,10 +9,9 @@ const DEV_CSP = [
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
   "connect-src 'self' http://127.0.0.1:5000 ws: http: https:",
-  "worker-src 'self' blob:"
-].join('; ');
+  "worker-src 'self' blob:",
+].join("; ");
 
-// Create (or focus) the single window
 function createWindow() {
   if (mainWindow) {
     if (mainWindow.isMinimized()) mainWindow.restore();
@@ -27,41 +25,47 @@ function createWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      // ✅ Provided by forge/webpack
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
   });
 
-  mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 
-  // Load renderer
+  // ✅ Load renderer (provided by forge/webpack)
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+
+  // 🔒 Prevent blank child windows (redirect to system browser)
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    require("electron").shell.openExternal(url);
+    return { action: "deny" };
+  });
 }
 
-// Enforce single-instance
+// Enforce single instance
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => createWindow());
+  app.on("second-instance", () => createWindow());
 
   app.whenReady().then(() => {
-    // Force dev CSP via header (beats any meta/webpack default)
     session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       const headers = details.responseHeaders || {};
-      headers['Content-Security-Policy'] = [DEV_CSP];
+      headers["Content-Security-Policy"] = [DEV_CSP];
       cb({ responseHeaders: headers });
     });
 
     createWindow();
   });
 
-  // macOS: re-create when dock icon clicked and no windows open
-  app.on('activate', () => {
+  app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 
-  // Win/Linux: quit when all windows closed
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") app.quit();
   });
 }

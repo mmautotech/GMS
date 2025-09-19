@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import BookingsTable from "./bookingsTable.jsx";
-import StatCard from "./StatCard.jsx";
+import StatCard from "../../components/StatCard.jsx";
 import { Line, Bar } from "react-chartjs-2";
 import {
     Chart as ChartJS,

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import InvoiceModal from "../Invoice/InvoiceModel.jsx";
+import InvoiceModal from "./InvoiceModel.jsx";
 
 export default function BookingTable({ bookings, onCarOut, onSelectBooking, loadingCarOutId }) {
     const [selectedBooking, setSelectedBooking] = useState(null);

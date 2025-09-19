@@ -1,64 +1,82 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { toast } from "react-toastify";
-import StatCard from "../Dashboard/StatCard.jsx";
+import StatCard from "../../components/StatCard.jsx";
 
 export default function Invoices() {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [searchFilter, setSearchFilter] = useState("");
-    const [monthFilter, setMonthFilter] = useState("");
-    const [yearFilter, setYearFilter] = useState("");
-    const [page, setPage] = useState(1);
-    const [limit] = useState(20); // items per page
-    const [totalPages, setTotalPages] = useState(1);
 
+    // 🔍 Filters
+    const [searchFilter, setSearchFilter] = useState("");
+    const [fromDate, setFromDate] = useState("");
+    const [toDate, setToDate] = useState("");
+    const [statusFilter, setStatusFilter] = useState("");
+
+    // 📑 Pagination
+    const [page, setPage] = useState(1);
+    const [limit, setLimit] = useState(25);
+    const [totalPages, setTotalPages] = useState(1);
+    const [totalCount, setTotalCount] = useState(0);
+
+    // 📊 Stats
+    const [stats, setStats] = useState({ total: 0, paid: 0, unpaid: 0, partial: 0 });
+
+    // ✅ Fetch stats
+    const fetchStats = async () => {
+        try {
+            const res = await InvoiceApi.getInvoiceStats();
+            setStats(res);
+        } catch (err) {
+            console.error("Error fetching stats:", err);
+            toast.error("Failed to fetch invoice stats");
+        }
+    };
+
+    // ✅ Fetch invoices
     const fetchInvoices = async (page = 1) => {
         try {
             setLoading(true);
             const res = await InvoiceApi.getAllInvoices({
                 page,
                 limit,
-                search: searchFilter,
+                search: searchFilter || undefined,
+                fromDate: fromDate || undefined,
+                toDate: toDate || undefined,
+                status: statusFilter || undefined,
             });
 
-            // Backend response { data, pagination: { total, page, totalPages } }
             const { data, pagination } = res;
-            setInvoices(data);
+            setInvoices(data || []);
             setTotalPages(pagination?.totalPages || 1);
+            setTotalCount(pagination?.total || 0);
             setPage(page);
+
+            if (!data || data.length === 0) {
+                toast.info("No invoices found for the selected filters.");
+            }
         } catch (err) {
-            console.error(err);
+            console.error("Error fetching invoices:", err);
             toast.error("Failed to fetch invoices");
         } finally {
             setLoading(false);
         }
     };
 
+    // 🔁 Run on mount
+    useEffect(() => {
+        fetchStats();
+    }, []);
+
+    // 🔁 Refetch on filters
     useEffect(() => {
         fetchInvoices(1);
-    }, [searchFilter, monthFilter, yearFilter]);
+    }, [searchFilter, fromDate, toDate, limit, statusFilter]);
 
-    const handleDownloadPdf = async (invoiceId, invoiceNo) => {
-        try {
-            await InvoiceApi.downloadInvoicePdf(invoiceId, `${invoiceNo}.pdf`);
-            toast.success("Invoice downloaded!");
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to download invoice");
-        }
+    // ✅ Open PDF in default browser (normal / proforma)
+    const handleViewPdf = (invoiceId, isProforma = false) => {
+        InvoiceApi.viewInvoicePdf(invoiceId, isProforma);
     };
-
-    const years = Array.from(
-        new Set(invoices.map((inv) => new Date(inv.createdAt).getFullYear()))
-    ).sort((a, b) => b - a);
-
-    const invoiceStats = useMemo(() => {
-        const total = invoices.length;
-        const paid = invoices.filter((inv) => inv.status === "Paid").length;
-        const unpaid = invoices.filter((inv) => inv.status === "Unpaid").length;
-        return { total, paid, unpaid };
-    }, [invoices]);
 
     const handlePageChange = (newPage) => {
         if (newPage < 1 || newPage > totalPages) return;
@@ -70,10 +88,11 @@ export default function Invoices() {
             <h1 className="text-2xl font-bold mb-4">Invoices</h1>
 
             {/* Invoice Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <StatCard title="Total Invoices" value={invoiceStats.total} />
-                <StatCard title="Paid" value={invoiceStats.paid} />
-                <StatCard title="Unpaid" value={invoiceStats.unpaid} />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <StatCard title="Total Invoices" value={stats.total} />
+                <StatCard title="Paid" value={stats.paid} />
+                <StatCard title="Unpaid" value={stats.unpaid} />
+                <StatCard title="Partial" value={stats.partial} />
             </div>
 
             {/* Filters */}
@@ -82,31 +101,44 @@ export default function Invoices() {
                     type="text"
                     value={searchFilter}
                     onChange={(e) => setSearchFilter(e.target.value)}
-                    placeholder="Search by Invoice No, Customer Name, or Vehicle Reg No"
+                    placeholder="Search (Invoice No, Name, Contact, Reg No, Model...)"
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 />
+
+                <input
+                    type="date"
+                    value={fromDate}
+                    onChange={(e) => setFromDate(e.target.value)}
+                    className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
+                />
+
+                <input
+                    type="date"
+                    value={toDate}
+                    onChange={(e) => setToDate(e.target.value)}
+                    className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
+                />
+
                 <select
-                    value={monthFilter}
-                    onChange={(e) => setMonthFilter(e.target.value)}
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 >
-                    <option value="">All Months</option>
-                    {[
-                        "January", "February", "March", "April", "May", "June",
-                        "July", "August", "September", "October", "November", "December"
-                    ].map((m, i) => (
-                        <option key={i} value={i + 1}>{m}</option>
-                    ))}
+                    <option value="">All Status</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Partial">Partial</option>
                 </select>
+
                 <select
-                    value={yearFilter}
-                    onChange={(e) => setYearFilter(e.target.value)}
+                    value={limit}
+                    onChange={(e) => setLimit(Number(e.target.value))}
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 >
-                    <option value="">All Years</option>
-                    {years.map((y) => (
-                        <option key={y} value={y}>{y}</option>
-                    ))}
+                    <option value={10}>10 / page</option>
+                    <option value={25}>25 / page</option>
+                    <option value={50}>50 / page</option>
+                    <option value={100}>100 / page</option>
                 </select>
             </div>
 
@@ -119,7 +151,9 @@ export default function Invoices() {
                     <table className="min-w-full bg-white rounded shadow">
                         <thead className="bg-gray-800 text-white">
                             <tr>
+                                <th className="py-2 px-4 text-left">S.NO</th>
                                 <th className="py-2 px-4 text-left">Invoice No</th>
+                                <th className="py-2 px-4 text-left">Date</th>
                                 <th className="py-2 px-4 text-left">Customer Name</th>
                                 <th className="py-2 px-4 text-left">Contact No</th>
                                 <th className="py-2 px-4 text-left">Vehicle Reg No</th>
@@ -130,9 +164,11 @@ export default function Invoices() {
                             </tr>
                         </thead>
                         <tbody>
-                            {invoices.map((invoice) => (
+                            {invoices.map((invoice, index) => (
                                 <tr key={invoice._id} className="border-b hover:bg-gray-100">
+                                    <td className="py-2 px-4">{(page - 1) * limit + index + 1}</td>
                                     <td className="py-2 px-4">{invoice.invoiceNo}</td>
+                                    <td className="py-2 px-4">{new Date(invoice.invoiceDate || invoice.createdAt).toLocaleDateString("en-GB")}</td>
                                     <td className="py-2 px-4">{invoice.customerName}</td>
                                     <td className="py-2 px-4">{invoice.contactNo}</td>
                                     <td className="py-2 px-4">{invoice.vehicleRegNo}</td>
@@ -144,18 +180,24 @@ export default function Invoices() {
                                                 ? "bg-green-600"
                                                 : invoice.status === "Unpaid"
                                                     ? "bg-red-600"
-                                                    : "bg-gray-500"
+                                                    : "bg-yellow-500"
                                                 }`}
                                         >
                                             {invoice.status}
                                         </span>
                                     </td>
-                                    <td className="py-2 px-4">
+                                    <td className="py-2 px-4 flex gap-2">
                                         <button
                                             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                                            onClick={() => handleDownloadPdf(invoice._id, invoice.invoiceNo)}
+                                            onClick={() => handleViewPdf(invoice._id)}
                                         >
-                                            View PDF
+                                            View
+                                        </button>
+                                        <button
+                                            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
+                                            onClick={() => handleViewPdf(invoice._id, true)}
+                                        >
+                                            Proforma
                                         </button>
                                     </td>
                                 </tr>
@@ -164,22 +206,33 @@ export default function Invoices() {
                     </table>
 
                     {/* Pagination */}
-                    <div className="flex justify-center items-center gap-2 mt-4">
-                        <button
-                            className="px-3 py-1 border rounded"
-                            disabled={page === 1}
-                            onClick={() => handlePageChange(page - 1)}
-                        >
-                            Prev
-                        </button>
-                        <span>Page {page} of {totalPages}</span>
-                        <button
-                            className="px-3 py-1 border rounded"
-                            disabled={page === totalPages || invoices.length < limit} // disable Next if no more data
-                            onClick={() => handlePageChange(page + 1)}
-                        >
-                            Next
-                        </button>
+                    <div className="flex justify-between items-center mt-4">
+                        <span className="text-gray-600">Total Invoices: {totalCount}</span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                className={`px-3 py-1 rounded ${page === 1
+                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                    }`}
+                                disabled={page === 1}
+                                onClick={() => handlePageChange(page - 1)}
+                            >
+                                Prev
+                            </button>
+                            <span>
+                                Page {page} of {totalPages}
+                            </span>
+                            <button
+                                className={`px-3 py-1 rounded ${page === totalPages || invoices.length < limit
+                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                    }`}
+                                disabled={page === totalPages || invoices.length < limit}
+                                onClick={() => handlePageChange(page + 1)}
+                            >
+                                Next
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

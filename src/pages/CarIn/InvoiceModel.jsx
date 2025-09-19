@@ -121,19 +121,17 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
         }
     };
 
-    const handleDownload = async () => {
+    // ✅ New: View PDF instead of Download
+    const handleViewPdf = () => {
         if (!invoiceData?._id) {
-            toast.error("Invoice ID missing, cannot download.");
+            toast.error("Invoice ID missing, cannot open PDF.");
             return;
         }
         try {
-            await InvoiceApi.downloadInvoicePdf(
-                invoiceData._id,
-                `${invoiceData.invoiceNo || "invoice"}.pdf`
-            );
-            toast.success("Invoice PDF downloaded");
+            InvoiceApi.viewInvoicePdf(invoiceData._id, false); // normal invoice PDF
         } catch (err) {
-            toast.error(err.message || "Failed to download invoice PDF");
+            console.error("Error opening PDF:", err);
+            toast.error(err.message || "Failed to open PDF");
         }
     };
 
@@ -290,9 +288,9 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                     <button
                         disabled={isDirty || !invoiceData?._id}
                         className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
-                        onClick={handleDownload}
+                        onClick={handleViewPdf}
                     >
-                        Download PDF
+                        View PDF
                     </button>
                 </div>
 
