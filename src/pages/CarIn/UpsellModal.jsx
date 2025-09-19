@@ -1,35 +1,30 @@
 // src/pages/CarIn/UpsellModal.jsx
 import React, { useState, useEffect } from "react";
-import { ServicesApi, PartsApi, UpsellApi } from "../../lib/api";
+import { ServicesApi, UpsellApi } from "../../lib/api";
 
 export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
     const [services, setServices] = useState([]);
-    const [parts, setParts] = useState([]);
-    const [loading, setLoading] = useState(false); // ✅ track loading
+    const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
         serviceId: "",
-        partId: "",
         partPrice: "",
         labourPrice: "",
         upsellPrice: "",
         userEditedUpsell: false,
     });
 
-    // Load services & parts
+    // Load services
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchServices = async () => {
             try {
                 const serviceList = await ServicesApi.getServices();
                 setServices(Array.isArray(serviceList) ? serviceList : serviceList.items || []);
-
-                const partList = await PartsApi.getParts();
-                setParts(Array.isArray(partList) ? partList : partList.items || []);
             } catch (err) {
-                console.error("Failed to fetch dropdown data", err);
-                alert("Failed to load services/parts");
+                console.error("Failed to fetch services", err);
+                alert("Failed to load services");
             }
         };
-        fetchData();
+        fetchServices();
     }, []);
 
     // Auto-calc upsell price (unless manually edited)
@@ -63,17 +58,15 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
             return;
         }
 
-        setLoading(true); // ✅ disable button during request
+        setLoading(true);
         try {
             const upsell = await UpsellApi.createUpsell(booking._id, {
                 serviceId: form.serviceId,
-                partId: form.partId,
                 partsCost: Number(form.partPrice) || 0,
                 labourCost: Number(form.labourPrice) || 0,
                 upsellPrice: Number(form.upsellPrice) || 0,
             });
 
-            // ✅ notify parent, auto-close
             onSaved?.(upsell);
             onClose();
         } catch (err) {
@@ -106,26 +99,6 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                             {services.map((s) => (
                                 <option key={s._id} value={s._id}>
                                     {s.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    {/* Part dropdown */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Part</label>
-                        <select
-                            className="w-full border rounded p-2"
-                            value={form.partId}
-                            onChange={(e) =>
-                                setForm((prev) => ({ ...prev, partId: e.target.value }))
-                            }
-                        >
-                            <option value="">Select part</option>
-                            {parts.map((p) => (
-                                <option key={p._id} value={p._id}>
-                                    {p.partName}
-                                    {p.partNumber ? ` (${p.partNumber})` : ""}
                                 </option>
                             ))}
                         </select>
@@ -176,14 +149,14 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                             type="button"
                             className="px-4 py-2 border rounded"
                             onClick={onClose}
-                            disabled={loading} // ✅ prevent close spam
+                            disabled={loading}
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
                             className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-                            disabled={loading} // ✅ disable while loading
+                            disabled={loading}
                         >
                             {loading ? "Saving..." : "Save Upsell"}
                         </button>
