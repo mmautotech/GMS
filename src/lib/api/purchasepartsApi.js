@@ -59,6 +59,14 @@ const PurchasePartsApi = {
         const blob = await PurchasePartsApi.downloadInvoicePdf(id, isProforma, isAdmin);
         saveAs(blob, `invoice_${id}.pdf`);
     },
+
+
+    getInvoiceById: async (id) => {
+        const { data } = await axiosInstance.get(`/purchase-invoices/${id}`);
+        return data;
+    },
+    // other methods...
+
 };
 
 export default PurchasePartsApi;
