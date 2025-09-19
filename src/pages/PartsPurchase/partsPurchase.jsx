@@ -1,4 +1,3 @@
-// src/pages/PartsPurchase/parts-inventory.jsx
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import PurchasePartsApi from "../../lib/api/purchasepartsApi.js";
@@ -21,8 +20,6 @@ import PartsInvoiceModal from "./PartsInvoiceModal.jsx";
 export default function PartsPurchase() {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [downloadingId, setDownloadingId] = useState(null);
-
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [pageSize] = useState(5);
@@ -46,13 +43,12 @@ export default function PartsPurchase() {
     const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
-    // Fetch suppliers & parts only once
+    // Fetch suppliers & parts once
     useEffect(() => {
         fetchSuppliers();
         fetchParts();
     }, []);
 
-    // Fetch invoices
     const fetchInvoices = async (pageNumber = 1) => {
         try {
             setLoading(true);
@@ -99,16 +95,16 @@ export default function PartsPurchase() {
         }
     };
 
-    // Re-fetch invoices when page or filters change
     useEffect(() => {
         fetchInvoices(page);
     }, [page]);
 
     useEffect(() => {
-        setPage(1); // reset to first page when filters change
+        setPage(1);
         fetchInvoices(1);
     }, [searchTerm, filterSupplier, filterStatus]);
 
+    // Form handlers
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData((prev) => ({
@@ -163,19 +159,6 @@ export default function PartsPurchase() {
         }
     };
 
-    const handleDownloadPdf = async (invoiceId) => {
-        try {
-            setDownloadingId(invoiceId);
-            await PurchasePartsApi.downloadAndSaveInvoice(invoiceId);
-            toast.success("Invoice downloaded successfully");
-        } catch (err) {
-            console.error(err);
-            toast.error("Failed to download invoice PDF");
-        } finally {
-            setDownloadingId(null);
-        }
-    };
-
     const handlePageChange = (newPage) => {
         if (newPage < 1 || newPage > totalPages) return;
         setPage(newPage);
@@ -183,6 +166,7 @@ export default function PartsPurchase() {
 
     return (
         <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+            {/* Header */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-3xl font-bold text-gray-800">Parts Purchase Invoices</h1>
                 <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
@@ -241,7 +225,6 @@ export default function PartsPurchase() {
                                     </div>
                                 </div>
                             ))}
-
                             <Button onClick={addItem} className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mt-2">Add Another Part</Button>
 
                             {/* Invoice Info */}
@@ -299,7 +282,7 @@ export default function PartsPurchase() {
                 <Button onClick={() => fetchInvoices(1)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">Apply Filters</Button>
             </div>
 
-            {/* Invoices Table */}
+            {/* Invoice Table */}
             <div className="overflow-x-auto bg-white rounded-lg shadow mt-4">
                 <table className="min-w-full table-auto">
                     <thead className="bg-gray-100 text-gray-700">
@@ -323,7 +306,7 @@ export default function PartsPurchase() {
                         ) : (
                             invoices.map((inv, idx) => {
                                 const items = Array.isArray(inv.items) ? inv.items : [];
-                                const subtotal = items.reduce((sum, item) => sum + ((item.rate || 0) * (item.quantity || 1)), 0);
+                                const subtotal = items.reduce((sum, item) => sum + ((item.rate || 0) * (item.quantity || 0)), 0);
                                 const discount = Number(inv.discount || 0);
                                 const vat = inv.vatIncluded ? (subtotal - discount) * 0.2 : 0;
                                 const total = subtotal - discount + vat;
@@ -342,7 +325,7 @@ export default function PartsPurchase() {
                                         <td className="border px-4 py-2">{inv.paymentStatus || "Pending"}</td>
                                         <td className="border px-4 py-2 flex justify-center gap-2">
                                             <Button
-                                                className={`bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700`}
+                                                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
                                                 onClick={() => {
                                                     setSelectedInvoiceId(inv._id);
                                                     setIsInvoiceModalOpen(true);
@@ -350,17 +333,9 @@ export default function PartsPurchase() {
                                             >
                                                 <Eye className="w-4 h-4 inline" /> View/Edit
                                             </Button>
-
-                                            <Button
-                                                className={`bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 ${downloadingId === inv._id ? "opacity-50 cursor-not-allowed" : ""}`}
-                                                onClick={() => handleDownloadPdf(inv._id)}
-                                                disabled={downloadingId === inv._id}
-                                            >
-                                                {downloadingId === inv._id ? "Downloading..." : "Download PDF"}
-                                            </Button>
                                         </td>
                                     </tr>
-                                )
+                                );
                             })
                         )}
                     </tbody>
@@ -383,7 +358,7 @@ export default function PartsPurchase() {
                     isOpen={isInvoiceModalOpen}
                     onClose={() => {
                         setIsInvoiceModalOpen(false);
-                        fetchInvoices(page); // refresh table after edit
+                        fetchInvoices(page);
                     }}
                 />
             )}

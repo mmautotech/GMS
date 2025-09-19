@@ -67,6 +67,7 @@ export default function Dashboard({ user }) {
         completed: 0,
         pending: 0,
         arrived: 0,
+        cancelled: 0,
     });
     const [loadingCharts, setLoadingCharts] = useState(true);
 
@@ -144,12 +145,15 @@ export default function Dashboard({ user }) {
             </h1>
 
             {/* StatCards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+            {/* StatCards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-6 mb-6">
                 <StatCard title="Total Bookings" value={bookingStats.total || 0} />
                 <StatCard title="Completed" value={bookingStats.completed || 0} />
                 <StatCard title="Pending" value={bookingStats.pending || 0} />
                 <StatCard title="Arrived" value={bookingStats.arrived || 0} />
+                <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
             </div>
+
 
             {/* Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">

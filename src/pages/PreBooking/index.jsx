@@ -73,6 +73,20 @@ export default function PreBookingPage() {
     [updateStatus, navigate, refresh]
   );
 
+
+  const handleCancelled = useCallback(
+    async (booking) => {
+      const res = await updateStatus(booking._id, "cancelled");
+      if (res.ok) {
+        toast.success("Car marked as Cancelled!");
+        refresh();
+        navigate("/dashboard");
+      } else toast.error(res.error || "Failed to mark car as cancelled");
+    },
+    [updateStatus, navigate, refresh]
+  );
+
+
   const handleAddBooking = () => {
     setEditingBooking(null);
     setShowModal(true);
@@ -171,6 +185,7 @@ export default function PreBookingPage() {
             bookings={bookings}
             onUpdate={handleUpdate}
             onCarIn={handleCarIn}
+            onCancelled={handleCancelled}
             onEdit={handleEditBooking}
           />
 

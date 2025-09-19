@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
 import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
+import { Trash2 } from "lucide-react";
 
-export default function BookingRow({ booking: initialBooking, index, onUpdate, onCarIn, onEdit }) {
+export default function BookingRow({ booking: initialBooking, index, onUpdate, onCarIn, onCancelled, onEdit }) {
   const [expanded, setExpanded] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showPhoto, setShowPhoto] = useState(false);
@@ -52,6 +53,7 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
         <td className="p-2 border">{booking.bookingPrice?.toLocaleString() || 0}</td>
         <td className="p-2 border">{formatValue(booking.createdBy?.username)}</td>
         <td className="p-2 flex gap-2 border">
+
           <button
             className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
             onClick={(e) => { e.stopPropagation(); onCarIn(booking); }}
@@ -64,6 +66,18 @@ export default function BookingRow({ booking: initialBooking, index, onUpdate, o
             onClick={(e) => { e.stopPropagation(); setShowEditModal(true); }}
           >
             ✏️ Edit
+          </button>
+
+          <button
+            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (confirm("Are you sure you want to cancel this booking?")) {
+                onCancelled(booking);
+              }
+            }}
+          >
+            <Trash2 size={16} />
           </button>
         </td>
       </tr>

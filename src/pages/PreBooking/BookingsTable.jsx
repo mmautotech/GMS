@@ -6,6 +6,7 @@ export default function BookingsTable({
   bookings,
   onUpdate,
   onCarIn,
+  onCancelled,
   onEdit,
   sortField,
   sortOrder,
@@ -58,6 +59,7 @@ export default function BookingsTable({
               index={booking.rowNumber} // ✅ use backend rowNumber
               onUpdate={onUpdate}
               onCarIn={onCarIn}
+              onCancelled={onCancelled}
               onEdit={onEdit}
             />
           ))}
