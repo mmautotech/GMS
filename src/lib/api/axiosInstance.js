@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // ✅ Always use API URL from .env
-const API_URL = process.env.API_BASE;
+const API_URL = process.env.REACT_APP_API_BASE;
 
 // ✅ Create Axios instance
 const axiosInstance = axios.create({

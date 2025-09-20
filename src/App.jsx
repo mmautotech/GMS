@@ -138,16 +138,20 @@ function Shell({ user, onLogout }) {
     onLogout?.();
     navigate("/login", { replace: true });
   };
-
   return (
     <div className="min-h-screen bg-gray-100 flex">
-      <Sidebar
-        username={`${user?.username} (${user?.userType ?? "user"})`}
-        onClose={() => setSidebarOpen(false)}
-        onLogout={handleLogoutClick}
-        userType={user?.userType} // Sidebar will control visibility
-      />
-      <main className="flex-1 p-6">
+      {/* Sidebar only when open */}
+      {sidebarOpen && (
+        <Sidebar
+          username={`${user?.username} (${user?.userType ?? "user"})`}
+          onClose={() => setSidebarOpen(false)}
+          onLogout={handleLogoutClick}
+          userType={user?.userType}
+        />
+      )}
+
+      {/* Main content area */}
+      <main className="flex-1 p-6 ml-0">
         {!sidebarOpen && (
           <button
             className="mb-4 bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700"
