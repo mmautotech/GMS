@@ -1,7 +1,7 @@
 {
-  "name": "garage-management-software",
-  "productName": "garage-management-software",
-  "version": "1.0.0",
+  "name": "garage_management_software",
+  "productName": "Garage Management Software",
+  "version": "1.0.1",
   "description": "My Electron application description",
   "main": ".webpack/main",
   "scripts": {
@@ -11,10 +11,9 @@
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\""
   },
-  "keywords": [],
   "author": {
-    "name": "BryanPeterJohnson",
-    "email": "Bryanpeterjohnson435@gmail.com"
+    "name": "Bryan Peter Johnson",
+    "email": "jh@hotmail.com"
   },
   "license": "MIT",
   "devDependencies": {
@@ -33,8 +32,9 @@
     "@vercel/webpack-asset-relocator-loader": "^1.7.3",
     "autoprefixer": "^10.4.21",
     "babel-loader": "^10.0.0",
+    "copy-webpack-plugin": "^13.0.1",
     "css-loader": "^6.11.0",
-    "dotenv": "^17.2.1",
+    "dotenv": "^17.2.2",
     "electron": "37.2.6",
     "node-loader": "^2.1.0",
     "postcss": "^8.5.6",
