@@ -1,18 +1,16 @@
 // ./axiosInstance.js
 import axios from "axios";
 
-// ✅ Resolve API URL from Vite env (fallback to localhost)
-const API_URL =
-    import.meta.env?.VITE_API_URL || "http://localhost:5000/api";
+// ✅ Always use API URL from .env
+const API_URL = process.env.API_BASE;
 
 // ✅ Create Axios instance
 const axiosInstance = axios.create({
     baseURL: API_URL,
-    timeout: 20000, // 10s timeout
+    timeout: 20000, // 20s timeout
     headers: {
         "Content-Type": "application/json",
     },
-    // withCredentials: true, // uncomment only if backend uses cookies
 });
 
 // ✅ Request interceptor → attach token automatically
@@ -39,10 +37,18 @@ axiosInstance.interceptors.response.use(
             const { status, data } = error.response;
             console.error(`API Error [${status}]:`, data);
 
-            // Auto logout if unauthorized
+            // 🔒 Auto logout if unauthorized
             if (status === 401) {
                 localStorage.removeItem("token");
-                window.location.href = "/login";
+
+                // Prefer SPA navigation if injected, otherwise hard reload
+                if (typeof window !== "undefined") {
+                    if (window.__APP_NAVIGATE__) {
+                        window.__APP_NAVIGATE__("/login");
+                    } else {
+                        window.location.href = "/login";
+                    }
+                }
             }
         } else if (error.request) {
             console.error("🌐 Network Error:", error.message);
