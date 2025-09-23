@@ -83,7 +83,13 @@ export default function App() {
         />
         <Route
           path="/forgot-password"
-          element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword onForgotPassword={handleForgotPassword} />}
+          element={
+            user ? (
+              <Navigate to="/dashboard" replace />
+            ) : (
+              <ForgotPassword onForgotPassword={handleForgotPassword} />
+            )
+          }
         />
 
         {/* Private routes */}
@@ -129,37 +135,95 @@ function RequireAuth({ user }) {
   return <Outlet />;
 }
 
+/**
+ * Shell layout:
+ * - Desktop (md+): sidebar is controlled by `sidebarOpen` and shown inline when true.
+ * - Mobile (<md): sidebar is a slide-in drawer using the same `sidebarOpen` state.
+ * - Main uses `min-w-0 overflow-x-hidden` so tables/content can't push the layout wider.
+ */
 function Shell({ user, onLogout }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleSidebarToggle = () => setSidebarOpen(!sidebarOpen);
+  // Open by default on desktop (>=768px), closed on mobile.
+  const [sidebarOpen, setSidebarOpen] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= 768 : true
+  );
+
   const handleLogoutClick = () => {
     onLogout?.();
     navigate("/login", { replace: true });
   };
+
+  // If resized to desktop width, ensure the sidebar opens
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth >= 768) setSidebarOpen(true);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      {/* Sidebar only when open */}
+    <div className="flex min-h-screen bg-gray-100 overflow-hidden">
+      {/* --- Desktop sidebar (md+) — controlled by sidebarOpen --- */}
       {sidebarOpen && (
-        <Sidebar
-          username={`${user?.username} (${user?.userType ?? "user"})`}
-          onClose={() => setSidebarOpen(false)}
-          onLogout={handleLogoutClick}
-          userType={user?.userType}
-        />
+        <aside className="hidden md:block w-64 shrink-0">
+          <Sidebar
+            username={`${user?.username} (${user?.userType ?? "user"})`}
+            onClose={() => setSidebarOpen(false)}  // ✅ close on ❌
+            onLogout={handleLogoutClick}
+            userType={user?.userType}
+          />
+        </aside>
       )}
 
-      {/* Main content area */}
-      <main className="flex-1 p-6 ml-0">
-        {!sidebarOpen && (
+      {/* --- Mobile drawer (smaller than md) — same state --- */}
+      <div
+        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        aria-hidden={!sidebarOpen}
+      >
+        {/* Backdrop */}
+        <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
+        {/* Drawer */}
+        <aside className="relative w-64 h-full bg-white shadow-xl">
+          <Sidebar
+            username={`${user?.username} (${user?.userType ?? "user"})`}
+            onClose={() => setSidebarOpen(false)}  // ✅ close on ❌
+            onLogout={() => {
+              setSidebarOpen(false);
+              handleLogoutClick();
+            }}
+            userType={user?.userType}
+          />
+        </aside>
+      </div>
+
+      {/* --- Main content --- */}
+      <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
+        {/* Top bar */}
+        <div className="flex items-center justify-between mb-4">
+          {/* Menu button: visible when sidebar is closed OR on mobile */}
           <button
-            className="mb-4 bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700"
-            onClick={handleSidebarToggle}
+            className="bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700 md:hidden"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
           >
             ☰ Menu
           </button>
-        )}
+
+          {/* Optional: show a desktop menu button when closed on md+ */}
+          {!sidebarOpen && (
+            <button
+              className="hidden md:inline-flex bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              ☰ Menu
+            </button>
+          )}
+        </div>
+
         <Outlet />
       </main>
     </div>

@@ -4,15 +4,15 @@ import { BookingApi } from "../lib/api/bookingApi.js";
 
 export default function useBookings({
     status,
-    ownerName = "",
-    vehicleRegNo = "",
-    makeModel = "",
-    ownerPostalCode = "",
-    type = "booking", // "booking" | "prebooking"
+    fromDate,
+    toDate,
+    search = "",
+    services,
+    type = "booking",
     initialPage = 1,
-    pageSize = 20,
-    sortBy = "createdAt",
-    sortDir = "desc",
+    pageSize = 25,
+    sortBy = "createdDate",
+    sortDir,
 } = {}) {
     const [items, setItems] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
@@ -25,57 +25,60 @@ export default function useBookings({
     const [hasNextPage, setHasNextPage] = useState(false);
     const [hasPrevPage, setHasPrevPage] = useState(false);
 
-    // --- Fetch bookings / prebookings ---
+    const [activeParams, setActiveParams] = useState(null);
+    const [meta, setMeta] = useState(null);
+
+    // --- Fetch bookings ---
     const fetchBookings = useCallback(async () => {
         setLoadingList(true);
         setError("");
         try {
-            const params = {
+            const res = await BookingApi.getBookings({
                 page,
                 limit: pageSize,
                 sortBy,
                 sortDir,
-                type, // send type to backend
-            };
-            if (status) params.status = status;
-            if (ownerName) params.ownerName = ownerName;
-            if (vehicleRegNo) params.vehicleRegNo = vehicleRegNo;
-            if (makeModel) params.makeModel = makeModel;
-            if (ownerPostalCode) params.ownerPostalCode = ownerPostalCode;
-
-            const res = await BookingApi.getBookings(params);
+                type,
+                status,
+                fromDate,
+                toDate,
+                search,
+                services,
+            });
 
             if (res.ok) {
-                // Use backend-provided rowNumber for continuous numbering
-                const normalizedItems = res.items.map((b) => ({
+                const normalizedItems = (res.items || []).map((b) => ({
                     ...b,
                     _id: b._id || b.id,
-                    rowNumber: b.rowNumber || 0,
+                    rowNumber: b.rowNumber ?? 0,
                 }));
+
                 setItems(normalizedItems);
-                setTotalPages(res.totalPages);
-                setTotalItems(res.totalItems);
-                setHasNextPage(res.hasNextPage);
-                setHasPrevPage(res.hasPrevPage);
+                setTotalPages(res.pagination?.totalPages ?? 1);
+                setTotalItems(res.pagination?.total ?? 0);
+                setHasNextPage(res.pagination?.hasNextPage ?? false);
+                setHasPrevPage(res.pagination?.hasPrevPage ?? false);
+                setActiveParams(res.params || null);
+                setMeta(res.meta || null);
             } else {
                 setError(res.error || "Failed to fetch bookings");
             }
         } catch (err) {
-            setError(err.message || "Failed to fetch bookings");
+            setError(err?.message || "Failed to fetch bookings");
         } finally {
             setLoadingList(false);
         }
     }, [
-        status,
-        ownerName,
-        vehicleRegNo,
-        makeModel,
-        ownerPostalCode,
         page,
         pageSize,
         sortBy,
         sortDir,
         type,
+        status,
+        fromDate,
+        toDate,
+        search,
+        services,
     ]);
 
     useEffect(() => {
@@ -93,11 +96,12 @@ export default function useBookings({
                 setItems((prev) => [newBooking, ...prev]);
                 return { ok: true, booking: newBooking };
             } else {
-                setError(res.error);
-                return { ok: false, error: res.error };
+                const msg = res.error || "Failed to create booking";
+                setError(msg);
+                return { ok: false, error: msg };
             }
         } catch (err) {
-            const msg = err.message || "Failed to create booking";
+            const msg = err?.message || "Failed to create booking";
             setError(msg);
             return { ok: false, error: msg };
         } finally {
@@ -116,11 +120,12 @@ export default function useBookings({
                 setItems((prev) => prev.map((b) => (b._id === id ? updatedBooking : b)));
                 return { ok: true, booking: updatedBooking };
             } else {
-                setError(res.error);
-                return { ok: false, error: res.error };
+                const msg = res.error || "Failed to update booking";
+                setError(msg);
+                return { ok: false, error: msg };
             }
         } catch (err) {
-            const msg = err.message || "Failed to update booking";
+            const msg = err?.message || "Failed to update booking";
             setError(msg);
             return { ok: false, error: msg };
         } finally {
@@ -139,11 +144,12 @@ export default function useBookings({
                 setItems((prev) => prev.map((b) => (b._id === id ? updatedBooking : b)));
                 return { ok: true, booking: updatedBooking };
             } else {
-                setError(res.error);
-                return { ok: false, error: res.error };
+                const msg = res.error || "Failed to update booking status";
+                setError(msg);
+                return { ok: false, error: msg };
             }
         } catch (err) {
-            const msg = err.message || "Failed to update booking status";
+            const msg = err?.message || "Failed to update booking status";
             setError(msg);
             return { ok: false, error: msg };
         } finally {
@@ -151,16 +157,27 @@ export default function useBookings({
         }
     };
 
+    // --- Export bookings CSV ---
+    const exportCSV = async () => {
+        if (!activeParams) return { ok: false, error: "No filters applied" };
+        return await BookingApi.exportBookings(activeParams);
+    };
+
     const refresh = () => fetchBookings();
 
     return {
+        // data
         items,
         list: useMemo(() => items, [items]),
         setList: setItems,
+
+        // status
         loadingList,
         saving,
         error,
         setError,
+
+        // paging
         page,
         setPage,
         totalPages,
@@ -168,10 +185,17 @@ export default function useBookings({
         hasNextPage,
         hasPrevPage,
         pageSize,
+
+        // server-echoed params & meta
+        params: activeParams,
+        meta,
+
+        // actions
         fetchBookings,
         refresh,
         create,
         update,
         updateStatus,
+        exportCSV, // 👈 new action
     };
 }

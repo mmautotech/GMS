@@ -63,7 +63,7 @@ function createMainWindow() {
     if (elapsed >= minTime) {
       showMain();
     } else {
-      setTimeout(showMain, minTime - elapsed);
+      setTimeout(showMain, Math.max(0, minTime - elapsed));
     }
   });
 }
@@ -99,6 +99,7 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
+    // Dev CSP (adjust/remove for prod)
     session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       const headers = details.responseHeaders || {};
       headers["Content-Security-Policy"] = [DEV_CSP];
