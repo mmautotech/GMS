@@ -1,7 +1,6 @@
-// src/lib/api/bookingApi.js
 import axios from "./axiosInstance.js";
 
-// 🔧 Helper to normalize dates
+// 🔧 Normalize date to YYYY-MM-DD
 const normalizeDate = (val) => {
   if (!val) return undefined;
   if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
@@ -50,10 +49,7 @@ export const BookingApi = {
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to fetch bookings",
+        error: err?.response?.data?.error || err.message || "Failed to fetch bookings",
       };
     }
   },
@@ -87,27 +83,7 @@ export const BookingApi = {
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to export bookings",
-      };
-    }
-  },
-
-  // --- Get single booking ---
-  getBookingById: async (id) => {
-    try {
-      const res = await axios.get(`/bookings/${id}`);
-      const data = res.data || {};
-      return { ok: true, booking: data.booking || data };
-    } catch (err) {
-      return {
-        ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to fetch booking",
+        error: err?.response?.data?.error || err.message || "Failed to export bookings",
       };
     }
   },
@@ -121,10 +97,7 @@ export const BookingApi = {
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to create booking",
+        error: err?.response?.data?.error || err.message || "Failed to create booking",
       };
     }
   },
@@ -132,39 +105,118 @@ export const BookingApi = {
   // --- Update booking ---
   updateBooking: async (id, payload) => {
     try {
-      if (!id || !payload)
-        throw new Error("Booking ID and payload are required");
+      if (!id) throw new Error("Booking ID is required");
+      if (!payload || Object.keys(payload).length === 0) {
+        throw new Error("At least one field must be provided for update");
+      }
+
       const res = await axios.put(`/bookings/${id}`, payload);
       const data = res.data || {};
-      return { ok: true, booking: data.booking || data };
+
+      return {
+        ok: true,
+        booking: data.booking || data.data || null, // flexible mapping
+        message: data.message || "Booking updated successfully",
+      };
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to update booking",
+        error: err?.response?.data?.error || err.message || "Failed to update booking",
       };
     }
   },
 
+
   // --- Update booking status ---
   updateBookingStatus: async (id, status) => {
     try {
-      if (!id || !status)
-        throw new Error("Booking ID and status are required");
-
-      const payload = { status: String(status).toUpperCase() };
+      if (!id || !status) throw new Error("Booking ID and status are required");
+      const payload = { status: String(status).toLowerCase() };
       const res = await axios.patch(`/bookings/status/${id}`, payload);
       const data = res.data || {};
       return { ok: true, booking: data.booking || data };
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to update booking status",
+        error: err?.response?.data?.error || err.message || "Failed to update booking status",
+      };
+    }
+  },
+
+
+  // --- List pending bookings ---
+  getPendingBookings: async ({
+    fromDate,
+    toDate,
+    search,
+    services,
+    user,
+    page = 1,
+    limit = 25,
+    sortBy = "createdDate",
+    sortDir = "desc",
+  } = {}) => {
+    try {
+      const params = { page, limit, sortBy, sortDir };
+      if (fromDate) params.fromDate = normalizeDate(fromDate);
+      if (toDate) params.toDate = normalizeDate(toDate);
+      if (search) params.search = search.trim();
+      if (services) params.services = services;
+      if (user) params.user = user;
+
+      const res = await axios.get("/bookings/pending", { params });
+      const data = res.data || {};
+
+      return {
+        ok: data.success ?? true,
+        items: data.data || [],
+        pagination: data.pagination || {
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+        params: data.params || null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch pending bookings",
+      };
+    }
+  },
+
+  // --- Get single booking ---
+  getBookingById: async (id) => {
+    try {
+      const res = await axios.get(`/bookings/${id}`);
+      const data = res.data || {};
+      return { ok: true, booking: data.data || null };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch booking",
+      };
+    }
+  },
+
+  // --- Get booking photo (original or compressed) ---
+  getBookingPhoto: async (id, type = "original") => {
+    try {
+      const res = await axios.get(`/bookings/${id}/photo?type=${type}`, {
+        responseType: "blob", // raw binary
+      });
+
+      const blob = res.data;
+      const url = URL.createObjectURL(blob); // ✅ always generate a blob URL
+
+      return { ok: true, blob, url };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch booking photo",
       };
     }
   },

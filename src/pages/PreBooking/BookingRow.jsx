@@ -1,187 +1,241 @@
-import React, { useState, useMemo, useEffect } from "react";
-import BookingForm from "./BookingForm.jsx";
-import Modal from "../../components/Modal.jsx";
-import { Trash2 } from "lucide-react";
+// src/components/BookingRow.jsx
+import React, { useState, useMemo, forwardRef, useEffect } from "react";
+import { Trash2, Edit2, CarFront, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import useBookingDetails from "../../hooks/useBookingDetails.js";
 
-export default function BookingRow({ booking: initialBooking, index, onUpdate, onCarIn, onCancelled, onEdit }) {
-  const [expanded, setExpanded] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showPhoto, setShowPhoto] = useState(false);
-  const [booking, setBooking] = useState(initialBooking);
-
-  useEffect(() => {
-    setBooking(initialBooking);
-  }, [initialBooking]);
-
-  const formatValue = (val) => {
-    if (!val) return "—";
-    if (typeof val === "string" || typeof val === "number") return val;
-    if (typeof val === "object") return val.name || val.label || JSON.stringify(val);
-    return String(val);
-  };
-
-  const formatDate = (date) => {
-    if (!date) return "—";
-    return new Date(date).toLocaleDateString("en-GB", {
+const fmtDate = (d) =>
+  d
+    ? new Date(d).toLocaleDateString("en-GB", {
       day: "2-digit",
-      month: "2-digit",
-      year: "numeric"
-    });
-  };
+      month: "short",
+      year: "numeric",
+    })
+    : "—";
 
-  const profit = (booking.bookingPrice || 0) - ((booking.labourCost || 0) + (booking.partsCost || 0));
-  const profitPercent = booking.bookingPrice > 0 ? ((profit / booking.bookingPrice) * 100).toFixed(1) : "0.0";
+const fmtGBP = (val) =>
+  val != null
+    ? val.toLocaleString("en-GB", { style: "currency", currency: "GBP" })
+    : "—";
+
+const safe = (s) => (s ? String(s) : "—");
+
+const BookingRow = forwardRef(function BookingRow(
+  { booking: initialBooking, index, isSelected, onSelect, onCarIn, onCancelled, onEdit },
+  ref
+) {
+  const [expanded, setExpanded] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
+  const [fullPhotoUrl, setFullPhotoUrl] = useState(null);
+
+  const booking = initialBooking;
+  const bookingId = booking._id || booking.id;
+
+  const {
+    details,
+    loading,
+    error,
+    fetchDetails,
+    fetchPhoto,
+    originalPhotoUrl,
+  } = useBookingDetails();
 
   const servicesText = useMemo(() => {
     if (!booking.services) return "—";
     return booking.services
-      .map((s) => (typeof s === "object" ? s.label || s.name || JSON.stringify(s) : s))
+      .map((s) => (typeof s === "object" ? s.label || s.name : s))
       .join(", ");
   }, [booking.services]);
+
+  const handleRowDoubleClick = () => setExpanded((prev) => !prev);
+  const handleKeyDown = (e) => {
+    if (e.key === "ArrowRight") setExpanded(true);
+    if (e.key === "ArrowLeft") setExpanded(false);
+  };
+
+  // fetch details only when expanded
+  useEffect(() => {
+    if (expanded && !details && !loading) {
+      fetchDetails(bookingId);
+    }
+  }, [expanded, bookingId, details, loading, fetchDetails]);
+
+  useEffect(() => {
+    return () => {
+      if (fullPhotoUrl) URL.revokeObjectURL(fullPhotoUrl);
+    };
+  }, [fullPhotoUrl]);
+
+  const handleThumbnailClick = async () => {
+    if (originalPhotoUrl) {
+      setFullPhotoUrl(originalPhotoUrl);
+      setShowPhoto(true);
+    } else {
+      const res = await fetchPhoto(bookingId, "original");
+      if (res.ok && res.url) {
+        setFullPhotoUrl(res.url);
+        setShowPhoto(true);
+      }
+    }
+  };
 
   return (
     <>
       {/* Main Row */}
-      <tr className="hover:bg-gray-50 cursor-pointer" onClick={() => setExpanded(!expanded)}>
+      <tr
+        ref={ref}
+        role="row"
+        tabIndex={-1}
+        aria-selected={!!isSelected}
+        className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
+          }`}
+        onClick={onSelect}
+        onDoubleClick={handleRowDoubleClick}
+        onKeyDown={handleKeyDown}
+      >
         <td className="p-2 border">{booking.rowNumber || index + 1}</td>
+        <td className="p-2 border">
+          <div className="leading-tight">
+            <div>{fmtDate(booking.bookingDate)}</div>
+            <div className="text-[11px] text-gray-500">by {safe(booking.bookedBy)}</div>
+          </div>
+        </td>
+        <td className="p-2 border">{fmtDate(booking.scheduledDate)}</td>
+        <td className="p-2 border">{safe(booking.registration)}</td>
+        <td className="p-2 border max-w-[160px] truncate" title={booking.makeModel}>
+          {safe(booking.makeModel)}
+        </td>
+        <td className="p-2 border">{safe(booking.ownerName)}</td>
+        <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
+        <td className="p-2 border hidden lg:table-cell">{safe(booking.postCode)}</td>
+        <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
+        <td className="p-2 border">
+          <div className="flex gap-2">
+            {/* Car In */}
+            <button
+              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Are you sure you want to mark this car as ARRIVED?")) {
+                  onCarIn(booking._id);
+                }
+              }}
+            >
+              <CarFront size={14} /> Car In
+            </button>
 
-        <td className="p-3 border">{formatDate(booking.createdAt)}</td>
-        <td className="p-3 border">{formatDate(booking.scheduledDate)}</td>
-        <td className="p-2 border">{formatValue(booking.vehicleRegNo)}</td>
-        <td className="p-2 border">{formatValue(booking.ownerNumber)}</td>
-        <td className="p-2 border">{formatValue(booking.ownerPostalCode)}</td>
-        <td className="p-2 border">{booking.bookingPrice?.toLocaleString() || 0}</td>
-        <td className="p-2 border">{formatValue(booking.createdBy?.username)}</td>
-        <td className="p-2 flex gap-2 border">
+            {/* Edit → only enabled when expanded */}
+            <button
+              className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${expanded && details
+                  ? "bg-gray-600 hover:bg-gray-700 text-white"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                }`}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (expanded && details) {
+                  const merged = { ...booking, ...(details || {}) };
+                  onEdit(merged);
+                }
+              }}
+              disabled={!expanded || !details}
+            >
+              <Edit2 size={14} /> Edit
+            </button>
 
-          <button
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
-            onClick={(e) => { e.stopPropagation(); onCarIn(booking); }}
-          >
-            🚗 Car In
-          </button>
-
-          <button
-            className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
-            onClick={(e) => { e.stopPropagation(); setShowEditModal(true); }}
-          >
-            ✏️ Edit
-          </button>
-
-          <button
-            className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium shadow-sm transition duration-200 ease-in-out flex items-center gap-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (confirm("Are you sure you want to cancel this booking?")) {
-                onCancelled(booking);
-              }
-            }}
-          >
-            <Trash2 size={16} />
-          </button>
+            {/* Cancel */}
+            <button
+              className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm("Are you sure you want to cancel this booking?")) {
+                  onCancelled(booking._id);
+                }
+              }}
+            >
+              <Trash2 size={14} /> Cancel
+            </button>
+          </div>
         </td>
       </tr>
 
       {/* Expanded Row */}
       {expanded && (
         <tr className="bg-gray-50">
-          <td colSpan={9} className="p-3">
-            <div className="bg-white rounded-lg shadow p-5">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
-
-                {/* Client & Vehicle */}
-                <div className="p-4 rounded-md border border-gray-100">
-                  <p className="text-gray-500 text-xs font-bold uppercase mb-1">👤 Client</p>
-                  <p className="text-gray-900">{formatValue(booking.ownerName)}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase mt-3 mb-1">📧 Email</p>
-                  <p className="text-gray-800">{formatValue(booking.ownerEmail)}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase mt-3 mb-1">🚗 Make & Model</p>
-                  <p className="text-gray-900">{formatValue(booking.makeModel)}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase mt-3 mb-1">🏠 Address</p>
-                  <p className="text-gray-800">{formatValue(booking.ownerAddress)}</p>
+          <td colSpan={10} className="p-3">
+            {loading ? (
+              <p className="text-sm text-gray-500">Loading details…</p>
+            ) : error ? (
+              <p className="text-sm text-red-500">{error}</p>
+            ) : details ? (
+              <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+                <div>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Complete Address</p>
+                  <p>{safe(details.ownerAddress)}</p>
                 </div>
-
-                {/* Costs & Profit */}
-                <div className="p-4 rounded-md border border-blue-100 flex flex-col gap-3">
-                  <p className="text-gray-500 text-xs font-bold uppercase">💰 Labour Cost</p>
-                  <p className="text-green-600">£{booking.labourCost?.toLocaleString() || "0"}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase">🛠️ Parts Cost</p>
-                  <p className="text-green-600">£{booking.partsCost?.toLocaleString() || "0"}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase">📊 Profit</p>
-                  <p className="text-blue-600">£{profit.toLocaleString()} ({profitPercent}%)</p>
+                <div>
+                  <p className="text-gray-500 text-xs font-bold uppercase">Labour</p>
+                  <p className="text-green-600">{fmtGBP(details.labourCost)}</p>
+                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">Parts</p>
+                  <p className="text-green-600">{fmtGBP(details.partsCost)}</p>
+                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">Profit</p>
+                  <p className="text-blue-600">
+                    {fmtGBP(details.profit)} ({details.profitPercent}%)
+                  </p>
                 </div>
-
-                {/* Services & Remarks */}
-                <div className="p-4 rounded-md border border-yellow-100">
-                  <p className="text-gray-500 text-xs font-bold uppercase mb-1">📝 Services</p>
-                  <p className="text-gray-800 mb-3">{servicesText}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase mb-1">💬 Remarks</p>
-                  <p className="text-gray-800 mb-3">{formatValue(booking.remarks)}</p>
-
-                  <p className="text-gray-500 text-xs font-bold uppercase mb-1">🔗 Source</p>
-                  <p className="text-gray-800">{formatValue(booking.source)}</p>
+                <div>
+                  <p className="text-gray-500 text-xs font-bold uppercase">Services</p>
+                  <p>{servicesText}</p>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Remarks</p>
+                  <p>{safe(details.remarks)}</p>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Source</p>
+                  <p>{safe(details.source)}</p>
                 </div>
-
-                {/* Booking Confirmation Photo */}
-                <div className="p-4 rounded-md border border-green-100 flex flex-col items-center justify-start">
-                  {booking.bookingConfirmationPhoto ? (
+                <div className="flex flex-col items-center">
+                  {details.compressedPhoto ? (
                     <>
-                      <p className="text-gray-500 text-xs font-bold uppercase mb-2">📷 Confirmation Photo</p>
+                      <p className="text-gray-500 text-xs font-bold uppercase mb-2">
+                        Confirmation Photo
+                      </p>
                       <img
-                        src={booking.bookingConfirmationPhoto}
-                        alt="Booking Confirmation"
+                        src={details.compressedPhoto}
+                        alt="Booking Compressed Preview"
                         className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80"
-                        onClick={() => setShowPhoto(true)}
+                        onClick={handleThumbnailClick}
                       />
                     </>
                   ) : (
                     <p className="text-gray-500 text-xs">No Photo</p>
                   )}
                 </div>
-
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-gray-400">No details available.</p>
+            )}
           </td>
         </tr>
       )}
 
-      {/* Photo Popup (Lightbox) */}
-      {showPhoto && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
-          onClick={() => setShowPhoto(false)}
-        >
-          <img
-            src={booking.bookingConfirmationPhoto}
-            alt="Full Booking Confirmation"
-            className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
-          />
-        </div>
-      )}
-
-      {/* Edit Modal */}
-      {showEditModal && (
-        <Modal isOpen={showEditModal} onClose={() => setShowEditModal(false)}>
-          <BookingForm
-            initialData={booking}
-            onCancel={() => setShowEditModal(false)}
-            onSubmit={async ({ payload, reset }) => {
-              const res = await onUpdate(booking._id, payload);
-              if (res.ok) {
-                setBooking({ ...booking, ...payload });
-                reset?.();
-                setShowEditModal(false);
-              }
-            }}
-          />
-        </Modal>
-      )}
+      {/* Lightbox */}
+      {showPhoto &&
+        fullPhotoUrl &&
+        createPortal(
+          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+            <button
+              className="absolute top-4 right-4 text-white"
+              onClick={() => setShowPhoto(false)}
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={fullPhotoUrl}
+              alt="Full Booking Confirmation"
+              className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
+            />
+          </div>,
+          document.body
+        )}
     </>
   );
-}
+});
+
+export default BookingRow;
