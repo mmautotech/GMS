@@ -105,7 +105,12 @@ const BookingRow = forwardRef(function BookingRow(
         <td className="p-2 border max-w-[160px] truncate" title={booking.makeModel}>
           {safe(booking.makeModel)}
         </td>
-        <td className="p-2 border">{safe(booking.ownerName)}</td>
+        <td className="p-2 border">
+          <div className="leading-tight">
+            <div>{safe(booking.ownerName)}</div>
+            <div className="text-[11px] text-gray-600">{safe(booking.email)}</div>
+          </div>
+        </td>
         <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
         <td className="p-2 border hidden lg:table-cell">{safe(booking.postCode)}</td>
         <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
@@ -116,9 +121,7 @@ const BookingRow = forwardRef(function BookingRow(
               className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm("Are you sure you want to mark this car as ARRIVED?")) {
-                  onCarIn(booking._id);
-                }
+                onCarIn(booking._id);
               }}
             >
               <CarFront size={14} /> Car In
@@ -127,8 +130,8 @@ const BookingRow = forwardRef(function BookingRow(
             {/* Edit → only enabled when expanded */}
             <button
               className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${expanded && details
-                  ? "bg-gray-600 hover:bg-gray-700 text-white"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                ? "bg-gray-600 hover:bg-gray-700 text-white"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -147,9 +150,7 @@ const BookingRow = forwardRef(function BookingRow(
               className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm("Are you sure you want to cancel this booking?")) {
-                  onCancelled(booking._id);
-                }
+                onCancelled(booking._id);
               }}
             >
               <Trash2 size={14} /> Cancel

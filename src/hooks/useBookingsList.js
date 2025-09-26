@@ -1,10 +1,12 @@
+// src/hooks/useBookingsList.js
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 /**
- * Hook to fetch pre-bookings (pending only) with params and pagination.
+ * Generic hook to fetch bookings with params and pagination.
+ * Accepts a fetcher function (pending or arrived).
  */
-export default function usePreBookings(initialParams = {}) {
+function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
     const [loadingList, setLoadingList] = useState(false);
     const [error, setError] = useState("");
@@ -26,14 +28,14 @@ export default function usePreBookings(initialParams = {}) {
             setLoadingList(true);
             setError("");
             try {
-                const res = await BookingApi.getPendingBookings({
+                const res = await fetcher({
                     ...initialParams,
                     ...params,
                     page,
                 });
 
-                if (res?.success || res?.ok) {
-                    const normalized = (res.data || res.items || []).map((b) => ({
+                if (res?.ok) {
+                    const normalized = (res.items || []).map((b) => ({
                         ...b,
                         _id: b._id || b.id,
                         rowNumber: b.rowNumber ?? 0,
@@ -45,7 +47,7 @@ export default function usePreBookings(initialParams = {}) {
                     setHasNextPage(res.pagination?.hasNextPage ?? false);
                     setHasPrevPage(res.pagination?.hasPrevPage ?? false);
 
-                    // Use backend params if present, otherwise fall back to what we sent
+                    // Use backend params if present, otherwise fallback
                     setActiveParams(res.params || { ...initialParams, page });
                     setMeta(res.meta || null);
                 } else {
@@ -57,7 +59,7 @@ export default function usePreBookings(initialParams = {}) {
                 setLoadingList(false);
             }
         },
-        [initialParams, page]
+        [fetcher, initialParams, page]
     );
 
     // auto-run when params or page change
@@ -98,4 +100,18 @@ export default function usePreBookings(initialParams = {}) {
         fetchBookings,
         refresh,
     };
+}
+
+/**
+ * ✅ Hook for pre-bookings (pending only).
+ */
+export function usePreBookings(initialParams = {}) {
+    return useBookingsList(BookingApi.getPendingBookings, initialParams);
+}
+
+/**
+ * ✅ Hook for arrived bookings.
+ */
+export function useArrivedBookings(initialParams = {}) {
+    return useBookingsList(BookingApi.getArrivedBookings, initialParams);
 }

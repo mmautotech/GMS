@@ -183,29 +183,33 @@ export const BookingApi = {
     } catch (err) {
       return {
         ok: false,
-        error: err?.response?.data?.error || err.message || "Failed to fetch pending bookings",
+        error:
+          err?.response?.data?.error ||
+          err.message ||
+          "Failed to fetch pending bookings",
       };
     }
   },
 
-  // --- NEW: List arrived bookings ---
+  // --- List arrived bookings ---
   getArrivedBookings: async ({
     fromDate,
     toDate,
     search,
     services,
+    user,
     page = 1,
     limit = 25,
-    sortBy = "arrivedAt",
-    sortDir,
+    sortBy = "arrivedDate",
+    sortDir = "desc",
   } = {}) => {
     try {
-      const params = { page, limit, sortBy };
-      if (typeof sortDir !== "undefined") params.sortDir = sortDir;
+      const params = { page, limit, sortBy, sortDir };
       if (fromDate) params.fromDate = normalizeDate(fromDate);
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
       if (services) params.services = services;
+      if (user) params.user = user;
 
       const res = await axios.get("/bookings/arrived", { params });
       const data = res.data || {};
@@ -221,7 +225,6 @@ export const BookingApi = {
           hasNextPage: false,
           hasPrevPage: false,
         },
-        meta: data.meta || {},
         params: data.params || null,
       };
     } catch (err) {

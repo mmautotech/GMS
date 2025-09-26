@@ -1,16 +1,17 @@
-import React, { useState, useCallback, useMemo } from "react";
+// src/pages/PreBooking/index.jsx
+import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
-import usePreBookings from "../../hooks/usePreBookings.js";
+import { usePreBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
 import useServices from "../../hooks/useServices.js";
 import useUsers from "../../hooks/useUsers.js";
 
 import ParamsSummary from "../../components/ParamsSummary.jsx";
 import InlineSpinner from "../../components/InlineSpinner.jsx";
-import BookingForm from "./bookingForm.jsx";
-import BookingsTable from "./bookingsTable.jsx";
+import BookingsTable from "./BookingsTable.jsx";
+import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
 
 // dropdown configs
@@ -29,29 +30,35 @@ export default function PreBookingPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
 
-  // local filter draft (UI state only)
+  // filters
   const [draft, setDraft] = useState({
-    search: "",
-    fromDate: "",
-    toDate: "",
-    services: "",
-    user: "",
-    sortBy: "createdDate",
-    sortDir: "desc",
+    search: "", fromDate: "", toDate: "",
+    services: "", user: "",
+    sortBy: "createdDate", sortDir: "desc",
     limit: 25,
   });
-
-  // applied filters (used for API calls)
   const [applied, setApplied] = useState(draft);
 
-  // fetch services (for dropdown)
+  const preBookingParams = useMemo(() => applied, [applied]);
+
+  // API hooks
+  const {
+    items: bookings, loadingList, page, setPage,
+    totalPages, totalItems, hasNextPage, hasPrevPage,
+    refresh, params: backendParams
+  } = usePreBookings(preBookingParams);
+
+  const { saving, create, update, setError, updateStatus } = useBookings();
+
+  // services
   const {
     list: serviceOptions,
     map: serviceMap,
     loading: loadingServices,
     error: servicesError,
-  } = useServices({ enabled: true, useSessionCache: true });
+  } = useServices({ enabled: true });
 
+  // users
   const {
     list: userOptions,
     map: userMap,
@@ -59,34 +66,97 @@ export default function PreBookingPage() {
     error: usersError,
   } = useUsers({ useSessionCache: true });
 
-  // ✅ Memoize params to avoid re-fetch loops
-  const preBookingParams = useMemo(() => applied, [applied]);
+  // actions
+  const handleCarIn = useCallback(
+    async (id) => {
+      if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) {
+        return;
+      }
 
-  // fetch pre-bookings
-  const {
-    items: bookings,
-    loadingList,
-    page,
-    setPage,
-    totalPages,
-    totalItems,
-    hasNextPage,
-    hasPrevPage,
-    refresh,
-    params: backendParams,
-  } = usePreBookings(preBookingParams);
+      try {
+        const res = await updateStatus(id, "arrived");
 
-  // booking mutations
-  const { saving, create, update, updateStatus } = useBookings();
+        if (res.ok) {
+          toast.success(res.message || "Car marked as arrived!");
+          await refresh(); // reload fresh list
+          navigate("/car-in");
+        } else {
+          toast.error(res.error || "Failed to mark as arrived");
+        }
+      } catch (err) {
+        const backendMessage =
+          err?.response?.data?.message || err.message || "Failed to mark as arrived";
+        setError(backendMessage);
+        toast.error(backendMessage);
+      }
+    },
+    [updateStatus, refresh, navigate, setError]
+  );
 
-  // ---------- FILTER ACTIONS ----------
+  const handleCancelled = useCallback(
+    async (id) => {
+      if (!window.confirm("Are you sure you want to CANCEL this booking?")) {
+        return;
+      }
+
+      try {
+        const res = await updateStatus(id, "cancelled");
+
+        if (res.ok) {
+          toast.success(res.message || "Booking cancelled successfully!");
+          await refresh(); // always reload list
+        } else {
+          toast.error(res.error || "Failed to cancel booking");
+        }
+      } catch (err) {
+        const backendMessage =
+          err?.response?.data?.message || err.message || "Failed to cancel booking";
+        setError(backendMessage);
+        toast.error(backendMessage);
+      }
+    },
+    [updateStatus, refresh, setError]
+  );
+
+
+  const handleEdit = (booking) => {
+    setEditingBooking(booking);
+    setShowModal(true);
+  };
+
+  const handleFormSubmit = async ({ payload, reset }) => {
+    if (editingBooking) {
+      const res = await update(editingBooking._id, payload);
+      if (res.ok) {
+        toast.success("Updated!");
+        reset?.();
+        setShowModal(false);
+        setEditingBooking(null);
+        refresh();
+      } else toast.error(res.error || "Failed");
+    } else {
+      const res = await create(payload);
+      if (res.ok) {
+        toast.success("Created!");
+        reset?.();
+        setShowModal(false);
+        refresh();
+      } else toast.error(res.error || "Failed");
+    }
+  };
+
+  const handleAddBooking = () => {
+    setEditingBooking(null);
+    setShowModal(true);
+  };
+
   const applyFilters = () => {
     setApplied(draft);
     setPage(1);
   };
 
   const resetFilters = () => {
-    const reset = {
+    const fresh = {
       search: "",
       fromDate: "",
       toDate: "",
@@ -96,114 +166,22 @@ export default function PreBookingPage() {
       sortDir: "desc",
       limit: 25,
     };
-    setDraft(reset);
-    setApplied(reset);
+    setDraft(fresh);
+    setApplied(fresh);
     setPage(1);
   };
 
-  // ---------- BOOKING ACTIONS ----------
-  const handleUpdate = useCallback(
-    async (id, payload) => {
-      const res = await update(id, payload);
-      if (!res.ok) {
-        toast.error(res.error || "Failed to update booking");
-        return res;
-      }
-      toast.success("Booking updated!");
-      refresh();
-      return res;
-    },
-    [update, refresh]
-  );
-
-  const handleCarIn = useCallback(
-    async (bookingId) => { // ✅ now gets only ID
-      const res = await updateStatus(bookingId, "arrived");
-      if (res.ok) {
-        toast.success("Car marked as arrived!");
-        refresh();
-        navigate("/car-in");
-      } else {
-        toast.error(res.error || "Failed to mark car as arrived");
-      }
-    },
-    [updateStatus, navigate, refresh]
-  );
-
-  const handleCancelled = useCallback(
-    async (bookingId) => { // ✅ now gets only ID
-      const res = await updateStatus(bookingId, "cancelled");
-      if (res.ok) {
-        toast.success("Booking cancelled!");
-        refresh();
-      } else {
-        toast.error(res.error || "Failed to cancel booking");
-      }
-    },
-    [updateStatus, refresh]
-  );
-
-
-  const handleAddBooking = () => {
-    setEditingBooking(null);
-    setShowModal(true);
-  };
-
-  const handleEditBooking = (bookingData) => {
-    setEditingBooking(bookingData); // might be list-only or list+details
-    setShowModal(true);
-  };
-
-  const handleFormSubmit = useCallback(
-    async ({ payload, reset, error: errMsg }) => {
-      if (errMsg) return toast.error(errMsg);
-
-      if (editingBooking) {
-        const res = await update(editingBooking._id, payload);
-        if (res.ok) {
-          toast.success("Booking updated successfully!");
-          reset?.();
-          setShowModal(false);
-          setEditingBooking(null);
-          refresh();
-        } else toast.error(res.error || "Failed to update booking");
-      } else {
-        const res = await create(payload);
-        if (res.ok) {
-          toast.success("Booking created successfully!");
-          reset?.();
-          setShowModal(false);
-          refresh();
-        } else toast.error(res.error || "Failed to create booking");
-      }
-    },
-    [create, update, editingBooking, refresh]
-  );
-
-  // ---------- PARAMS SUMMARY ----------
   const params = useMemo(() => {
-    if (backendParams) {
-      return {
-        search: backendParams.search,
-        fromDate: backendParams.fromDate,
-        toDate: backendParams.toDate,
-        services: backendParams.services,
-        user: backendParams.user,
-        sortBy: backendParams.sortBy,
-        sortDir: backendParams.sortDir,
-        perPage: backendParams.perPage ?? backendParams.limit,
-        page: backendParams.page,
-      };
-    }
-    return { ...preBookingParams, perPage: preBookingParams.limit, page };
+    return backendParams ? {
+      ...backendParams,
+      perPage: backendParams.perPage ?? backendParams.limit,
+      page
+    } : { ...preBookingParams, perPage: preBookingParams.limit, page };
   }, [backendParams, preBookingParams, page]);
 
-  // ---------- UI ----------
   return (
     <div className="p-6 relative min-h-screen bg-gray-50">
-      <h1 className="text-3xl md:text-4xl font-bold text-blue-900 mb-6 drop-shadow-sm">
-        Pre-Booking
-      </h1>
+      <h1 className="text-3xl font-bold text-blue-900 mb-6">Pre-Booking</h1>
 
       {/* Filters */}
       <div className="mb-3 space-y-3 bg-white p-4 rounded-lg shadow">
@@ -326,24 +304,15 @@ export default function PreBookingPage() {
       {/* Params Summary */}
       <ParamsSummary params={params} serviceMap={serviceMap} userMap={userMap} />
 
-
-      {/* Booking Table */}
+      {/* Table */}
       {loadingList ? (
-        <div className="bg-white rounded-xl shadow-md border p-6 flex items-center justify-center gap-3">
-          <InlineSpinner />
-          <span className="text-gray-500 text-lg">Loading bookings…</span>
-        </div>
-      ) : bookings.length === 0 ? (
-        <div className="p-6 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-800 rounded-md shadow-sm">
-          No bookings found matching your criteria.
-        </div>
+        <InlineSpinner label="Loading bookings…" />
       ) : (
         <BookingsTable
           bookings={bookings}
-          onUpdate={handleUpdate}
           onCarIn={handleCarIn}
           onCancelled={handleCancelled}
-          onEdit={handleEditBooking}
+          onEdit={handleEdit}
         />
       )}
 

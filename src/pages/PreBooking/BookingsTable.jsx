@@ -1,6 +1,6 @@
 // src/pages/PreBooking/BookingsTable.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import BookingRow from "./bookingRow.jsx";
+import BookingRow from "./BookingRow.jsx";
 
 export default function BookingsTable({
   bookings,
