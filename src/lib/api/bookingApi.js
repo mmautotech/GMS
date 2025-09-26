@@ -188,6 +188,53 @@ export const BookingApi = {
     }
   },
 
+  // --- NEW: List arrived bookings ---
+  getArrivedBookings: async ({
+    fromDate,
+    toDate,
+    search,
+    services,
+    page = 1,
+    limit = 25,
+    sortBy = "arrivedAt",
+    sortDir,
+  } = {}) => {
+    try {
+      const params = { page, limit, sortBy };
+      if (typeof sortDir !== "undefined") params.sortDir = sortDir;
+      if (fromDate) params.fromDate = normalizeDate(fromDate);
+      if (toDate) params.toDate = normalizeDate(toDate);
+      if (search) params.search = search.trim();
+      if (services) params.services = services;
+
+      const res = await axios.get("/bookings/arrived", { params });
+      const data = res.data || {};
+
+      return {
+        ok: data.success ?? true,
+        items: data.data || [],
+        pagination: data.pagination || {
+          total: 0,
+          page,
+          limit,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPrevPage: false,
+        },
+        meta: data.meta || {},
+        params: data.params || null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error:
+          err?.response?.data?.error ||
+          err.message ||
+          "Failed to fetch arrived bookings",
+      };
+    }
+  },
+
   // --- Get single booking ---
   getBookingById: async (id) => {
     try {

@@ -14,9 +14,9 @@ import Register from "./pages/Auth/Register.jsx";
 import Settings from "./pages/Settings/index.jsx";
 import Entities from "./pages/Entities/index.jsx";
 import Invoices from "./pages/Invoice/invoice.jsx";
-import { PartsInventory } from "./pages/PartsInventory/parts-inventory.jsx";
 import { Suppliers } from "./pages/Suppliers/supplier.jsx";
 import PartsPurchase from "./pages/PartsPurchase/partsPurchase.jsx";
+import InternalInvoicesPage from "./pages/Invoice/InternalInvoicesPage.jsx"
 
 import { AuthApi } from "./lib/api/authApi.js";
 
@@ -83,14 +83,9 @@ export default function App() {
         />
         <Route
           path="/forgot-password"
-          element={
-            user ? (
-              <Navigate to="/dashboard" replace />
-            ) : (
-              <ForgotPassword onForgotPassword={handleForgotPassword} />
-            )
-          }
+          element={<ForgotPassword onForgotPassword={handleForgotPassword} />}
         />
+
 
         {/* Private routes */}
         <Route element={<RequireAuth user={user} />}>
@@ -102,12 +97,12 @@ export default function App() {
             <Route path="/pre-booking" element={<PreBooking />} />
             <Route path="/car-in" element={<CarIn />} />
             <Route path="/parts-purchase" element={<PartsPurchase />} />
-            <Route path="/parts-inventory" element={<PartsInventory />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/invoice" element={<Invoices />} />
             <Route path="/register" element={<Register onRegister={handleRegister} />} />
             <Route path="/entities" element={<Entities />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/InternalInvoicesPage" element={<InternalInvoicesPage />} />
           </Route>
         </Route>
 

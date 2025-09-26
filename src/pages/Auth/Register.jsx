@@ -1,10 +1,11 @@
 import React, { useState } from "react";
 import { toast } from "react-toastify";
+import { Link } from "react-router-dom"; // ✅ Import Link
 
 export default function Register({ onRegister }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
-    const [userType, setUserType] = useState("sales"); // default role
+    const [userType, setUserType] = useState("sales");
     const [busy, setBusy] = useState(false);
 
     const roles = ["admin", "sales", "customer_service", "parts", "accounts"];
@@ -18,7 +19,6 @@ export default function Register({ onRegister }) {
 
         if (res.ok) {
             toast.success(`User (${userType}) created successfully!`);
-            // Clear form for next user
             setUsername("");
             setPassword("");
             setUserType("sales");
@@ -66,6 +66,14 @@ export default function Register({ onRegister }) {
                     {busy ? "Creating..." : "Create User"}
                 </button>
             </form>
+
+            {/* 🔹 Forgot Password Link */}
+            <div className="mt-4 text-center text-sm">
+                <Link to="/forgot-password" className="text-blue-600 hover:underline">
+                    Forgot Password?
+                </Link>
+            </div>
+
         </div>
     );
 }

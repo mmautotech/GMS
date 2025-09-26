@@ -1,64 +1,103 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+// src/pages/Auth/ForgotPassword.jsx
+import React, { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import { AuthApi } from "../../lib/api/authApi.js";
 
-export default function ForgotPassword({ onForgotPassword }) {
-    const [email, setEmail] = useState("");
+export default function ForgotPassword() {
+    const [username, setUsername] = useState("");
+    const [newPassword, setNewPassword] = useState("");
     const [busy, setBusy] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
+    const [users, setUsers] = useState([]);
 
-    async function handleSubmit(e) {
+    const navigate = useNavigate();
+
+    // Fetch all users for dropdown
+    useEffect(() => {
+        const fetchUsers = async () => {
+            try {
+                const res = await AuthApi.getAllUsers(); // API returns { users: [...] }
+                setUsers(res.users || []);
+            } catch (err) {
+                console.error(err);
+                toast.error("Failed to fetch users");
+            }
+        };
+        fetchUsers();
+    }, []);
+
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        setBusy(true);
-        setError("");
-        setSuccess("");
-        const res = await onForgotPassword?.(email.trim());
-        setBusy(false);
 
-        if (!res?.ok) setError(res?.error || "Failed to send reset link");
-        else setSuccess("Reset link sent! Check your inbox.");
-    }
+        if (!username || !newPassword) {
+            return toast.error("Please select a user and enter a new password");
+        }
+
+        setBusy(true);
+        try {
+            // Call API to reset password
+            const res = await AuthApi.adminChangePassword(username, newPassword);
+            toast.success(res.message || "Password updated successfully");
+            setUsername("");
+            setNewPassword("");
+        } catch (err) {
+            console.error(err);
+            toast.error(err.response?.data?.error || "Failed to update password");
+        } finally {
+            setBusy(false);
+        }
+    };
 
     return (
-        <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-            <div className="w-full max-w-md bg-white rounded-2xl shadow p-6">
-                <h1 className="text-2xl font-bold mb-1 text-center">Forgot Password</h1>
-                <p className="text-center text-gray-500 mb-6">
-                    Enter your email to reset your password
-                </p>
+        <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+            <div className="w-full max-w-md p-6 bg-white shadow rounded">
+                {/* Back arrow */}
+                <button
+                    onClick={() => navigate(-1)}
+                    className="flex items-center gap-1 text-gray-700 hover:text-gray-900 mb-4"
+                >
+                    ← Back
+                </button>
+
+                <h2 className="text-2xl font-bold mb-4 text-center">Reset Password</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <label className="block text-sm mb-1">Email</label>
-                        <input
-                            type="email"
-                            className="w-full border rounded px-3 py-2"
-                            placeholder="you@example.com"
-                            value={email}
-                            onChange={(e) => setEmail(e.target.value)}
-                            autoFocus
-                        />
+                        <label className="block mb-1 font-medium">Select User</label>
+                        <select
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            className="w-full p-2 border rounded"
+                            required
+                            disabled={busy}
+                        >
+                            <option value="">-- Select a User --</option>
+                            {users.map((user) => (
+                                <option key={user._id} value={user.username}>
+                                    {user.username} ({user.userType})
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
-                    {error && <div className="text-sm text-red-600">{error}</div>}
-                    {success && <div className="text-sm text-green-600">{success}</div>}
+                    <input
+                        type="password"
+                        placeholder="New Password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full p-2 border rounded"
+                        required
+                        disabled={busy}
+                    />
 
                     <button
                         type="submit"
+                        className={`w-full ${busy ? "bg-gray-400" : "bg-red-600 hover:bg-red-700"} text-white p-2 rounded`}
                         disabled={busy}
-                        className="w-full bg-gray-900 text-white rounded py-2 hover:bg-gray-800 disabled:opacity-60"
                     >
-                        {busy ? "Sending…" : "Send Reset Link"}
+                        {busy ? "Updating..." : "Reset Password"}
                     </button>
                 </form>
-
-                <div className="mt-6 text-center text-sm text-gray-600">
-                    <p>
-                        <Link to="/login" className="text-blue-600 hover:underline">
-                            Back to Sign In
-                        </Link>
-                    </p>
-                </div>
             </div>
         </div>
     );

@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
+import { generateInternalInvoice } from "../../lib/api/internalInvoiceApi.js"; // ✅ import
 import { toast } from "react-toastify";
 import StatCard from "../../components/StatCard.jsx";
+import { Eye, FileText, FilePlus } from "lucide-react";
+
 
 export default function Invoices() {
     const [invoices, setInvoices] = useState([]);
@@ -66,6 +69,7 @@ export default function Invoices() {
     // 🔁 Run on mount
     useEffect(() => {
         fetchStats();
+        fetchInvoices(1);
     }, []);
 
     // 🔁 Refetch on filters
@@ -76,6 +80,18 @@ export default function Invoices() {
     // ✅ Open PDF in default browser (normal / proforma)
     const handleViewPdf = (invoiceId, isProforma = false) => {
         InvoiceApi.viewInvoicePdf(invoiceId, isProforma);
+    };
+
+    // ✅ Generate internal invoice (no userId needed)
+    const handleGenerateInternal = async (invoiceId) => {
+        try {
+            await generateInternalInvoice({ invoiceId });
+            toast.success("Internal invoice generated successfully!");
+        } catch (err) {
+            console.error("Error generating internal invoice:", err);
+            const msg = err.response?.data?.message || "Failed to generate internal invoice";
+            toast.error(msg);
+        }
     };
 
     const handlePageChange = (newPage) => {
@@ -104,21 +120,18 @@ export default function Invoices() {
                     placeholder="Search (Invoice No, Name, Contact, Reg No, Model...)"
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 />
-
                 <input
                     type="date"
                     value={fromDate}
                     onChange={(e) => setFromDate(e.target.value)}
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 />
-
                 <input
                     type="date"
                     value={toDate}
                     onChange={(e) => setToDate(e.target.value)}
                     className="px-4 py-2 border rounded shadow focus:outline-none focus:ring focus:border-blue-300"
                 />
-
                 <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
@@ -129,7 +142,6 @@ export default function Invoices() {
                     <option value="Unpaid">Unpaid</option>
                     <option value="Partial">Partial</option>
                 </select>
-
                 <select
                     value={limit}
                     onChange={(e) => setLimit(Number(e.target.value))}
@@ -154,50 +166,58 @@ export default function Invoices() {
                                 <th className="py-2 px-4 text-left">S.NO</th>
                                 <th className="py-2 px-4 text-left">Invoice No</th>
                                 <th className="py-2 px-4 text-left">Date</th>
-                                <th className="py-2 px-4 text-left">Customer Name</th>
-                                <th className="py-2 px-4 text-left">Contact No</th>
-                                <th className="py-2 px-4 text-left">Vehicle Reg No</th>
-                                <th className="py-2 px-4 text-left">Post code</th>
+                                <th className="py-2 px-4 text-left">Customer</th>
+                                <th className="py-2 px-4 text-left">Vehicle Reg</th>
                                 <th className="py-2 px-4 text-left">Amount</th>
                                 <th className="py-2 px-4 text-left">Status</th>
                                 <th className="py-2 px-4 text-left">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {invoices.map((invoice, index) => (
-                                <tr key={invoice._id} className="border-b hover:bg-gray-100">
-                                    <td className="py-2 px-4">{(page - 1) * limit + index + 1}</td>
-                                    <td className="py-2 px-4">{invoice.invoiceNo}</td>
-                                    <td className="py-2 px-4">{new Date(invoice.invoiceDate || invoice.createdAt).toLocaleDateString("en-GB")}</td>
-                                    <td className="py-2 px-4">{invoice.customerName}</td>
-                                    <td className="py-2 px-4">{invoice.contactNo}</td>
-                                    <td className="py-2 px-4">{invoice.vehicleRegNo}</td>
-                                    <td className="py-2 px-4">{invoice.postalCode}</td>
-                                    <td className="py-2 px-4">£{invoice.totalAmount?.toFixed(2) || "0.00"}</td>
+                            {invoices.map((inv, idx) => (
+                                <tr key={inv._id} className="border-b hover:bg-gray-100">
+                                    <td className="py-2 px-4">{(page - 1) * limit + idx + 1}</td>
+                                    <td className="py-2 px-4">{inv.invoiceNo}</td>
+                                    <td className="py-2 px-4">{new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-GB")}</td>
+                                    <td className="py-2 px-4">{inv.customerName}</td>
+                                    <td className="py-2 px-4">{inv.vehicleRegNo}</td>
+                                    <td className="py-2 px-4">£{inv.totalAmount?.toFixed(2) || "0.00"}</td>
                                     <td className="py-2 px-4">
-                                        <span
-                                            className={`px-2 py-1 rounded-full text-white ${invoice.status === "Paid"
-                                                ? "bg-green-600"
-                                                : invoice.status === "Unpaid"
-                                                    ? "bg-red-600"
-                                                    : "bg-yellow-500"
-                                                }`}
-                                        >
-                                            {invoice.status}
+                                        <span className={`px-2 py-1 rounded-full text-white ${inv.status === "Paid"
+                                            ? "bg-green-600"
+                                            : inv.status === "Unpaid"
+                                                ? "bg-red-600"
+                                                : "bg-yellow-500"
+                                            }`}>
+                                            {inv.status}
                                         </span>
                                     </td>
                                     <td className="py-2 px-4 flex gap-2">
+                                        {/* View PDF */}
                                         <button
-                                            className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                                            onClick={() => handleViewPdf(invoice._id)}
+                                            className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                                            onClick={() => handleViewPdf(inv._id)}
+                                            title="View PDF"
                                         >
-                                            View
+                                            <Eye size={18} />
                                         </button>
+
+                                        {/* Proforma PDF */}
                                         <button
-                                            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700"
-                                            onClick={() => handleViewPdf(invoice._id, true)}
+                                            className="p-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+                                            onClick={() => handleViewPdf(inv._id, true)}
+                                            title="Proforma"
                                         >
-                                            Proforma
+                                            <FileText size={18} />
+                                        </button>
+
+                                        {/* Generate Internal */}
+                                        <button
+                                            className="p-2 bg-green-600 text-white rounded hover:bg-green-700"
+                                            onClick={() => handleGenerateInternal(inv._id)}
+                                            title="Generate Internal"
+                                        >
+                                            <FilePlus size={18} />
                                         </button>
                                     </td>
                                 </tr>
@@ -210,24 +230,16 @@ export default function Invoices() {
                         <span className="text-gray-600">Total Invoices: {totalCount}</span>
                         <div className="flex items-center gap-2">
                             <button
-                                className={`px-3 py-1 rounded ${page === 1
-                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                                    }`}
+                                className={`px-3 py-1 rounded ${page === 1 ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}
                                 disabled={page === 1}
                                 onClick={() => handlePageChange(page - 1)}
                             >
                                 Prev
                             </button>
-                            <span>
-                                Page {page} of {totalPages}
-                            </span>
+                            <span>Page {page} of {totalPages}</span>
                             <button
-                                className={`px-3 py-1 rounded ${page === totalPages || invoices.length < limit
-                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                    : "bg-blue-600 text-white hover:bg-blue-700"
-                                    }`}
-                                disabled={page === totalPages || invoices.length < limit}
+                                className={`px-3 py-1 rounded ${page === totalPages ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+                                disabled={page === totalPages}
                                 onClick={() => handlePageChange(page + 1)}
                             >
                                 Next

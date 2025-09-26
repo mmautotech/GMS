@@ -1,388 +1,366 @@
-import React, { useEffect, useState } from "react";
+// src/pages/PartsPurchase/PartsInvoiceModal.jsx
+import React, { useEffect, useState, useRef } from "react";
 import { toast } from "react-toastify";
+import PurchasePartsApi from "../../lib/api/purchasepartsApi.js";
+import { getSuppliers } from "../../lib/api/suppliersApi.js";
+import axiosInstance from "../../lib/api/axiosInstance.js";
+import { Button } from "../../ui/button";
+import { Input } from "../../ui/input";
+import { Label } from "../../ui/label";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "../../ui/dialog";
-import { Button } from "../../ui/button";
-import { Label } from "../../ui/label";
-import { Input } from "../../ui/input";
-import { getParts } from "../../lib/api/partsApi.js";
-import PurchasePartsApi from "../../lib/api/purchasepartsApi.js";
 
-export default function PartsInvoiceModal({ isOpen, onClose, invoiceId }) {
-    const [invoice, setInvoice] = useState(null);
-    const [allParts, setAllParts] = useState([]);
-    const [applyVAT, setApplyVAT] = useState(true);
+export default function PartsInvoiceModal({ invoiceId = null, isOpen, onClose }) {
+    const [suppliers, setSuppliers] = useState([]);
+    const [bookings, setBookings] = useState([]);
+    const [filteredBookings, setFilteredBookings] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [saving, setSaving] = useState(false);
+    const [showDropdown, setShowDropdown] = useState(false);
+    const [highlightIndex, setHighlightIndex] = useState(0);
+    const dropdownRef = useRef(null);
 
+    const [formData, setFormData] = useState({
+        supplier: "",
+        vehicleRegNo: "",
+        booking: null,
+        items: [{ partName: "", partNumber: "", rate: 0, quantity: 1 }],
+        paymentDate: new Date().toISOString().slice(0, 10),
+        discount: 0,
+        vatIncluded: true,
+        vendorInvoiceNumber: "",
+    });
+
+    // Fetch suppliers
     useEffect(() => {
-        const fetchParts = async () => {
-            try {
-                const partsRes = await getParts({ includeInactive: true });
-                setAllParts(partsRes?.parts || partsRes?.data || []);
-            } catch (err) {
-                toast.error("Failed to fetch parts");
-            }
-        };
-        fetchParts();
+        getSuppliers()
+            .then(res => setSuppliers(Array.isArray(res.data) ? res.data : []))
+            .catch(() => toast.error("Failed to fetch suppliers"));
     }, []);
 
+    // Fetch arrived bookings
     useEffect(() => {
-        const fetchInvoice = async () => {
-            if (!invoiceId) return;
-            setLoading(true);
+        async function fetchBookings() {
             try {
-                const res = await PurchasePartsApi.getInvoiceById(invoiceId);
-                setInvoice(res?.data || null);
-                setApplyVAT(res?.data?.vatIncluded ?? true);
+                const res = await axiosInstance.get("/bookings/arrived");
+                if (res.data?.success) {
+                    setBookings(res.data.data || []);
+                }
             } catch (err) {
-                toast.error("Failed to fetch invoice");
-            } finally {
-                setLoading(false);
+                toast.error("Failed to fetch arrived bookings");
             }
-        };
-        fetchInvoice();
+        }
+        fetchBookings();
+    }, []);
+
+    // Fetch invoice if editing
+    useEffect(() => {
+        if (invoiceId) {
+            setLoading(true);
+            PurchasePartsApi.getInvoiceById(invoiceId)
+                .then(res => {
+                    if (res.success) {
+                        setFormData({
+                            supplier: res.data.supplier?._id || "",
+                            vehicleRegNo: res.data.vehicleRegNo || "",
+                            booking: res.data.booking?._id || null,
+                            items: res.data.items || [{ partName: "", partNumber: "", rate: 0, quantity: 1 }],
+                            paymentDate: res.data.paymentDate?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+                            discount: res.data.discount || 0,
+                            vatIncluded: res.data.vatIncluded ?? true,
+                            vendorInvoiceNumber: res.data.vendorInvoiceNumber || "",
+                        });
+                    }
+                })
+                .catch(() => toast.error("Failed to load invoice"))
+                .finally(() => setLoading(false));
+        }
     }, [invoiceId]);
 
-    const supplierParts = allParts.filter(
-        (p) => p.supplier?._id === invoice?.supplier?._id
-    );
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
-    const getPartName = (partId) => {
-        if (!partId) return "N/A";
-        const found = allParts.find((p) => p._id === (partId._id || partId));
-        return found ? found.partName : "N/A";
+    // Debounced search for vehicle reg
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            const search = formData.vehicleRegNo.toLowerCase();
+            if (!search) {
+                setFilteredBookings([]);
+                setShowDropdown(false);
+                return;
+            }
+            const matches = bookings.filter(b => b.vehicleRegNo.toLowerCase().includes(search));
+            setFilteredBookings(matches);
+            setShowDropdown(matches.length > 0);
+            setHighlightIndex(0);
+
+            // Reset booking id if text does not match any booking
+            if (formData.booking && formData.vehicleRegNo.toLowerCase() !== bookings.find(b => b._id === formData.booking)?.vehicleRegNo.toLowerCase()) {
+                setFormData(prev => ({ ...prev, booking: null }));
+            }
+        }, 200);
+        return () => clearTimeout(handler);
+    }, [formData.vehicleRegNo, bookings, formData.booking]);
+
+    const handleInputChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: type === "checkbox" ? checked : value,
+        }));
     };
 
-    const calculateTotal = () =>
-        invoice?.items?.reduce(
-            (sum, item) =>
-                sum +
-                (Number(item.quantity) || 0) * (Number(item.rate) || 0),
-            0
-        ) || 0;
+    const handleSelectBooking = (b) => {
+        setFormData(prev => ({
+            ...prev,
+            vehicleRegNo: b.vehicleRegNo,
+            booking: b._id,
+        }));
+        setShowDropdown(false);
+    };
 
-    const calculateDiscount = (total) =>
-        Number(invoice?.discount || 0);
-
-    const calculateVAT = (total, discount) =>
-        applyVAT ? ((total - discount) * 20) / 100 : 0;
-
-    const calculateNetTotal = () => {
-        const total = calculateTotal();
-        const discount = calculateDiscount(total);
-        const vat = calculateVAT(total, discount);
-        return total - discount + vat;
+    const handleKeyDown = (e) => {
+        if (!showDropdown) return;
+        if (e.key === "ArrowDown") {
+            setHighlightIndex(prev => (prev + 1) % filteredBookings.length);
+            e.preventDefault();
+        } else if (e.key === "ArrowUp") {
+            setHighlightIndex(prev => (prev - 1 + filteredBookings.length) % filteredBookings.length);
+            e.preventDefault();
+        } else if (e.key === "Enter") {
+            handleSelectBooking(filteredBookings[highlightIndex]);
+            e.preventDefault();
+        }
     };
 
     const handleItemChange = (index, field, value) => {
-        const updatedItems = [...invoice.items];
-        if (field === "quantity" || field === "rate") {
-            updatedItems[index][field] = value === "" ? "" : Number(value);
-        } else {
-            updatedItems[index][field] = value;
-        }
-        setInvoice({ ...invoice, items: updatedItems });
+        const newItems = [...formData.items];
+        newItems[index][field] = field === "rate" || field === "quantity" ? Number(value) || 0 : value;
+        setFormData(prev => ({ ...prev, items: newItems }));
     };
 
-    const handleAddItem = () => {
-        setInvoice({
-            ...invoice,
-            items: [...(invoice.items || []), { part: "", quantity: 1, rate: 0 }],
-        });
+    const addItem = () => {
+        setFormData(prev => ({
+            ...prev,
+            items: [...prev.items, { partName: "", partNumber: "", rate: 0, quantity: 1 }],
+        }));
     };
 
-    const handleRemoveItem = (index) => {
-        const updatedItems = [...invoice.items];
-        updatedItems.splice(index, 1);
-        setInvoice({ ...invoice, items: updatedItems });
+    const removeItem = (index) => {
+        const newItems = [...formData.items];
+        newItems.splice(index, 1);
+        setFormData(prev => ({ ...prev, items: newItems }));
     };
 
     const handleSave = async () => {
-        if (!invoice) return;
-        if (!invoice.items.length || invoice.items.some((i) => !i.part))
-            return toast.error("Please select at least one part");
+        if (!formData.supplier) return toast.error("Please select a supplier");
+        if (!formData.items.length || formData.items.some(i => !i.partName)) return toast.error("Please provide at least one part");
+        if (!formData.vendorInvoiceNumber) return toast.error("Please provide a vendor invoice number");
+        if (formData.items.some(i => i.rate <= 0 || i.quantity <= 0)) return toast.error("Rate and Quantity must be greater than zero");
 
-        setSaving(true);
         try {
-            const payload = {
-                supplier:
-                    typeof invoice.supplier === "object"
-                        ? invoice.supplier._id
-                        : invoice.supplier,
-                vendorInvoiceNumber: invoice.vendorInvoiceNumber,
-                paymentStatus: invoice.paymentStatus || "Pending",
-                paymentDate: invoice.paymentDate
-                    ? new Date(invoice.paymentDate).toISOString()
-                    : null,
-                discount: Number(invoice.discount) || 0,
-                vatIncluded: Boolean(applyVAT),
-                items: invoice.items.map((item) => ({
-                    part: typeof item.part === "object" ? item.part._id : item.part,
-                    quantity: Number(item.quantity) || 0,
-                    rate: Number(item.rate) || 0,
-                })),
-            };
-
-            const res = await PurchasePartsApi.updateInvoice(invoice._id, payload);
-
-            if (res.success) {
+            if (invoiceId) {
+                await PurchasePartsApi.updateInvoice(invoiceId, formData);
                 toast.success("Invoice updated successfully");
-                setInvoice(res.data);
             } else {
-                toast.error(res.error || "Failed to update invoice");
+                await PurchasePartsApi.createInvoice(formData);
+                toast.success("Invoice created successfully");
             }
+            onClose();
         } catch (err) {
-            console.error(err.response || err);
-            toast.error(err.response?.data?.error || "Failed to update invoice");
-        } finally {
-            setSaving(false);
+            console.error(err);
+            toast.error(err.response?.data?.error || "Failed to save invoice");
         }
     };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-[90vw] md:max-w-4xl rounded-xl shadow-xl p-6 bg-gray-50">
-                <DialogHeader className="sticky top-0 bg-gray-50 z-10">
-                    <DialogTitle className="text-2xl font-bold border-b border-gray-200 pb-3">
-                        {loading
-                            ? "Loading..."
-                            : `Invoice #${invoice?.vendorInvoiceNumber || ""}`}
+            <DialogContent className="max-w-6xl rounded-lg shadow-lg p-6 bg-white">
+                <DialogHeader>
+                    <DialogTitle className="text-xl font-semibold">
+                        {invoiceId ? "Edit Invoice" : "Create New Invoice"}
                     </DialogTitle>
                 </DialogHeader>
 
-                <div className="max-h-[80vh] overflow-y-auto mt-4 space-y-6">
-                    {loading ? (
-                        <p className="text-center py-12 text-gray-500">Loading invoice...</p>
-                    ) : !invoice ? (
-                        <p className="text-center py-12 text-gray-500">Invoice not found</p>
-                    ) : (
-                        <>
-                            {/* Supplier Info */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Supplier</Label>
-                                    <Input
-                                        value={invoice?.supplier?.name || ""}
-                                        onChange={(e) =>
-                                            setInvoice({
-                                                ...invoice,
-                                                supplier: { ...invoice.supplier, name: e.target.value },
-                                            })
-                                        }
-                                    />
-                                </div>
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Contact</Label>
-                                    <Input
-                                        value={invoice?.supplier?.contact || ""}
-                                        onChange={(e) =>
-                                            setInvoice({
-                                                ...invoice,
-                                                supplier: { ...invoice.supplier, contact: e.target.value },
-                                            })
-                                        }
-                                    />
-                                </div>
-                            </div>
+                {loading ? (
+                    <div className="text-center py-6">Loading...</div>
+                ) : (
+                    <div className="space-y-4 mt-2">
+                        {/* Supplier */}
+                        <div className="space-y-1">
+                            <Label>Supplier</Label>
+                            <select
+                                value={formData.supplier}
+                                onChange={handleInputChange}
+                                name="supplier"
+                                className="w-full border rounded px-3 py-2"
+                            >
+                                <option value="">Select Supplier</option>
+                                {suppliers.map(s => (
+                                    <option key={s._id} value={s._id}>{s.name}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                            {/* Invoice Info */}
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Vendor Invoice #</Label>
-                                    <Input
-                                        value={invoice.vendorInvoiceNumber || ""}
-                                        onChange={(e) =>
-                                            setInvoice({ ...invoice, vendorInvoiceNumber: e.target.value })
-                                        }
-                                    />
-                                </div>
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Date</Label>
-                                    <Input
-                                        type="date"
-                                        value={
-                                            invoice.paymentDate
-                                                ? new Date(invoice.paymentDate).toISOString().split("T")[0]
-                                                : ""
-                                        }
-                                        onChange={(e) =>
-                                            setInvoice({ ...invoice, paymentDate: e.target.value })
-                                        }
-                                    />
-                                </div>
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Payment Status</Label>
-                                    <select
-                                        value={invoice.paymentStatus || "Pending"}
-                                        onChange={(e) =>
-                                            setInvoice({ ...invoice, paymentStatus: e.target.value })
-                                        }
-                                        className="border rounded px-2 py-1 w-full"
-                                    >
-                                        <option value="Pending">Pending</option>
-                                        <option value="Paid">Paid</option>
-                                    </select>
-                                </div>
-                                <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                    <Label className="font-semibold mb-1 block">Net Total</Label>
-                                    <Input value={calculateNetTotal()} disabled className="font-bold" />
-                                </div>
-                            </div>
+                        {/* Vehicle Registration - Searchable */}
+                        <div className="space-y-1 relative" ref={dropdownRef}>
+                            <Label>Vehicle Registration</Label>
+                            <Input
+                                name="vehicleRegNo"
+                                value={formData.vehicleRegNo}
+                                onChange={handleInputChange}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Type to search vehicle reg..."
+                            />
+                            {showDropdown && (
+                                <ul className="absolute z-10 w-full bg-white border rounded max-h-40 overflow-y-auto mt-1">
+                                    {filteredBookings.map((b, idx) => (
+                                        <li
+                                            key={b._id}
+                                            className={`px-3 py-2 cursor-pointer ${highlightIndex === idx ? "bg-blue-100" : ""}`}
+                                            onClick={() => handleSelectBooking(b)}
+                                        >
+                                            {b.vehicleRegNo} {b.ownerName ? `- ${b.ownerName}` : ""}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
 
-                            {/* Items Table */}
-                            <div className="bg-white p-4 rounded-lg shadow-sm border">
-                                <Label className="font-semibold mb-2 block">Items</Label>
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-sm border-collapse">
-                                        <thead className="bg-gray-100">
-                                            <tr>
-                                                <th className="border px-3 py-2 text-left">#</th>
-                                                <th className="border px-3 py-2 text-left">Part</th>
-                                                <th className="border px-3 py-2 text-left">Quantity</th>
-                                                <th className="border px-3 py-2 text-left">Unit Price</th>
-                                                <th className="border px-3 py-2 text-left">Subtotal</th>
-                                                <th className="border px-3 py-2 text-left">Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {invoice.items?.length > 0 ? (
-                                                invoice.items.map((item, idx) => {
-                                                    const subtotal =
-                                                        (Number(item.quantity) || 0) *
-                                                        (Number(item.rate) || 0);
-                                                    return (
-                                                        <tr key={idx} className="hover:bg-gray-50">
-                                                            <td className="border px-3 py-2">{idx + 1}</td>
-                                                            <td className="border px-3 py-2">
-                                                                <select
-                                                                    value={item.part?._id || item.part || ""}
-                                                                    onChange={(e) =>
-                                                                        handleItemChange(idx, "part", e.target.value)
-                                                                    }
-                                                                    className="border rounded px-2 py-1 w-full"
-                                                                >
-                                                                    <option value="">Select Part</option>
-                                                                    {item.part &&
-                                                                        !supplierParts.some(
-                                                                            (p) =>
-                                                                                p._id ===
-                                                                                (item.part?._id || item.part)
-                                                                        ) && (
-                                                                            <option
-                                                                                value={item.part?._id || item.part}
-                                                                            >
-                                                                                {getPartName(item.part?._id || item.part)}
-                                                                            </option>
-                                                                        )}
-                                                                    {supplierParts.map((p) => (
-                                                                        <option key={p._id} value={p._id}>
-                                                                            {p.partName} ({p.partNumber})
-                                                                        </option>
-                                                                    ))}
-                                                                </select>
-                                                            </td>
-                                                            <td className="border px-3 py-2">
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    value={item.quantity}
-                                                                    onChange={(e) =>
-                                                                        handleItemChange(idx, "quantity", e.target.value)
-                                                                    }
-                                                                />
-                                                            </td>
-                                                            <td className="border px-3 py-2">
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    value={item.rate}
-                                                                    onChange={(e) =>
-                                                                        handleItemChange(idx, "rate", e.target.value)
-                                                                    }
-                                                                />
-                                                            </td>
-                                                            <td className="border px-3 py-2 font-semibold">
-                                                                £{subtotal.toFixed(2)}
-                                                            </td>
-                                                            <td className="border px-3 py-2">
-                                                                <Button
-                                                                    onClick={() => handleRemoveItem(idx)}
-                                                                    className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
-                                                                >
-                                                                    Remove
-                                                                </Button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            ) : (
-                                                <tr>
-                                                    <td colSpan={6} className="text-center py-4 text-gray-400">
-                                                        No items added
-                                                    </td>
-                                                </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <Button
-                                    onClick={handleAddItem}
-                                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 mt-3 rounded"
-                                >
-                                    Add Item
-                                </Button>
-                            </div>
+                        {/* Items Table */}
+                        <div className="overflow-x-auto">
+                            <table className="w-full border border-gray-200">
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        <th className="p-2 text-left">Part Name</th>
+                                        <th className="p-2 text-left">Part Number</th>
+                                        <th className="p-2 text-left">Rate (£)</th>
+                                        <th className="p-2 text-left">Qty</th>
+                                        <th className="p-2 text-left">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {formData.items.map((item, idx) => (
+                                        <tr key={idx} className="border-t">
+                                            <td className="p-2">
+                                                <Input
+                                                    value={item.partName}
+                                                    onChange={(e) => handleItemChange(idx, "partName", e.target.value)}
+                                                />
+                                            </td>
+                                            <td className="p-2">
+                                                <Input
+                                                    value={item.partNumber}
+                                                    onChange={(e) => handleItemChange(idx, "partNumber", e.target.value)}
+                                                />
+                                            </td>
+                                            <td className="p-2">
+                                                <Input
+                                                    type="number"
+                                                    min={0}
+                                                    value={item.rate}
+                                                    onChange={(e) => handleItemChange(idx, "rate", e.target.value)}
+                                                />
+                                            </td>
+                                            <td className="p-2">
+                                                <Input
+                                                    type="number"
+                                                    min={1}
+                                                    value={item.quantity}
+                                                    onChange={(e) => handleItemChange(idx, "quantity", e.target.value)}
+                                                />
+                                            </td>
+                                            <td className="p-2">
+                                                <Button
+                                                    onClick={() => removeItem(idx)}
+                                                    className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
+                                                >
+                                                    Remove
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                            {/* Discount & VAT */}
-                            <div className="bg-white p-4 rounded-lg shadow-sm border flex flex-col md:flex-row items-center justify-between gap-4">
-                                {/* Discount */}
-                                <div className="flex-1">
-                                    <Label className="font-semibold mb-1 block">Discount (£)</Label>
-                                    <Input
-                                        type="number"
-                                        value={invoice.discount || ""}
-                                        onChange={(e) =>
-                                            setInvoice({ ...invoice, discount: e.target.value === "" ? "" : Number(e.target.value) })
-                                        }
-                                    />
-                                </div>
+                        <Button
+                            onClick={addItem}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mt-2"
+                        >
+                            Add Another Part
+                        </Button>
 
-                                {/* VAT */}
-                                <div className="flex items-center space-x-2 mt-2 md:mt-0">
-                                    <input
-                                        type="checkbox"
-                                        checked={applyVAT}
-                                        onChange={() => setApplyVAT(!applyVAT)}
-                                        className="mr-2"
-                                    />
-                                    <span className="font-medium">Apply VAT (20%)</span>
-                                </div>
+                        {/* Invoice Info */}
+                        <div className="grid grid-cols-2 gap-4 mt-2">
+                            <div>
+                                <Label>Vendor Invoice Number</Label>
+                                <Input
+                                    name="vendorInvoiceNumber"
+                                    value={formData.vendorInvoiceNumber}
+                                    onChange={handleInputChange}
+                                />
                             </div>
+                            <div>
+                                <Label>Payment Date</Label>
+                                <Input
+                                    type="date"
+                                    name="paymentDate"
+                                    value={formData.paymentDate}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                            <div>
+                                <Label>Discount (£)</Label>
+                                <Input
+                                    type="number"
+                                    min={0}
+                                    name="discount"
+                                    value={formData.discount}
+                                    onChange={handleInputChange}
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 mt-6">
+                                <input
+                                    type="checkbox"
+                                    id="vatIncluded"
+                                    name="vatIncluded"
+                                    checked={formData.vatIncluded}
+                                    onChange={handleInputChange}
+                                    className="accent-blue-600"
+                                />
+                                <Label htmlFor="vatIncluded">VAT Included</Label>
+                            </div>
+                        </div>
 
-                            {/* Actions */}
-                            <div className="flex justify-end gap-3 mt-4">
-                                <Button
-                                    onClick={onClose}
-                                    className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-5 py-2 rounded"
-                                >
-                                    Close
-                                </Button>
-                                <Button
-                                    onClick={handleSave}
-                                    className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded"
-                                    disabled={saving}
-                                >
-                                    {saving ? "Saving..." : "Save Changes"}
-                                </Button>
-                            </div>
-                        </>
-                    )}
-                </div>
+                        {/* Action Buttons */}
+                        <div className="flex justify-end gap-3 mt-4">
+                            <Button
+                                onClick={onClose}
+                                className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                onClick={handleSave}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                            >
+                                {invoiceId ? "Update Invoice" : "Create Invoice"}
+                            </Button>
+                        </div>
+                    </div>
+                )}
             </DialogContent>
         </Dialog>
     );
