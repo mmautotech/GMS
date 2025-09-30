@@ -1,4 +1,6 @@
+// src/hooks/useBookings.js
 import { useEffect, useMemo, useState, useCallback } from "react";
+
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 export default function useBookings({
@@ -7,7 +9,6 @@ export default function useBookings({
     toDate,
     search = "",
     services,
-    type = "booking",
     initialPage = 1,
     pageSize = 25,
     sortBy = "createdDate",
@@ -37,7 +38,6 @@ export default function useBookings({
                 limit: pageSize,
                 sortBy,
                 sortDir,
-                type,
                 status,
                 fromDate,
                 toDate,
@@ -72,7 +72,6 @@ export default function useBookings({
         pageSize,
         sortBy,
         sortDir,
-        type,
         status,
         fromDate,
         toDate,
@@ -127,7 +126,6 @@ export default function useBookings({
                     _id: res.booking?._id || res.booking?.id || id,
                 };
 
-                // replace only if booking returned
                 setItems((prev) =>
                     res.booking
                         ? prev.map((b) => (b._id === id ? updatedBooking : b))

@@ -1,3 +1,4 @@
+// src/lib/api/bookingApi.js
 import axios from "./axiosInstance.js";
 
 // 🔧 Normalize date to YYYY-MM-DD
@@ -27,7 +28,9 @@ export const BookingApi = {
       if (fromDate) params.fromDate = normalizeDate(fromDate);
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
-      if (services) params.services = services;
+      if (services) {
+        params.services = Array.isArray(services) ? services.join(",") : services;
+      }
 
       const res = await axios.get("/bookings", { params });
       const data = res.data || {};
@@ -58,12 +61,13 @@ export const BookingApi = {
   exportBookings: async (filters = {}) => {
     try {
       const params = new URLSearchParams();
-
       if (filters.status) params.append("status", String(filters.status).toLowerCase());
       if (filters.fromDate) params.append("fromDate", normalizeDate(filters.fromDate));
       if (filters.toDate) params.append("toDate", normalizeDate(filters.toDate));
       if (filters.search) params.append("search", filters.search.trim());
-      if (filters.services) params.append("services", filters.services);
+      if (filters.services) {
+        params.append("services", Array.isArray(filters.services) ? filters.services.join(",") : filters.services);
+      }
       if (filters.sortBy) params.append("sortBy", filters.sortBy);
       if (typeof filters.sortDir !== "undefined") params.append("sortDir", filters.sortDir);
 
@@ -115,7 +119,7 @@ export const BookingApi = {
 
       return {
         ok: true,
-        booking: data.booking || data.data || null, // flexible mapping
+        booking: data.booking || data.data || null,
         message: data.message || "Booking updated successfully",
       };
     } catch (err) {
@@ -125,7 +129,6 @@ export const BookingApi = {
       };
     }
   },
-
 
   // --- Update booking status ---
   updateBookingStatus: async (id, status) => {
@@ -142,7 +145,6 @@ export const BookingApi = {
       };
     }
   },
-
 
   // --- List pending bookings ---
   getPendingBookings: async ({
@@ -161,7 +163,7 @@ export const BookingApi = {
       if (fromDate) params.fromDate = normalizeDate(fromDate);
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
-      if (services) params.services = services;
+      if (services) params.services = Array.isArray(services) ? services.join(",") : services;
       if (user) params.user = user;
 
       const res = await axios.get("/bookings/pending", { params });
@@ -170,23 +172,13 @@ export const BookingApi = {
       return {
         ok: data.success ?? true,
         items: data.data || [],
-        pagination: data.pagination || {
-          total: 0,
-          page,
-          limit,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
+        pagination: data.pagination || { total: 0, page, limit, totalPages: 1 },
         params: data.params || null,
       };
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to fetch pending bookings",
+        error: err?.response?.data?.error || err.message || "Failed to fetch pending bookings",
       };
     }
   },
@@ -208,7 +200,7 @@ export const BookingApi = {
       if (fromDate) params.fromDate = normalizeDate(fromDate);
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
-      if (services) params.services = services;
+      if (services) params.services = Array.isArray(services) ? services.join(",") : services;
       if (user) params.user = user;
 
       const res = await axios.get("/bookings/arrived", { params });
@@ -217,28 +209,18 @@ export const BookingApi = {
       return {
         ok: data.success ?? true,
         items: data.data || [],
-        pagination: data.pagination || {
-          total: 0,
-          page,
-          limit,
-          totalPages: 1,
-          hasNextPage: false,
-          hasPrevPage: false,
-        },
+        pagination: data.pagination || { total: 0, page, limit, totalPages: 1 },
         params: data.params || null,
       };
     } catch (err) {
       return {
         ok: false,
-        error:
-          err?.response?.data?.error ||
-          err.message ||
-          "Failed to fetch arrived bookings",
+        error: err?.response?.data?.error || err.message || "Failed to fetch arrived bookings",
       };
     }
   },
 
-  // --- Get single booking ---
+  // --- Get booking by ID ---
   getBookingById: async (id) => {
     try {
       const res = await axios.get(`/bookings/${id}`);
@@ -252,21 +234,33 @@ export const BookingApi = {
     }
   },
 
-  // --- Get booking photo (original or compressed) ---
+  // --- Get booking photo ---
   getBookingPhoto: async (id, type = "original") => {
     try {
       const res = await axios.get(`/bookings/${id}/photo?type=${type}`, {
-        responseType: "blob", // raw binary
+        responseType: "blob",
       });
-
       const blob = res.data;
-      const url = URL.createObjectURL(blob); // ✅ always generate a blob URL
-
+      const url = URL.createObjectURL(blob);
       return { ok: true, blob, url };
     } catch (err) {
       return {
         ok: false,
         error: err?.response?.data?.error || err.message || "Failed to fetch booking photo",
+      };
+    }
+  },
+
+  // --- Booking ID map (ARRIVED only) ---
+  getBookingIdMap: async () => {
+    try {
+      const res = await axios.get("/bookings/booking-map");
+      const data = res.data || {};
+      return { ok: true, items: data.data || [], count: data.count || 0 };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err?.response?.data?.error || err.message || "Failed to fetch booking map",
       };
     }
   },

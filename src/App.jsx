@@ -15,7 +15,7 @@ import Settings from "./pages/Settings/index.jsx";
 import Entities from "./pages/Entities/index.jsx";
 import Invoices from "./pages/Invoice/invoice.jsx";
 import { Suppliers } from "./pages/Suppliers/supplier.jsx";
-import PartsPurchase from "./pages/PartsPurchase/partsPurchase.jsx";
+import PartsPurchase from "./pages/PartsPurchase/index.jsx";
 import InternalInvoicesPage from "./pages/Invoice/InternalInvoicesPage.jsx"
 
 import { AuthApi } from "./lib/api/authApi.js";
