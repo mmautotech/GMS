@@ -16,7 +16,7 @@ import Entities from "./pages/Entities/index.jsx";
 import Invoices from "./pages/Invoice/invoice.jsx";
 import { Suppliers } from "./pages/Suppliers/supplier.jsx";
 import PartsPurchase from "./pages/PartsPurchase/index.jsx";
-import InternalInvoicesPage from "./pages/Invoice/InternalInvoicesPage.jsx"
+import InternalInvoicesPage from "./pages/Invoice/InternalInvoicesPage.jsx";
 
 import { AuthApi } from "./lib/api/authApi.js";
 
@@ -79,21 +79,25 @@ export default function App() {
         {/* Public routes */}
         <Route
           path="/login"
-          element={user ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} />}
+          element={user ? <Navigate to={getDefaultRoute(user)} replace /> : <Login onLogin={handleLogin} />}
         />
         <Route
           path="/forgot-password"
           element={<ForgotPassword onForgotPassword={handleForgotPassword} />}
         />
 
-
         {/* Private routes */}
         <Route element={<RequireAuth user={user} />}>
           <Route element={<Shell user={user} onLogout={handleLogout} />}>
-            <Route index element={<Navigate to="/dashboard" replace />} />
+            {/* ✅ Redirect based on role */}
+            <Route index element={<Navigate to={getDefaultRoute(user)} replace />} />
 
-            {/* All pages accessible, no role restrictions */}
-            <Route path="/dashboard" element={<Dashboard user={user} />} />
+            {/* Admin only */}
+            <Route element={<RequireAdmin user={user} />}>
+              <Route path="/dashboard" element={<Dashboard user={user} />} />
+            </Route>
+
+            {/* Shared routes */}
             <Route path="/pre-booking" element={<PreBooking />} />
             <Route path="/car-in" element={<CarIn />} />
             <Route path="/suppliers" element={<Suppliers />} />
@@ -107,7 +111,7 @@ export default function App() {
         </Route>
 
         {/* Fallback */}
-        <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} replace />} />
+        <Route path="*" element={<Navigate to={user ? getDefaultRoute(user) : "/login"} replace />} />
       </Routes>
 
       <ToastContainer
@@ -130,11 +134,33 @@ function RequireAuth({ user }) {
   return <Outlet />;
 }
 
+/* Guard for admin only */
+function RequireAdmin({ user }) {
+  if (!user || user.userType !== "admin") {
+    return <Navigate to={getDefaultRoute(user)} replace />;
+  }
+  return <Outlet />;
+}
+
+/* ✅ Default route per role */
+function getDefaultRoute(user) {
+  if (!user) return "/login";
+  switch (user.userType) {
+    case "sales":
+      return "/pre-booking";
+    case "parts":
+      return "/parts-purchase";
+    case "accounts":
+      return "/invoice";
+    case "admin":
+      return "/dashboard";
+    default:
+      return "/car-in"; // fallback
+  }
+}
+
 /**
- * Shell layout:
- * - Desktop (md+): sidebar is controlled by `sidebarOpen` and shown inline when true.
- * - Mobile (<md): sidebar is a slide-in drawer using the same `sidebarOpen` state.
- * - Main uses `min-w-0 overflow-x-hidden` so tables/content can't push the layout wider.
+ * Shell layout
  */
 function Shell({ user, onLogout }) {
   const navigate = useNavigate();

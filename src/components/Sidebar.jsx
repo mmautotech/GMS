@@ -46,8 +46,11 @@ export default function Sidebar({ onClose, onLogout, username, userType }) {
       { name: "Car In", path: "/car-in", icon: Car },
     ],
     parts: [{ name: "Purchases", path: "/parts-purchase", icon: ShoppingCart }],
+
+
     accounts: [
-      { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
+      { name: "Car In", path: "/car-in", icon: Car },
+      { name: "Purchases", path: "/parts-purchase", icon: ShoppingCart },
       {
         name: "Invoices",
         path: "/invoice",
