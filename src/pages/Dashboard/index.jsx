@@ -2,6 +2,8 @@
 import React, { useMemo, useState } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import useServices from "../../hooks/useServices.js";
+import useUsers from "../../hooks/useUsers.js";
+
 import BookingsTable from "./bookingsTable.jsx";
 import StatCard from "../../components/StatCard.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
@@ -63,8 +65,9 @@ export default function Dashboard({ user }) {
         toDate: "",
         status: "",
         services: "",
+        user: "",
         sortBy: "createdDate",
-        sortDir: "desc", // default for date fields
+        sortDir: "desc",
         limit: 25,
     });
 
@@ -87,6 +90,13 @@ export default function Dashboard({ user }) {
         loading: loadingServices,
         error: servicesError,
     } = useServices({ enabled: true, useSessionCache: true });
+    // Users (cached list + id→username map)
+    const {
+        list: userOptions,
+        map: userMap,
+        loading: loadingUsers,
+        error: usersError,
+    } = useUsers({ useSessionCache: true });
 
     // Bookings hook — ONLY reacts to applied values
     const {
@@ -100,7 +110,7 @@ export default function Dashboard({ user }) {
         hasNextPage,
         hasPrevPage,
         params,
-        exportCSV,   // 👈 add this
+        exportCSV,
     } = useBookings({
         pageSize: applied.limit,
         status: applied.status,
@@ -108,9 +118,11 @@ export default function Dashboard({ user }) {
         fromDate: applied.fromDate,
         toDate: applied.toDate,
         services: applied.services,
+        user: applied.user,
         sortBy: applied.sortBy,
         sortDir: applied.sortDir,
     });
+
 
 
     // ---------- APPLY & RESET ----------
@@ -126,6 +138,7 @@ export default function Dashboard({ user }) {
             toDate: "",
             status: "",
             services: "",
+            user: "",
             sortBy: "createdDate",
             sortDir: "desc",
             limit: 25,
@@ -288,6 +301,27 @@ export default function Dashboard({ user }) {
                     {/* Sorting Controls */}
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 flex-1">
                         <select
+                            value={draft.user}
+                            onChange={(e) => setDraft((d) => ({ ...d, user: e.target.value }))}
+                            className="border rounded px-3 py-2 w-full"
+                            disabled={loadingUsers}
+                        >
+                            <option value="">
+                                {loadingUsers ? "Loading users..." : "All Users"}
+                            </option>
+                            {usersError ? (
+                                <option disabled value="">
+                                    Failed to load users
+                                </option>
+                            ) : (
+                                userOptions.map((u) => (
+                                    <option key={u.id} value={u.id}>
+                                        {u.username}
+                                    </option>
+                                ))
+                            )}
+                        </select>
+                        <select
                             value={draft.sortBy}
                             onChange={(e) => onDraftSortByChange(e.target.value)}
                             className="border rounded px-3 py-2 w-full"
@@ -346,7 +380,13 @@ export default function Dashboard({ user }) {
             </div>
 
             {/* Echo of applied params */}
-            {params && <ParamsSummary params={params} serviceMap={serviceMap} />}
+            {params && (
+                <ParamsSummary
+                    params={params}
+                    serviceMap={serviceMap}
+                    userMap={userMap}   // ✅ added
+                />
+            )}
 
             {/* Bookings Table */}
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />

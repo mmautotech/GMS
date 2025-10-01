@@ -63,8 +63,8 @@ const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelec
             {/* Booking Date (createdDate) + createdBy */}
             <td className="p-2 border">
                 <div className="leading-tight">
-                    <div>{fmtDate(booking.createdDate)}</div>
-                    <div className="text-[11px] text-gray-500">by {safe(booking.createdBy)}</div>
+                    <div>{fmtDate(booking.bookingDate)}</div>
+                    <div className="text-[11px] text-gray-500">by {safe(booking.bookedBy)}</div>
                 </div>
             </td>
 
@@ -78,7 +78,7 @@ const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelec
                 </div>
             </td>
 
-            <td className="p-2 border">{booking.vehicleRegNo}</td>
+            <td className="p-2 border">{booking.registration}</td>
 
             {/* Truncate Make & Model on narrow screens */}
             <td
@@ -88,17 +88,21 @@ const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelec
                 {booking.makeModel}
             </td>
 
-            <td className="p-2 border hidden sm:table-cell">{booking.ownerName}</td>
+            <td className="p-2 border">
+                <div className="leading-tight">
+                    <div>{safe(booking.ownerName)}</div>
+                    <div className="text-[11px] text-gray-600">{safe(booking.email)}</div>
+                </div>
+            </td>
 
             <td
                 className="p-2 border hidden lg:table-cell max-w-[240px] truncate"
                 title={booking.ownerAddress}
             >
-                {booking.ownerAddress} {booking.ownerPostalCode}
+                {booking.ownerAddress} {booking.postCode}
             </td>
 
-            <td className="p-2 border hidden md:table-cell">{booking.ownerNumber}</td>
-
+            <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
             <td className="p-2 border hidden md:table-cell">
                 <ServicesCell services={booking.services} remarks={booking.remarks} />
             </td>

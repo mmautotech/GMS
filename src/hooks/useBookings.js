@@ -1,6 +1,5 @@
 // src/hooks/useBookings.js
 import { useEffect, useMemo, useState, useCallback } from "react";
-
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 export default function useBookings({
@@ -9,6 +8,7 @@ export default function useBookings({
     toDate,
     search = "",
     services,
+    user,                    // ✅ added user filter
     initialPage = 1,
     pageSize = 25,
     sortBy = "createdDate",
@@ -43,6 +43,7 @@ export default function useBookings({
                 toDate,
                 search,
                 services,
+                user,           // ✅ include user filter
             });
 
             if (res.ok) {
@@ -77,6 +78,7 @@ export default function useBookings({
         toDate,
         search,
         services,
+        user,       // ✅ re-fetch when user changes
     ]);
 
     useEffect(() => {

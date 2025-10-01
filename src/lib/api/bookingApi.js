@@ -16,6 +16,7 @@ export const BookingApi = {
     toDate,
     search,
     services,
+    user,               // ✅ added
     page = 1,
     limit = 25,
     sortBy = "createdDate",
@@ -31,6 +32,7 @@ export const BookingApi = {
       if (services) {
         params.services = Array.isArray(services) ? services.join(",") : services;
       }
+      if (user) params.user = user;   // ✅ forward user filter
 
       const res = await axios.get("/bookings", { params });
       const data = res.data || {};
@@ -68,6 +70,7 @@ export const BookingApi = {
       if (filters.services) {
         params.append("services", Array.isArray(filters.services) ? filters.services.join(",") : filters.services);
       }
+      if (filters.user) params.append("user", filters.user);   // ✅ added user filter
       if (filters.sortBy) params.append("sortBy", filters.sortBy);
       if (typeof filters.sortDir !== "undefined") params.append("sortDir", filters.sortDir);
 
@@ -164,7 +167,7 @@ export const BookingApi = {
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
       if (services) params.services = Array.isArray(services) ? services.join(",") : services;
-      if (user) params.user = user;
+      if (user) params.user = user;   // ✅ consistent
 
       const res = await axios.get("/bookings/pending", { params });
       const data = res.data || {};
@@ -201,7 +204,7 @@ export const BookingApi = {
       if (toDate) params.toDate = normalizeDate(toDate);
       if (search) params.search = search.trim();
       if (services) params.services = Array.isArray(services) ? services.join(",") : services;
-      if (user) params.user = user;
+      if (user) params.user = user;   // ✅ consistent
 
       const res = await axios.get("/bookings/arrived", { params });
       const data = res.data || {};
