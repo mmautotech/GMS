@@ -9,7 +9,7 @@ const PartsApi = {
         try {
             const { data } = await axiosInstance.get("/parts", { params });
             return {
-                success: true,
+                success: data.success,
                 parts: Array.isArray(data.data) ? data.data : [],
                 meta: data.meta || {
                     totalParts: 0,
@@ -29,7 +29,7 @@ const PartsApi = {
         if (!id) throw new Error("❌ getPartById: ID is required");
         try {
             const { data } = await axiosInstance.get(`/parts/${id}`);
-            return { success: true, part: data.data };
+            return { success: data.success, part: data.data };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
@@ -42,7 +42,7 @@ const PartsApi = {
         if (!payload) throw new Error("❌ createPart: payload is required");
         try {
             const { data } = await axiosInstance.post("/parts", payload);
-            return { success: true, part: data.data };
+            return { success: data.success, part: data.data };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
@@ -56,7 +56,7 @@ const PartsApi = {
         if (!payload) throw new Error("❌ updatePart: payload is required");
         try {
             const { data } = await axiosInstance.put(`/parts/${id}`, payload);
-            return { success: true, part: data.data };
+            return { success: data.success, part: data.data };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
@@ -69,7 +69,7 @@ const PartsApi = {
         if (!id) throw new Error("❌ deactivatePart: ID is required");
         try {
             const { data } = await axiosInstance.delete(`/parts/${id}`);
-            return { success: true, part: data.data };
+            return { success: data.success, part: data.data };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
@@ -82,7 +82,7 @@ const PartsApi = {
         if (!id) throw new Error("❌ activatePart: ID is required");
         try {
             const { data } = await axiosInstance.patch(`/parts/${id}/activate`);
-            return { success: true, part: data.data };
+            return { success: data.success, part: data.data };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
@@ -94,7 +94,7 @@ const PartsApi = {
     getPartsDropdown: async () => {
         try {
             const { data } = await axiosInstance.get("/parts/dropdown");
-            return { success: true, parts: data.data || [] };
+            return { success: data.success, parts: data.data || [] };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }

@@ -96,8 +96,8 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard user={user} />} />
             <Route path="/pre-booking" element={<PreBooking />} />
             <Route path="/car-in" element={<CarIn />} />
-            <Route path="/parts-purchase" element={<PartsPurchase />} />
             <Route path="/suppliers" element={<Suppliers />} />
+            <Route path="/parts-purchase" element={<PartsPurchase />} />
             <Route path="/invoice" element={<Invoices />} />
             <Route path="/register" element={<Register onRegister={handleRegister} />} />
             <Route path="/entities" element={<Entities />} />

@@ -1,4 +1,3 @@
-// src/pages/PartsPurchase/PartsPurchase.jsx
 import React, { useState, useMemo } from "react";
 import { Plus } from "lucide-react";
 
@@ -14,6 +13,7 @@ import ParamsSummary from "../../components/ParamsSummary.jsx";
 import InlineSpinner from "../../components/InlineSpinner.jsx";
 import PartsInvoiceModal from "./PartsInvoiceModal.jsx";
 import PartsInvoicesTable from "./PartsInvoicesTable.jsx";
+import PartCreateModal from "./CreatePartModal.jsx"; // ✅ added import
 
 // --- Dropdown constants ---
 const LIMIT_OPTIONS = [5, 25, 50, 100];
@@ -36,9 +36,12 @@ export default function PartsPurchase({ isAdmin = false }) {
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
+    // ✅ new state for part modal
+    const [isPartModalOpen, setIsPartModalOpen] = useState(false);
+
     // suppliers + parts
     const { suppliers } = useSuppliers();
-    const { parts } = useParts();
+    const { parts, refetch: refetchParts } = useParts();
 
     // users
     const {
@@ -76,7 +79,6 @@ export default function PartsPurchase({ isAdmin = false }) {
     const applyFilters = () => {
         const payload = {
             ...draft,
-            // ✅ Ensure dates are valid Date objects
             startDate: draft.startDate ? new Date(draft.startDate) : undefined,
             endDate: draft.endDate ? new Date(draft.endDate) : undefined,
         };
@@ -129,15 +131,26 @@ export default function PartsPurchase({ isAdmin = false }) {
                 <h1 className="text-3xl font-bold text-blue-900">
                     Parts Purchase Invoices
                 </h1>
-                <Button
-                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow"
-                    onClick={() => {
-                        setSelectedInvoiceId(null);
-                        setIsInvoiceModalOpen(true);
-                    }}
-                >
-                    <Plus className="h-4 w-4" /> Create Invoice
-                </Button>
+                <div className="flex gap-3">
+                    {/* ✅ Create Part */}
+                    <Button
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
+                        onClick={() => setIsPartModalOpen(true)}
+                    >
+                        <Plus className="h-4 w-4" /> Create Part
+                    </Button>
+
+                    {/* Create Invoice */}
+                    <Button
+                        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow"
+                        onClick={() => {
+                            setSelectedInvoiceId(null);
+                            setIsInvoiceModalOpen(true);
+                        }}
+                    >
+                        <Plus className="h-4 w-4" /> Create Invoice
+                    </Button>
+                </div>
             </div>
 
             {/* Filters */}
@@ -187,7 +200,9 @@ export default function PartsPurchase({ isAdmin = false }) {
                         className="border rounded px-3 py-2 w-full"
                     >
                         {LIMIT_OPTIONS.map((opt) => (
-                            <option key={opt} value={opt}>{opt} / page</option>
+                            <option key={opt} value={opt}>
+                                {opt} / page
+                            </option>
                         ))}
                     </select>
                 </div>
@@ -222,7 +237,9 @@ export default function PartsPurchase({ isAdmin = false }) {
                     >
                         <option value="">All Suppliers</option>
                         {suppliers.map((s) => (
-                            <option key={s._id} value={s._id}>{s.name}</option>
+                            <option key={s._id} value={s._id}>
+                                {s.name}
+                            </option>
                         ))}
                     </select>
 
@@ -312,9 +329,7 @@ export default function PartsPurchase({ isAdmin = false }) {
                 <div className="flex items-center gap-4">
                     <button
                         disabled={!pagination?.hasPrevPage}
-                        onClick={() =>
-                            refetch({ page: (pagination?.page || 1) - 1 })
-                        }
+                        onClick={() => refetch({ page: (pagination?.page || 1) - 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasPrevPage
                             ? "bg-blue-600 text-white"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -327,9 +342,7 @@ export default function PartsPurchase({ isAdmin = false }) {
                     </span>
                     <button
                         disabled={!pagination?.hasNextPage}
-                        onClick={() =>
-                            refetch({ page: (pagination?.page || 1) + 1 })
-                        }
+                        onClick={() => refetch({ page: (pagination?.page || 1) + 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
                             ? "bg-blue-600 text-white"
                             : "bg-gray-300 text-gray-500 cursor-not-allowed"
@@ -348,6 +361,17 @@ export default function PartsPurchase({ isAdmin = false }) {
                     onClose={() => {
                         setIsInvoiceModalOpen(false);
                         refetch({ page: pagination?.page || 1 });
+                    }}
+                />
+            )}
+
+            {/* ✅ Part Modal */}
+            {isPartModalOpen && (
+                <PartCreateModal
+                    isOpen={isPartModalOpen}
+                    onClose={() => {
+                        setIsPartModalOpen(false);
+                        refetchParts(); // refresh part list after new part
                     }}
                 />
             )}
