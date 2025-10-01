@@ -1,75 +1,98 @@
 // src/lib/api/purchaseInvoiceApi.js
 import axiosInstance from "./axiosInstance.js";
 
-const PurchaseInvoiceApi = {
-    // -------------------------------
-    // User routes
-    // -------------------------------
+// 🟢 shared normalizer
+const normalizeParams = (params = {}) => {
+    const normalized = { ...params };
 
-    // Create a new purchase invoice
+    // convert date strings → ISO (backend can parse)
+    if (normalized.startDate instanceof Date) {
+        normalized.startDate = normalized.startDate.toISOString();
+    }
+    if (normalized.endDate instanceof Date) {
+        normalized.endDate = normalized.endDate.toISOString();
+    }
+
+    return normalized;
+};
+
+const PurchaseInvoiceApi = {
+    // Create invoice
     createInvoice: async (payload) => {
         try {
             const { data } = await axiosInstance.post("/purchase-invoices", payload);
             return {
                 success: data.success,
                 message: data.message || "Purchase invoice created successfully",
-                id: data.id || null, // ✅ backend returns invoice id
+                id: data.id || null,
                 params: null,
                 pagination: null,
                 data: null,
             };
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                id: null,
-                params: null,
-                pagination: null,
-                data: null,
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    id: null,
+                    params: null,
+                    pagination: null,
+                    data: null,
+                }
+            );
         }
     },
 
-    // Get logged-in user's invoices (supports filters + pagination)
-    getMyInvoices: async (params = {}) => {
+    // Get invoices
+    getInvoices: async (params = {}) => {
         try {
-            const { data } = await axiosInstance.get("/purchase-invoices/my", { params });
-            return data; // ✅ { success, params, pagination, data }
+            const normalized = normalizeParams(params);
+            const { data } = await axiosInstance.get("/purchase-invoices", {
+                params: normalized,
+            });
+            return data; // { success, params, pagination, data }
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                params,
-                pagination: null,
-                data: [],
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    params,
+                    pagination: null,
+                    data: [],
+                }
+            );
         }
     },
 
-    // Get a single invoice by ID (user & admin)
+    // Get single invoice by ID
     getInvoiceById: async (id) => {
         try {
             const { data } = await axiosInstance.get(`/purchase-invoices/${id}`);
             return {
                 ...data,
-                invoice: data?.data?.[0] || null, // ✅ convenience extraction
+                invoice: data?.data?.[0] || null,
             };
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                params: { id },
-                pagination: null,
-                data: [],
-                invoice: null,
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    params: { id },
+                    pagination: null,
+                    data: [],
+                    invoice: null,
+                }
+            );
         }
     },
 
-    // Update invoice status (user only)
+    // Update status
     updateInvoiceStatus: async (id, payload) => {
         try {
-            const { data } = await axiosInstance.patch(`/purchase-invoices/${id}/status`, payload);
+            const { data } = await axiosInstance.patch(
+                `/purchase-invoices/${id}/status`,
+                payload
+            );
             return {
                 success: data.success,
                 message: data.message || "Invoice status updated",
@@ -79,41 +102,26 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                id,
-                params: { id },
-                pagination: null,
-                data: null,
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    id,
+                    params: { id },
+                    pagination: null,
+                    data: null,
+                }
+            );
         }
     },
 
-    // -------------------------------
-    // Admin routes
-    // -------------------------------
-
-    // Get all invoices (supports filters + pagination)
-    getAllInvoices: async (params = {}) => {
-        try {
-            const { data } = await axiosInstance.get("/purchase-invoices", { params });
-            return data; // ✅ { success, params, pagination, data }
-        } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                params,
-                pagination: null,
-                data: [],
-            };
-        }
-    },
-
-    // Update purchase invoice (admin only)
+    // Admin-only: update invoice
     updateInvoice: async (id, payload) => {
         try {
-            const { data } = await axiosInstance.put(`/purchase-invoices/${id}`, payload);
+            const { data } = await axiosInstance.put(
+                `/purchase-invoices/${id}`,
+                payload
+            );
             return {
                 success: data.success,
                 message: data.message || "Invoice updated successfully",
@@ -123,18 +131,20 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                id,
-                params: { id },
-                pagination: null,
-                data: null,
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    id,
+                    params: { id },
+                    pagination: null,
+                    data: null,
+                }
+            );
         }
     },
 
-    // Soft delete (deactivate) invoice (admin only)
+    // Delete invoice
     deleteInvoice: async (id) => {
         try {
             const { data } = await axiosInstance.delete(`/purchase-invoices/${id}`);
@@ -147,14 +157,16 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return err.response?.data || {
-                success: false,
-                error: err.message,
-                id,
-                params: { id },
-                pagination: null,
-                data: null,
-            };
+            return (
+                err.response?.data || {
+                    success: false,
+                    error: err.message,
+                    id,
+                    params: { id },
+                    pagination: null,
+                    data: null,
+                }
+            );
         }
     },
 };

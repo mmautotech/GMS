@@ -7,14 +7,30 @@ import { Input } from "../../ui/input";
 
 import { useSuppliers } from "../../hooks/useSuppliers.js";
 import { useParts } from "../../hooks/useParts.js";
+import useUsers from "../../hooks/useUsers.js";
 import { usePurchaseInvoices } from "../../hooks/usePurchaseInvoices.js";
 
 import ParamsSummary from "../../components/ParamsSummary.jsx";
+import InlineSpinner from "../../components/InlineSpinner.jsx";
 import PartsInvoiceModal from "./PartsInvoiceModal.jsx";
 import PartsInvoicesTable from "./PartsInvoicesTable.jsx";
 
 // --- Dropdown constants ---
 const LIMIT_OPTIONS = [5, 25, 50, 100];
+
+// --- Default filter state (VAT removed) ---
+const DEFAULT_FILTERS = {
+    search: "",
+    supplier: "",
+    part: "",
+    paymentStatus: "",
+    startDate: "",
+    endDate: "",
+    purchaser: "",
+    limit: 25,
+    sortBy: "createdAt",
+    sortOrder: "desc",
+};
 
 export default function PartsPurchase({ isAdmin = false }) {
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
@@ -23,6 +39,14 @@ export default function PartsPurchase({ isAdmin = false }) {
     // suppliers + parts
     const { suppliers } = useSuppliers();
     const { parts } = useParts();
+
+    // users
+    const {
+        list: userOptions,
+        map: userMap,
+        loading: loadingUsers,
+        error: usersError,
+    } = useUsers({ useSessionCache: true });
 
     // invoices
     const {
@@ -34,49 +58,39 @@ export default function PartsPurchase({ isAdmin = false }) {
         setParams,
     } = usePurchaseInvoices({
         isAdmin,
-        initialParams: { page: 1, limit: 25, sortBy: "createdAt", sortOrder: "desc" },
+        initialParams: { page: 1, ...DEFAULT_FILTERS },
     });
 
-    // filter drafts
-    const [draft, setDraft] = useState({
-        search: "",
-        supplier: "",
-        part: "",
-        paymentStatus: "",
-        vendorInvoiceNumber: "",
-        startDate: "",
-        endDate: "",
-        purchaser: "",
-        limit: 25,
-        sortBy: "createdAt",
-        sortOrder: "desc",
-    });
-    const [applied, setApplied] = useState(draft);
+    // local filters
+    const [draft, setDraft] = useState(DEFAULT_FILTERS);
+    const [applied, setApplied] = useState(DEFAULT_FILTERS);
+
+    // 🟢 Clean empty values before sending to backend
+    const cleanParams = (obj) =>
+        Object.fromEntries(
+            Object.entries(obj).filter(
+                ([, v]) => v !== "" && v !== null && v !== undefined
+            )
+        );
 
     const applyFilters = () => {
-        setApplied(draft);
-        const newParams = { ...draft, page: 1 };
+        const payload = {
+            ...draft,
+            // ✅ Ensure dates are valid Date objects
+            startDate: draft.startDate ? new Date(draft.startDate) : undefined,
+            endDate: draft.endDate ? new Date(draft.endDate) : undefined,
+        };
+
+        setApplied(payload);
+        const newParams = { ...cleanParams(payload), page: 1 };
         setParams(newParams);
         refetch(newParams);
     };
 
     const resetFilters = () => {
-        const fresh = {
-            search: "",
-            supplier: "",
-            part: "",
-            paymentStatus: "",
-            vendorInvoiceNumber: "",
-            startDate: "",
-            endDate: "",
-            purchaser: "",
-            limit: 25,
-            sortBy: "createdAt",
-            sortOrder: "desc",
-        };
-        setDraft(fresh);
-        setApplied(fresh);
-        const newParams = { ...fresh, page: 1 };
+        setDraft(DEFAULT_FILTERS);
+        setApplied(DEFAULT_FILTERS);
+        const newParams = { ...DEFAULT_FILTERS, page: 1 };
         setParams(newParams);
         refetch(newParams);
     };
@@ -87,10 +101,26 @@ export default function PartsPurchase({ isAdmin = false }) {
             ...(params || applied),
             perPage: params?.limit || applied.limit,
             page: pagination?.page || 1,
-            sortBy: params?.sortBy || "createdAt",
-            sortOrder: params?.sortOrder || "desc",
+            sortBy: params?.sortBy || DEFAULT_FILTERS.sortBy,
+            sortOrder: params?.sortOrder || DEFAULT_FILTERS.sortOrder,
         };
     }, [params, applied, pagination]);
+
+    // build supplier/part maps for ParamsSummary
+    const supplierMap = useMemo(
+        () => Object.fromEntries(suppliers.map((s) => [s._id, s.name])),
+        [suppliers]
+    );
+    const partMap = useMemo(
+        () =>
+            Object.fromEntries(
+                parts.map((p) => [
+                    p._id,
+                    p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
+                ])
+            ),
+        [parts]
+    );
 
     return (
         <div className="p-6 relative min-h-screen bg-gray-50">
@@ -112,13 +142,79 @@ export default function PartsPurchase({ isAdmin = false }) {
 
             {/* Filters */}
             <div className="mb-3 space-y-3 bg-white p-4 rounded-lg shadow">
+                {/* Line 1 */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {/* Search */}
                     <Input
-                        placeholder="Search Vehicle / Part"
+                        placeholder="Search Invoice # / Vehicle / Part"
                         value={draft.search}
                         onChange={(e) => setDraft({ ...draft, search: e.target.value })}
                         className="w-full"
                     />
+
+                    {/* Start Date */}
+                    <Input
+                        type="date"
+                        value={draft.startDate}
+                        onChange={(e) => setDraft({ ...draft, startDate: e.target.value })}
+                        className="w-full"
+                    />
+
+                    {/* End Date */}
+                    <Input
+                        type="date"
+                        value={draft.endDate}
+                        onChange={(e) => setDraft({ ...draft, endDate: e.target.value })}
+                        className="w-full"
+                    />
+
+                    {/* Payment Status */}
+                    <select
+                        value={draft.paymentStatus}
+                        onChange={(e) => setDraft({ ...draft, paymentStatus: e.target.value })}
+                        className="border rounded px-3 py-2 w-full"
+                    >
+                        <option value="">All Status</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Partial">Partial</option>
+                        <option value="Unpaid">Unpaid</option>
+                    </select>
+
+                    {/* Per Page */}
+                    <select
+                        value={draft.limit}
+                        onChange={(e) => setDraft({ ...draft, limit: Number(e.target.value) })}
+                        className="border rounded px-3 py-2 w-full"
+                    >
+                        {LIMIT_OPTIONS.map((opt) => (
+                            <option key={opt} value={opt}>{opt} / page</option>
+                        ))}
+                    </select>
+                </div>
+
+                {/* Line 2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    {/* Sort By */}
+                    <select
+                        value={draft.sortBy}
+                        onChange={(e) => setDraft({ ...draft, sortBy: e.target.value })}
+                        className="border rounded px-3 py-2 w-full"
+                    >
+                        <option value="createdAt">Created At</option>
+                        <option value="paymentDate">Payment Date</option>
+                    </select>
+
+                    {/* Sort Order */}
+                    <select
+                        value={draft.sortOrder}
+                        onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })}
+                        className="border rounded px-3 py-2 w-full"
+                    >
+                        <option value="desc">Descending</option>
+                        <option value="asc">Ascending</option>
+                    </select>
+
+                    {/* Supplier */}
                     <select
                         value={draft.supplier}
                         onChange={(e) => setDraft({ ...draft, supplier: e.target.value })}
@@ -126,11 +222,11 @@ export default function PartsPurchase({ isAdmin = false }) {
                     >
                         <option value="">All Suppliers</option>
                         {suppliers.map((s) => (
-                            <option key={s._id} value={s._id}>
-                                {s.name}
-                            </option>
+                            <option key={s._id} value={s._id}>{s.name}</option>
                         ))}
                     </select>
+
+                    {/* Part */}
                     <select
                         value={draft.part}
                         onChange={(e) => setDraft({ ...draft, part: e.target.value })}
@@ -143,95 +239,70 @@ export default function PartsPurchase({ isAdmin = false }) {
                             </option>
                         ))}
                     </select>
+
+                    {/* Purchaser */}
                     <select
-                        value={draft.paymentStatus}
-                        onChange={(e) =>
-                            setDraft({ ...draft, paymentStatus: e.target.value })
-                        }
+                        value={draft.purchaser}
+                        onChange={(e) => setDraft({ ...draft, purchaser: e.target.value })}
                         className="border rounded px-3 py-2 w-full"
+                        disabled={loadingUsers}
                     >
-                        <option value="">All Status</option>
-                        <option value="Unpaid">Unpaid</option>
-                        <option value="Partial">Partial</option>
-                        <option value="Paid">Paid</option>
+                        <option value="">
+                            {loadingUsers ? "Loading purchasers..." : "All Purchasers"}
+                        </option>
+                        {usersError ? (
+                            <option disabled value="">
+                                Failed to load users
+                            </option>
+                        ) : (
+                            userOptions.map((u) => (
+                                <option key={u.id} value={u.id}>
+                                    {u.username}
+                                </option>
+                            ))
+                        )}
                     </select>
-                    <Input
-                        placeholder="Vendor Invoice #"
-                        value={draft.vendorInvoiceNumber}
-                        onChange={(e) =>
-                            setDraft({ ...draft, vendorInvoiceNumber: e.target.value })
-                        }
-                        className="w-full"
-                    />
-                    <Input
-                        type="date"
-                        value={draft.startDate}
-                        onChange={(e) => setDraft({ ...draft, startDate: e.target.value })}
-                        className="w-full"
-                    />
-                    <Input
-                        type="date"
-                        value={draft.endDate}
-                        onChange={(e) => setDraft({ ...draft, endDate: e.target.value })}
-                        className="w-full"
-                    />
-                    {isAdmin && (
-                        <Input
-                            placeholder="Purchaser ID..."
-                            value={draft.purchaser}
-                            onChange={(e) =>
-                                setDraft({ ...draft, purchaser: e.target.value })
-                            }
-                            className="w-full"
-                        />
-                    )}
                 </div>
 
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1">
-                        <select
-                            value={draft.limit}
-                            onChange={(e) =>
-                                setDraft({ ...draft, limit: Number(e.target.value) })
-                            }
-                            className="border rounded px-3 py-2 w-full"
-                        >
-                            {LIMIT_OPTIONS.map((opt) => (
-                                <option key={opt} value={opt}>
-                                    {opt} / page
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    <div className="flex gap-2 md:ml-4">
-                        <button
-                            onClick={applyFilters}
-                            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-                        >
-                            Apply
-                        </button>
-                        <button
-                            onClick={resetFilters}
-                            className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
-                        >
-                            Reset
-                        </button>
-                    </div>
+                {/* Action Buttons (Centered) */}
+                <div className="flex justify-center gap-3 mt-4">
+                    <button
+                        onClick={applyFilters}
+                        className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                        Apply
+                    </button>
+                    <button
+                        onClick={resetFilters}
+                        className="px-6 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+                    >
+                        Reset
+                    </button>
                 </div>
             </div>
 
             {/* Params Summary */}
-            <ParamsSummary params={paramsSummary} />
-
-            {/* Table */}
-            <PartsInvoicesTable
-                invoices={invoices}
-                loading={loading}
-                onViewEdit={(id) => {
-                    setSelectedInvoiceId(id);
-                    setIsInvoiceModalOpen(true);
-                }}
+            <ParamsSummary
+                params={paramsSummary}
+                userMap={userMap}
+                supplierMap={supplierMap}
+                partMap={partMap}
             />
+
+            {/* Table with spinner */}
+            {loading ? (
+                <div className="bg-white p-6 rounded-lg shadow flex justify-center">
+                    <InlineSpinner label="Loading purchase invoices…" />
+                </div>
+            ) : (
+                <PartsInvoicesTable
+                    invoices={invoices}
+                    onViewEdit={(id) => {
+                        setSelectedInvoiceId(id);
+                        setIsInvoiceModalOpen(true);
+                    }}
+                />
+            )}
 
             {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
@@ -241,10 +312,12 @@ export default function PartsPurchase({ isAdmin = false }) {
                 <div className="flex items-center gap-4">
                     <button
                         disabled={!pagination?.hasPrevPage}
-                        onClick={() => refetch({ page: (pagination?.page || 1) - 1 })}
+                        onClick={() =>
+                            refetch({ page: (pagination?.page || 1) - 1 })
+                        }
                         className={`px-3 py-1 rounded ${pagination?.hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -254,10 +327,12 @@ export default function PartsPurchase({ isAdmin = false }) {
                     </span>
                     <button
                         disabled={!pagination?.hasNextPage}
-                        onClick={() => refetch({ page: (pagination?.page || 1) + 1 })}
+                        onClick={() =>
+                            refetch({ page: (pagination?.page || 1) + 1 })
+                        }
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
