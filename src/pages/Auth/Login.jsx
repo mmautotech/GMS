@@ -103,23 +103,7 @@ export default function Login({ onLogin, onRegister, onForgotPassword }) {
                 <div className="mt-6 text-center text-sm text-gray-600 space-y-2">
                     {mode === "login" && (
                         <>
-                            <p>
-                                <button
-                                    onClick={() => setMode("forgot")}
-                                    className="text-blue-600 hover:underline"
-                                >
-                                    Forgot password?
-                                </button>
-                            </p>
-                            <p>
-                                Don’t have an account?{" "}
-                                <button
-                                    onClick={() => setMode("register")}
-                                    className="text-blue-600 hover:underline"
-                                >
-                                    Create one
-                                </button>
-                            </p>
+
                         </>
                     )}
                     {mode !== "login" && (
