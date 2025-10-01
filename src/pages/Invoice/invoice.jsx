@@ -1,31 +1,32 @@
+// src/pages/Invoice/invoice.jsx
 import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
-import { generateInternalInvoice } from "../../lib/api/internalInvoiceApi.js"; // ✅ import
+import { createInternalInvoice } from "../../lib/api/internalInvoiceApi.js";
 import { toast } from "react-toastify";
 import StatCard from "../../components/StatCard.jsx";
 import { Eye, FileText, FilePlus } from "lucide-react";
 
-
 export default function Invoices() {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [creatingInternalInvoice, setCreatingInternalInvoice] = useState(false);
 
-    // 🔍 Filters
+    // Filters
     const [searchFilter, setSearchFilter] = useState("");
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [statusFilter, setStatusFilter] = useState("");
 
-    // 📑 Pagination
+    // Pagination
     const [page, setPage] = useState(1);
     const [limit, setLimit] = useState(25);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
-    // 📊 Stats
+    // Stats
     const [stats, setStats] = useState({ total: 0, paid: 0, unpaid: 0, partial: 0 });
 
-    // ✅ Fetch stats
+    // Fetch stats
     const fetchStats = async () => {
         try {
             const res = await InvoiceApi.getInvoiceStats();
@@ -36,12 +37,12 @@ export default function Invoices() {
         }
     };
 
-    // ✅ Fetch invoices
-    const fetchInvoices = async (page = 1) => {
+    // Fetch invoices
+    const fetchInvoices = async (pageNumber = 1) => {
         try {
             setLoading(true);
             const res = await InvoiceApi.getAllInvoices({
-                page,
+                page: pageNumber,
                 limit,
                 search: searchFilter || undefined,
                 fromDate: fromDate || undefined,
@@ -53,7 +54,7 @@ export default function Invoices() {
             setInvoices(data || []);
             setTotalPages(pagination?.totalPages || 1);
             setTotalCount(pagination?.total || 0);
-            setPage(page);
+            setPage(pageNumber);
 
             if (!data || data.length === 0) {
                 toast.info("No invoices found for the selected filters.");
@@ -66,33 +67,39 @@ export default function Invoices() {
         }
     };
 
-    // 🔁 Run on mount
     useEffect(() => {
         fetchStats();
         fetchInvoices(1);
     }, []);
 
-    // 🔁 Refetch on filters
     useEffect(() => {
         fetchInvoices(1);
     }, [searchFilter, fromDate, toDate, limit, statusFilter]);
 
-    // ✅ Open PDF in default browser (normal / proforma)
+    // View PDF
     const handleViewPdf = (invoiceId, isProforma = false) => {
         InvoiceApi.viewInvoicePdf(invoiceId, isProforma);
     };
 
-    // ✅ Generate internal invoice (no userId needed)
-    const handleGenerateInternal = async (invoiceId) => {
+    // Create Internal Invoice (using only invoiceId)
+    const handleCreateInternalInvoice = async (invoiceId) => {
+        if (!invoiceId) return;
+
         try {
-            await generateInternalInvoice({ invoiceId });
-            toast.success("Internal invoice generated successfully!");
+            setCreatingInternalInvoice(true);
+            console.log("Creating internal invoice with payload:", { invoiceId });
+            const data = await createInternalInvoice({ invoiceId });
+            console.log("Internal invoice created:", data);
+            toast.success("Internal invoice created successfully!");
+            fetchInvoices(page); // Refresh table
         } catch (err) {
-            console.error("Error generating internal invoice:", err);
-            const msg = err.response?.data?.message || "Failed to generate internal invoice";
-            toast.error(msg);
+            console.error("Error creating internal invoice:", err.response?.data || err.message);
+            toast.error(err.response?.data?.message || err.message || "Failed to create internal invoice");
+        } finally {
+            setCreatingInternalInvoice(false);
         }
     };
+
 
     const handlePageChange = (newPage) => {
         if (newPage < 1 || newPage > totalPages) return;
@@ -103,7 +110,7 @@ export default function Invoices() {
         <div className="p-6">
             <h1 className="text-2xl font-bold mb-4">Invoices</h1>
 
-            {/* Invoice Stats */}
+            {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <StatCard title="Total Invoices" value={stats.total} />
                 <StatCard title="Paid" value={stats.paid} />
@@ -178,22 +185,25 @@ export default function Invoices() {
                                 <tr key={inv._id} className="border-b hover:bg-gray-100">
                                     <td className="py-2 px-4">{(page - 1) * limit + idx + 1}</td>
                                     <td className="py-2 px-4">{inv.invoiceNo}</td>
-                                    <td className="py-2 px-4">{new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-GB")}</td>
+                                    <td className="py-2 px-4">
+                                        {new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString("en-GB")}
+                                    </td>
                                     <td className="py-2 px-4">{inv.customerName}</td>
                                     <td className="py-2 px-4">{inv.vehicleRegNo}</td>
                                     <td className="py-2 px-4">£{inv.totalAmount?.toFixed(2) || "0.00"}</td>
                                     <td className="py-2 px-4">
-                                        <span className={`px-2 py-1 rounded-full text-white ${inv.status === "Paid"
-                                            ? "bg-green-600"
-                                            : inv.status === "Unpaid"
-                                                ? "bg-red-600"
-                                                : "bg-yellow-500"
-                                            }`}>
+                                        <span
+                                            className={`px-2 py-1 rounded-full text-white ${inv.status === "Paid"
+                                                ? "bg-green-600"
+                                                : inv.status === "Unpaid"
+                                                    ? "bg-red-600"
+                                                    : "bg-yellow-500"
+                                                }`}
+                                        >
                                             {inv.status}
                                         </span>
                                     </td>
                                     <td className="py-2 px-4 flex gap-2">
-                                        {/* View PDF */}
                                         <button
                                             className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                                             onClick={() => handleViewPdf(inv._id)}
@@ -201,8 +211,6 @@ export default function Invoices() {
                                         >
                                             <Eye size={18} />
                                         </button>
-
-                                        {/* Proforma PDF */}
                                         <button
                                             className="p-2 bg-purple-600 text-white rounded hover:bg-purple-700"
                                             onClick={() => handleViewPdf(inv._id, true)}
@@ -210,12 +218,11 @@ export default function Invoices() {
                                         >
                                             <FileText size={18} />
                                         </button>
-
-                                        {/* Generate Internal */}
                                         <button
-                                            className="p-2 bg-green-600 text-white rounded hover:bg-green-700"
-                                            onClick={() => handleGenerateInternal(inv._id)}
-                                            title="Generate Internal"
+                                            className="p-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                            onClick={() => handleCreateInternalInvoice(inv._id)}
+                                            title="Create Internal Invoice"
+                                            disabled={creatingInternalInvoice}
                                         >
                                             <FilePlus size={18} />
                                         </button>
@@ -230,15 +237,23 @@ export default function Invoices() {
                         <span className="text-gray-600">Total Invoices: {totalCount}</span>
                         <div className="flex items-center gap-2">
                             <button
-                                className={`px-3 py-1 rounded ${page === 1 ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+                                className={`px-3 py-1 rounded ${page === 1
+                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                    }`}
                                 disabled={page === 1}
                                 onClick={() => handlePageChange(page - 1)}
                             >
                                 Prev
                             </button>
-                            <span>Page {page} of {totalPages}</span>
+                            <span>
+                                Page {page} of {totalPages}
+                            </span>
                             <button
-                                className={`px-3 py-1 rounded ${page === totalPages ? "bg-gray-300 text-gray-500 cursor-not-allowed" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+                                className={`px-3 py-1 rounded ${page === totalPages
+                                    ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                    : "bg-blue-600 text-white hover:bg-blue-700"
+                                    }`}
                                 disabled={page === totalPages}
                                 onClick={() => handlePageChange(page + 1)}
                             >

@@ -1,12 +1,8 @@
-// src/pages/InternalInvoice/InternalInvoicePage.jsx
 import React, { useEffect, useState } from "react";
-import {
-    getAllInternalInvoices,
-    deleteInternalInvoice,
-} from "../../lib/api/internalInvoiceApi.js";
+import { getAllInternalInvoices } from "../../lib/api/internalInvoiceApi.js";
 import { toast } from "react-toastify";
 import { Button } from "../../ui/button";
-import { ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 export default function InternalInvoicePage() {
     const [invoices, setInvoices] = useState([]);
@@ -16,6 +12,7 @@ export default function InternalInvoicePage() {
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [page, setPage] = useState(1);
+    const [limit] = useState(25);
     const [totalPages, setTotalPages] = useState(1);
 
     const VAT_RATE = 0.2; // 20% VAT
@@ -23,26 +20,14 @@ export default function InternalInvoicePage() {
     const fetchInvoices = async () => {
         try {
             setLoading(true);
-            const res = await getAllInternalInvoices({ page, search, fromDate, toDate });
-            setInvoices(Array.isArray(res.data.data) ? res.data.data : []);
-            setTotalPages(res.data.pagination?.totalPages || 1);
+            const res = await getAllInternalInvoices({ page, limit, search, fromDate, toDate });
+            setInvoices(Array.isArray(res.data) ? res.data : []);
+            setTotalPages(res.pagination?.totalPages || 1);
         } catch (error) {
             console.error("Error fetching internal invoices:", error);
-            toast.error("Failed to load invoices");
+            toast.error("Failed to load internal invoices");
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleDelete = async (id) => {
-        if (!window.confirm("Are you sure you want to delete this invoice?")) return;
-        try {
-            await deleteInternalInvoice(id);
-            toast.success("Invoice deleted");
-            fetchInvoices();
-        } catch (error) {
-            console.error("Error deleting invoice:", error);
-            toast.error("Failed to delete invoice");
         }
     };
 
@@ -52,13 +37,15 @@ export default function InternalInvoicePage() {
 
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Internal Invoices</h1>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">Internal Invoices</h1>
+            </div>
 
             {/* Filters */}
             <div className="flex gap-2 mb-4">
                 <input
                     type="text"
-                    placeholder="Search by vehicle or description"
+                    placeholder="Search by vehicle or invoice"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     className="border rounded px-2 py-1"
@@ -79,7 +66,7 @@ export default function InternalInvoicePage() {
             </div>
 
             {loading ? (
-                <p>Loading invoices...</p>
+                <p>Loading internal invoices...</p>
             ) : invoices.length === 0 ? (
                 <p>No internal invoices found.</p>
             ) : (
@@ -88,6 +75,7 @@ export default function InternalInvoicePage() {
                         <thead className="bg-gray-100">
                             <tr>
                                 <th className="p-2 text-left">Invoice No</th>
+                                <th className="p-2 text-left">Purchase Invoice</th>
                                 <th className="p-2 text-left">Vehicle</th>
                                 <th className="p-2 text-left">Revenue</th>
                                 <th className="p-2 text-left">Cost</th>
@@ -98,147 +86,110 @@ export default function InternalInvoicePage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {invoices.map((inv) => (
-                                <React.Fragment key={inv._id}>
-                                    <tr
-                                        className={`border-t hover:bg-gray-50 ${inv.vatIncluded ? "bg-yellow-50" : ""}`}
-                                    >
-                                        <td className="p-2">{inv.customerInvoice?.invoiceNo}</td>
-                                        <td className="p-2">{inv.vehicleRegNo}</td>
-                                        <td className="p-2 font-semibold">
-                                            £{inv.vatIncluded
-                                                ? (inv.totalRevenue + (inv.vatTotal || 0)).toFixed(2)
-                                                : inv.totalRevenue.toFixed(2)}
-                                        </td>
-                                        <td className="p-2 text-red-600">£{inv.totalCost}</td>
-                                        <td className="p-2 font-bold text-green-600">£{inv.profit}</td>
-                                        <td className="p-2">{inv.vatIncluded ? "Yes" : "No"}</td>
-                                        <td className="p-2">{new Date(inv.invoiceDate).toLocaleDateString("en-GB")}</td>
-                                        <td className="p-2 flex gap-2 justify-center">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setExpanded(expanded === inv._id ? null : inv._id)
-                                                }
-                                            >
-                                                {expanded === inv._id ? (
-                                                    <ChevronUp className="w-4 h-4" />
-                                                ) : (
-                                                    <ChevronDown className="w-4 h-4" />
-                                                )}
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={() => handleDelete(inv._id)}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </Button>
-                                        </td>
-                                    </tr>
+                            {invoices.map((inv) => {
+                                const revenue = Number(inv.revenue || 0);
+                                const cost = Number(inv.cost || 0);
+                                const profit = revenue - cost;
 
-                                    {expanded === inv._id && (
-                                        <tr className="bg-gray-50">
-                                            <td colSpan="8" className="p-3">
-                                                <div className="overflow-x-auto">
-                                                    <table className="min-w-full text-xs border">
-                                                        <thead className="bg-gray-200">
-                                                            <tr>
-                                                                <th className="p-2 text-left">Description</th>
-                                                                <th className="p-2 text-left">Type</th>
-                                                                <th className="p-2 text-left">Qty</th>
-                                                                <th className="p-2 text-left">Cost</th>
-                                                                <th className="p-2 text-left">Selling</th>
-                                                                <th className="p-2 text-left">VAT</th>
-                                                                <th className="p-2 text-left">Total</th>
-                                                                <th className="p-2 text-left">Status</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {inv.items.map((item, idx) => {
-                                                                const vatAmount = item.vatIncluded
-                                                                    ? (item.sellingPrice || 0) * VAT_RATE
-                                                                    : 0;
-                                                                const totalPrice =
-                                                                    (item.sellingPrice || 0) + vatAmount;
-                                                                return (
-                                                                    <tr key={idx} className="border-t">
-                                                                        <td className="p-2">{item.description}</td>
-                                                                        <td className="p-2">{item.invoiceType}</td>
-                                                                        <td className="p-2">{item.quantity}</td>
-                                                                        <td className="p-2 text-red-600">£{item.costPrice}</td>
-                                                                        <td className="p-2">£{item.sellingPrice}</td>
-                                                                        <td className="p-2">£{vatAmount.toFixed(2)}</td>
-                                                                        <td className="p-2 font-semibold">£{totalPrice.toFixed(2)}</td>
-                                                                        <td className="p-2">{item.paymentStatus}</td>
-                                                                    </tr>
-                                                                );
-                                                            })}
-
-                                                            {/* Summary Row */}
-                                                            <tr className="bg-gray-100 font-bold">
-                                                                <td colSpan="5" className="p-2 text-right">
-                                                                    Total VAT:
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    £{inv.items
-                                                                        .reduce(
-                                                                            (sum, item) =>
-                                                                                sum + (item.vatIncluded
-                                                                                    ? (item.sellingPrice || 0) * VAT_RATE
-                                                                                    : 0),
-                                                                            0
-                                                                        )
-                                                                        .toFixed(2)}
-                                                                </td>
-                                                                <td colSpan="2"></td>
-                                                            </tr>
-                                                            <tr className="bg-gray-100 font-bold">
-                                                                <td colSpan="5" className="p-2 text-right">
-                                                                    Total Amount:
-                                                                </td>
-                                                                <td className="p-2">
-                                                                    £{inv.items
-                                                                        .reduce(
-                                                                            (sum, item) =>
-                                                                                sum +
-                                                                                (item.sellingPrice || 0) +
-                                                                                (item.vatIncluded
-                                                                                    ? (item.sellingPrice || 0) * VAT_RATE
-                                                                                    : 0),
-                                                                            0
-                                                                        )
-                                                                        .toFixed(2)}
-                                                                </td>
-                                                                <td colSpan="2"></td>
-                                                            </tr>
-                                                        </tbody>
-                                                    </table>
-                                                </div>
+                                return (
+                                    <React.Fragment key={inv._id}>
+                                        <tr className="border-t hover:bg-gray-50">
+                                            <td className="p-2">{inv.invoice?.invoiceNo || "N/A"}</td>
+                                            <td className="p-2">{inv.purchaseInvoice?.vendorInvoiceNumber || "N/A"}</td>
+                                            <td className="p-2">{inv.booking?.vehicleRegNo || "-"}</td>
+                                            <td className="p-2 font-semibold">£{revenue.toFixed(2)}</td>
+                                            <td className="p-2 text-red-600">£{cost.toFixed(2)}</td>
+                                            <td className="p-2 font-bold text-green-600">£{profit.toFixed(2)}</td>
+                                            <td className="p-2">{inv.purchaseInvoice?.vatIncluded ? "Yes" : "No"}</td>
+                                            <td className="p-2">{inv.createdAt ? new Date(inv.createdAt).toLocaleDateString("en-GB") : "-"}</td>
+                                            <td className="p-2 flex justify-center gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => setExpanded(expanded === inv._id ? null : inv._id)}
+                                                >
+                                                    {expanded === inv._id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                </Button>
                                             </td>
                                         </tr>
-                                    )}
-                                </React.Fragment>
-                            ))}
+
+                                        {/* Expanded Items */}
+                                        {/* Expanded Items */}
+                                        {expanded === inv._id && (
+                                            <tr className="bg-gray-50">
+                                                <td colSpan="9" className="p-3">
+                                                    <div className="overflow-x-auto">
+                                                        <table className="min-w-full text-xs border">
+                                                            <thead className="bg-gray-200">
+                                                                <tr>
+                                                                    <th className="p-2 text-left">Description</th>
+                                                                    <th className="p-2 text-left">Qty</th>
+                                                                    <th className="p-2 text-left">Cost</th>
+                                                                    <th className="p-2 text-left">Selling</th>
+                                                                    <th className="p-2 text-left">VAT Paid</th>
+                                                                    <th className="p-2 text-left">Total</th>
+                                                                    <th className="p-2 text-left">Status</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody>
+                                                                {inv.purchaseInvoice?.items?.map((item, idx) => {
+                                                                    const cost = Number(item.rate || 0);
+                                                                    const qty = Number(item.quantity || 1);
+                                                                    const selling = cost * qty;
+                                                                    const vatAmount = item.vatIncluded ? selling * VAT_RATE : 0;
+                                                                    const total = selling + vatAmount;
+
+                                                                    return (
+                                                                        <tr key={idx} className="border-t">
+                                                                            {/* ✅ Show part name */}
+                                                                            <td className="p-2">{item.part?.partName || "N/A"}</td>
+                                                                            <td className="p-2">{qty}</td>
+                                                                            <td className="p-2 text-red-600">£{cost.toFixed(2)}</td>
+                                                                            <td className="p-2">£{selling.toFixed(2)}</td>
+                                                                            {/* ✅ Show VAT we pay */}
+                                                                            <td className="p-2 text-blue-600">£{vatAmount.toFixed(2)}</td>
+                                                                            <td className="p-2 font-semibold">£{total.toFixed(2)}</td>
+                                                                            <td className="p-2">{item.status || inv.purchaseInvoice.paymentStatus}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+
+                                                                {/* ✅ VAT Summary Row */}
+                                                                <tr className="bg-gray-100 font-bold">
+                                                                    <td colSpan="4" className="p-2 text-right">Total VAT Paid:</td>
+                                                                    <td className="p-2 text-blue-700">
+                                                                        £{inv.purchaseInvoice?.items?.reduce((sum, item) => {
+                                                                            const cost = Number(item.rate || 0);
+                                                                            const qty = Number(item.quantity || 1);
+                                                                            const selling = cost * qty;
+                                                                            const vatAmount = item.vatIncluded ? selling * VAT_RATE : 0;
+                                                                            return sum + vatAmount;
+                                                                        }, 0).toFixed(2)}
+                                                                    </td>
+                                                                    <td colSpan="2"></td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        )}
+
+                                    </React.Fragment>
+                                );
+                            })}
                         </tbody>
                     </table>
 
                     {/* Pagination */}
                     <div className="flex justify-end gap-2 p-2">
-                        <Button
-                            disabled={page <= 1}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        >
+                        <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                             Previous
                         </Button>
                         <span className="flex items-center px-2">
                             Page {page} of {totalPages}
                         </span>
-                        <Button
-                            disabled={page >= totalPages}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        >
+                        <Button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                             Next
                         </Button>
                     </div>
