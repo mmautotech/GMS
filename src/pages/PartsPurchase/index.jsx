@@ -13,7 +13,6 @@ import ParamsSummary from "../../components/ParamsSummary.jsx";
 import InlineSpinner from "../../components/InlineSpinner.jsx";
 import PartsInvoiceModal from "./PartsInvoiceModal.jsx";
 import PartsInvoicesTable from "./PartsInvoicesTable.jsx";
-import PartCreateModal from "./CreatePartModal.jsx"; // ✅ added import
 
 // --- Dropdown constants ---
 const LIMIT_OPTIONS = [5, 25, 50, 100];
@@ -36,12 +35,9 @@ export default function PartsPurchase({ isAdmin = false }) {
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
-    // ✅ new state for part modal
-    const [isPartModalOpen, setIsPartModalOpen] = useState(false);
-
     // suppliers + parts
     const { suppliers } = useSuppliers();
-    const { parts, refetch: refetchParts } = useParts();
+    const { parts } = useParts();
 
     // users
     const {
@@ -132,14 +128,6 @@ export default function PartsPurchase({ isAdmin = false }) {
                     Parts Purchase Invoices
                 </h1>
                 <div className="flex gap-3">
-                    {/* ✅ Create Part */}
-                    <Button
-                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow"
-                        onClick={() => setIsPartModalOpen(true)}
-                    >
-                        <Plus className="h-4 w-4" /> Create Part
-                    </Button>
-
                     {/* Create Invoice */}
                     <Button
                         className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow"
@@ -331,8 +319,8 @@ export default function PartsPurchase({ isAdmin = false }) {
                         disabled={!pagination?.hasPrevPage}
                         onClick={() => refetch({ page: (pagination?.page || 1) - 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasPrevPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -344,8 +332,8 @@ export default function PartsPurchase({ isAdmin = false }) {
                         disabled={!pagination?.hasNextPage}
                         onClick={() => refetch({ page: (pagination?.page || 1) + 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
@@ -361,17 +349,6 @@ export default function PartsPurchase({ isAdmin = false }) {
                     onClose={() => {
                         setIsInvoiceModalOpen(false);
                         refetch({ page: pagination?.page || 1 });
-                    }}
-                />
-            )}
-
-            {/* ✅ Part Modal */}
-            {isPartModalOpen && (
-                <PartCreateModal
-                    isOpen={isPartModalOpen}
-                    onClose={() => {
-                        setIsPartModalOpen(false);
-                        refetchParts(); // refresh part list after new part
                     }}
                 />
             )}

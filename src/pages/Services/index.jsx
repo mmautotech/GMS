@@ -1,11 +1,6 @@
 // src/pages/EntityPage.jsx
 import React, { useState, useEffect } from "react";
-import {
-    getServices,
-    createService,
-    updateService,
-    deleteService,
-} from "../../lib/api/servicesApi.js";
+import ServiceApi from "../../lib/api/servicesApi.js"; // ✅ import default object
 import { Plus, Edit2, Trash2, Search } from "lucide-react";
 
 const fieldConfig = {
@@ -21,7 +16,9 @@ export default function EntityPage() {
     const [isCreating, setIsCreating] = useState(false);
 
     useEffect(() => {
-        getServices().then(setServices);
+        ServiceApi.getServices().then((res) => {
+            if (res.success) setServices(res.services);
+        });
     }, []);
 
     const filterItems = (items, query, field) =>
@@ -43,9 +40,12 @@ export default function EntityPage() {
 
     const handleSave = async () => {
         try {
-            if (isCreating) await createService(formData);
-            else await updateService(formData._id, formData);
-            setServices(await getServices());
+            if (isCreating) await ServiceApi.createService(formData);
+            else await ServiceApi.updateService(formData._id, formData);
+
+            const res = await ServiceApi.getServices();
+            if (res.success) setServices(res.services);
+
             closeModal();
         } catch (err) {
             console.error("Save failed:", err);
@@ -54,8 +54,9 @@ export default function EntityPage() {
 
     const handleDelete = async (id) => {
         try {
-            await deleteService(id);
-            setServices(await getServices());
+            await ServiceApi.deleteService(id);
+            const res = await ServiceApi.getServices();
+            if (res.success) setServices(res.services);
         } catch (err) {
             console.error("Delete failed:", err);
         }

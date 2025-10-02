@@ -1,40 +1,39 @@
+// src/hooks/useParts.js
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
-
 import PartsApi from "../lib/api/partsApi.js";
 
-export function useParts(initialParams = {}) {
+export function useParts(initialParams = {}, bookingId = null) {
     const [parts, setParts] = useState([]);
-    const [meta, setMeta] = useState({
-        totalParts: 0,
-        activeParts: 0,
-        inactiveParts: 0,
-    });
     const [params, setParams] = useState(initialParams);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
-    // keep params stable between renders
     const paramsRef = useRef(initialParams);
 
+    // ✅ Single unified fetcher
     const fetchParts = useCallback(
         async (overrideParams = {}) => {
             setLoading(true);
             setError(null);
 
             try {
-                const mergedParams = { ...paramsRef.current, ...overrideParams };
-                const res = await PartsApi.getParts(mergedParams);
+                let res;
+                if (bookingId) {
+                    // 🔹 Fetch parts based on booking.services
+                    res = await PartsApi.getPartsByBooking(bookingId);
+                } else {
+                    // 🔹 Fetch parts (active only, supports q param)
+                    const mergedParams = { ...paramsRef.current, ...overrideParams };
+                    res = await PartsApi.getParts(mergedParams);
+                    if (res.success) {
+                        setParams(mergedParams);
+                        paramsRef.current = mergedParams;
+                    }
+                }
 
                 if (res.success) {
                     setParts(res.parts || []);
-                    setMeta(res.meta || {
-                        totalParts: 0,
-                        activeParts: 0,
-                        inactiveParts: 0,
-                    });
-                    setParams(mergedParams);
-                    paramsRef.current = mergedParams;
                 } else {
                     const errMsg = res.error || "Failed to fetch parts";
                     setError(errMsg);
@@ -47,21 +46,20 @@ export function useParts(initialParams = {}) {
                 setLoading(false);
             }
         },
-        []
+        [bookingId]
     );
 
-    // fetch once on mount
+    // ✅ Refetch on mount / bookingId change
     useEffect(() => {
         fetchParts(initialParams);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [bookingId]);
 
     return {
-        parts,       // list of parts
-        meta,        // { totalParts, activeParts, inactiveParts }
-        params,      // current query params
-        loading,     // true while fetching
-        error,       // last error
+        parts,        // 🔹 always ACTIVE parts unless bookingId used
+        params,       // last used query params
+        loading,
+        error,
         refetch: fetchParts,
         setParams: (newParams) => {
             paramsRef.current = { ...paramsRef.current, ...newParams };

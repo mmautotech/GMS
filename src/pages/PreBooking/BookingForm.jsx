@@ -1,9 +1,9 @@
 // src/pages/PreBooking/BookingForm.jsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { parseNum, numberFmt, percentFmt } from "../../utils/fmt.js";
-import { getServices } from "../../lib/api/servicesApi.js";
 import Select from "react-select";
 import toast from "react-hot-toast";
+import useServices from "../../hooks/useServices.js"; // ✅ useServices hook
 
 const EMPTY = {
   vehicleRegNo: "",
@@ -28,26 +28,17 @@ const EMPTY = {
 export default function BookingForm({ loading, onSubmit, onCancel, initialData }) {
   const [form, setForm] = useState(EMPTY);
   const [original, setOriginal] = useState(EMPTY);
-  const [serviceOptions, setServiceOptions] = useState([]);
 
-  // --- Fetch service options ---
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await getServices();
-        const options = (res || [])
-          .filter((s) => s.enabled !== false)
-          .map((s) => ({
-            value: s._id || s.id || s.value,
-            label: s.name || s.serviceName || s.label || "Unnamed service",
-          }));
-        setServiceOptions(options);
-      } catch (err) {
-        console.error("Failed to fetch services:", err);
-        toast.error("Failed to fetch services.");
-      }
-    })();
-  }, []);
+  // ✅ Load cached service options
+  const { list: serviceList, loading: svcLoading, error: svcError } = useServices({ enabled: true });
+
+  // Map services → react-select options
+  const serviceOptions = useMemo(() => {
+    return (serviceList || []).map((s) => ({
+      value: s.id,
+      label: s.name,
+    }));
+  }, [serviceList]);
 
   // --- Prefill form if editing ---
   useEffect(() => {
@@ -260,10 +251,11 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
             options={serviceOptions}
             value={form.prebookingServices}
             onChange={handleServicesChange}
-            placeholder="Choose services..."
+            placeholder={svcLoading ? "Loading services..." : "Choose services..."}
             className="text-sm"
             classNamePrefix="select"
-            noOptionsMessage={() => "No services available"}
+            noOptionsMessage={() => (svcError ? "Failed to load services" : "No services available")}
+            isDisabled={svcLoading}
           />
         </div>
 

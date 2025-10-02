@@ -1,11 +1,11 @@
 // src/hooks/useServices.js
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getServiceOptions } from "../lib/api/servicesApi";
+import { useEffect, useRef, useState } from "react";
+import ServiceApi from "../lib/api/servicesApi.js"; // ✅ use the ServiceApi wrapper
 
 // Simple in-memory cache (per app session)
 const MEMO_CACHE = {
-    list: null,      // [{id, name}]
-    map: null,       // { [id]: name }
+    list: null,  // [{ id, name }]
+    map: null,   // { [id]: name }
     at: 0,
 };
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -20,7 +20,7 @@ export default function useServices({ enabled = true, useSessionCache = true } =
     useEffect(() => () => { mounted.current = false; }, []);
 
     useEffect(() => {
-        // Try sessionStorage cache first (optional)
+        // ✅ Try sessionStorage cache first
         if (useSessionCache && !MEMO_CACHE.list) {
             const raw = sessionStorage.getItem("svc_options_cache");
             if (raw) {
@@ -35,11 +35,13 @@ export default function useServices({ enabled = true, useSessionCache = true } =
                         setLoading(false);
                         return;
                     }
-                } catch { }
+                } catch {
+                    // ignore JSON parse errors
+                }
             }
         }
 
-        // In-memory cache fresh enough?
+        // ✅ Use memory cache if still valid
         if (MEMO_CACHE.list && Date.now() - MEMO_CACHE.at < TTL_MS) {
             setList(MEMO_CACHE.list);
             setMap(MEMO_CACHE.map);
@@ -47,31 +49,35 @@ export default function useServices({ enabled = true, useSessionCache = true } =
             return;
         }
 
-        // Fetch once: ask backend for "list" and "map"
+        // ✅ Otherwise, fetch fresh
         (async () => {
             try {
                 setLoading(true);
                 setError("");
 
-                const [listData, mapData] = await Promise.all([
-                    getServiceOptions({ enabled, format: "list" }), // [{id,name}]
-                    getServiceOptions({ enabled, format: "map" }),  // {id:name}
+                const [listRes, mapRes] = await Promise.all([
+                    ServiceApi.getServiceOptions({ enabled, format: "list" }), // { success, options }
+                    ServiceApi.getServiceOptions({ enabled, format: "map" }),  // { success, options }
                 ]);
 
                 if (!mounted.current) return;
 
-                MEMO_CACHE.list = listData;
-                MEMO_CACHE.map = mapData;
+                if (!listRes.success || !mapRes.success) {
+                    throw new Error(listRes.error || mapRes.error || "Failed to fetch services");
+                }
+
+                MEMO_CACHE.list = listRes.options;
+                MEMO_CACHE.map = mapRes.options;
                 MEMO_CACHE.at = Date.now();
 
-                setList(listData);
-                setMap(mapData);
+                setList(listRes.options);
+                setMap(mapRes.options);
                 setLoading(false);
 
                 if (useSessionCache) {
                     sessionStorage.setItem(
                         "svc_options_cache",
-                        JSON.stringify({ list: listData, map: mapData, at: MEMO_CACHE.at })
+                        JSON.stringify({ list: listRes.options, map: mapRes.options, at: MEMO_CACHE.at })
                     );
                 }
             } catch (e) {
@@ -82,5 +88,18 @@ export default function useServices({ enabled = true, useSessionCache = true } =
         })();
     }, [enabled, useSessionCache]);
 
-    return { list, map, loading, error, refresh: () => (MEMO_CACHE.at = 0) };
+    // ✅ Helper to resolve service name by ID
+    const getNameById = (id) => {
+        if (!id) return "";
+        return map?.[id] || "";
+    };
+
+    return {
+        list,     // [{ id, name }]
+        map,      // { id: name }
+        getNameById, // ✅ resolves service name instantly
+        loading,
+        error,
+        refresh: () => (MEMO_CACHE.at = 0), // invalidate cache
+    };
 }

@@ -1,8 +1,9 @@
+// src/pages/CarIn/UpsellModal.jsx
 import React, { useState, useEffect } from "react";
-import { ServicesApi, UpsellApi } from "../../lib/api";
+import { UpsellApi } from "../../lib/api";
+import useServices from "../../hooks/useServices.js"; // ✅ useServices hook
 
 export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
-    const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(false);
     const [form, setForm] = useState({
         serviceId: "",
@@ -13,19 +14,8 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
         userEditedUpsell: false,
     });
 
-    // Load services
-    useEffect(() => {
-        const fetchServices = async () => {
-            try {
-                const serviceList = await ServicesApi.getServices();
-                setServices(Array.isArray(serviceList) ? serviceList : serviceList.items || []);
-            } catch (err) {
-                console.error("Failed to fetch services", err);
-                alert("Failed to load services");
-            }
-        };
-        fetchServices();
-    }, []);
+    // ✅ Load services (cached via hook)
+    const { list: services, loading: svcLoading, error: svcError } = useServices({ enabled: true });
 
     // Auto-calc upsell price (unless manually edited)
     useEffect(() => {
@@ -108,16 +98,26 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                         <select
                             className="w-full border rounded p-2"
                             value={form.serviceId}
-                            onChange={(e) => setForm((prev) => ({ ...prev, serviceId: e.target.value }))}
+                            onChange={(e) =>
+                                setForm((prev) => ({ ...prev, serviceId: e.target.value }))
+                            }
                             required
+                            disabled={svcLoading}
                         >
-                            <option value="">Select service</option>
+                            <option value="">
+                                {svcLoading ? "Loading services..." : "Select service"}
+                            </option>
                             {services.map((s) => (
-                                <option key={s._id} value={s._id}>
+                                <option key={s.id} value={s.id}>
                                     {s.name}
                                 </option>
                             ))}
                         </select>
+                        {svcError && (
+                            <p className="text-sm text-red-600 mt-1">
+                                Failed to load services
+                            </p>
+                        )}
                     </div>
 
                     {/* Part price */}
@@ -161,13 +161,10 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
 
                     {/* Photo upload */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">Confirmation Photo</label>
-                        <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handlePhotoUpload}
-                            required
-                        />
+                        <label className="block text-sm font-medium mb-1">
+                            Confirmation Photo
+                        </label>
+                        <input type="file" accept="image/*" onChange={handlePhotoUpload} required />
                         {form.upsellPhoto && (
                             <img
                                 src={form.upsellPhoto}

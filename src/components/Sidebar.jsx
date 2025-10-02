@@ -20,7 +20,7 @@ export default function Sidebar({ onClose, onLogout, username, userType }) {
     `flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium transition
      ${isActive ? "bg-blue-600 text-white" : "text-gray-700 hover:bg-blue-50 hover:text-blue-600"}`;
 
-  // Define role-based pages
+  // ✅ Role-based pages
   const pages = {
     admin: [
       { name: "Dashboard", path: "/dashboard", icon: LayoutDashboard },
@@ -37,7 +37,7 @@ export default function Sidebar({ onClose, onLogout, username, userType }) {
       },
       { name: "Purchases", path: "/parts-purchase", icon: ShoppingCart },
       { name: "Suppliers", path: "/suppliers", icon: Truck },
-      { name: "Services", path: "/entities", icon: Wrench },
+      { name: "Services", path: "/services", icon: Wrench },
       { name: "Register", path: "/register", icon: UserPlus },
     ],
     sales: [{ name: "PreBooking", path: "/pre-booking", icon: Calendar }],
@@ -45,9 +45,10 @@ export default function Sidebar({ onClose, onLogout, username, userType }) {
       { name: "PreBooking", path: "/pre-booking", icon: Calendar },
       { name: "Car In", path: "/car-in", icon: Car },
     ],
-    parts: [{ name: "Purchases", path: "/parts-purchase", icon: ShoppingCart }],
-
-
+    parts: [
+      { name: "Car In", path: "/car-in", icon: Car },
+      { name: "Purchases", path: "/parts-purchase", icon: ShoppingCart },
+    ],
     accounts: [
       { name: "Car In", path: "/car-in", icon: Car },
       { name: "Purchases", path: "/parts-purchase", icon: ShoppingCart },

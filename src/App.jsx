@@ -11,8 +11,7 @@ import CarIn from "./pages/CarIn/index.jsx";
 import Login from "./pages/Auth/Login.jsx";
 import ForgotPassword from "./pages/Auth/ForgotPassword.jsx";
 import Register from "./pages/Auth/Register.jsx";
-import Settings from "./pages/Settings/index.jsx";
-import Entities from "./pages/Entities/index.jsx";
+import Services from "./pages/Services/index.jsx";
 import Invoices from "./pages/Invoice/invoice.jsx";
 import { Suppliers } from "./pages/Suppliers/supplier.jsx";
 import PartsPurchase from "./pages/PartsPurchase/index.jsx";
@@ -81,15 +80,11 @@ export default function App() {
           path="/login"
           element={user ? <Navigate to={getDefaultRoute(user)} replace /> : <Login onLogin={handleLogin} />}
         />
-        <Route
-          path="/forgot-password"
-          element={<ForgotPassword onForgotPassword={handleForgotPassword} />}
-        />
+        <Route path="/forgot-password" element={<ForgotPassword onForgotPassword={handleForgotPassword} />} />
 
         {/* Private routes */}
         <Route element={<RequireAuth user={user} />}>
           <Route element={<Shell user={user} onLogout={handleLogout} />}>
-            {/* ✅ Redirect based on role */}
             <Route index element={<Navigate to={getDefaultRoute(user)} replace />} />
 
             {/* Admin only */}
@@ -97,16 +92,15 @@ export default function App() {
               <Route path="/dashboard" element={<Dashboard user={user} />} />
             </Route>
 
-            {/* Shared routes */}
-            <Route path="/pre-booking" element={<PreBooking />} />
-            <Route path="/car-in" element={<CarIn />} />
-            <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/parts-purchase" element={<PartsPurchase />} />
-            <Route path="/invoice" element={<Invoices />} />
-            <Route path="/register" element={<Register onRegister={handleRegister} />} />
-            <Route path="/entities" element={<Entities />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/InternalInvoicesPage" element={<InternalInvoicesPage />} />
+            {/* Role restricted pages */}
+            <Route path="/pre-booking" element={<RequireRole user={user} allowed={["admin", "sales", "customer_service"]}><PreBooking /></RequireRole>} />
+            <Route path="/car-in" element={<RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}><CarIn /></RequireRole>} />
+            <Route path="/parts-purchase" element={<RequireRole user={user} allowed={["admin", "parts", "accounts"]}><PartsPurchase /></RequireRole>} />
+            <Route path="/invoice" element={<RequireRole user={user} allowed={["admin", "accounts"]}><Invoices /></RequireRole>} />
+            <Route path="/InternalInvoicesPage" element={<RequireRole user={user} allowed={["admin", "accounts"]}><InternalInvoicesPage /></RequireRole>} />
+            <Route path="/suppliers" element={<RequireRole user={user} allowed={["admin"]}><Suppliers /></RequireRole>} />
+            <Route path="/services" element={<RequireRole user={user} allowed={["admin"]}><Services /></RequireRole>} />
+            <Route path="/register" element={<RequireRole user={user} allowed={["admin"]}><Register onRegister={handleRegister} /></RequireRole>} />
           </Route>
         </Route>
 
@@ -114,35 +108,31 @@ export default function App() {
         <Route path="*" element={<Navigate to={user ? getDefaultRoute(user) : "/login"} replace />} />
       </Routes>
 
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-      />
+      <ToastContainer position="top-right" autoClose={3000} theme="light" />
     </>
   );
 }
 
-/* Guard for login only */
+/* Guards */
 function RequireAuth({ user }) {
   if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
-
-/* Guard for admin only */
 function RequireAdmin({ user }) {
   if (!user || user.userType !== "admin") {
     return <Navigate to={getDefaultRoute(user)} replace />;
   }
   return <Outlet />;
 }
+function RequireRole({ user, allowed, children }) {
+  if (!user || !allowed.includes(user.userType)) {
+    toast.error("Access denied");
+    return <Navigate to={getDefaultRoute(user)} replace />;
+  }
+  return children;
+}
 
-/* ✅ Default route per role */
+/* Default route per role */
 function getDefaultRoute(user) {
   if (!user) return "/login";
   switch (user.userType) {
@@ -151,21 +141,19 @@ function getDefaultRoute(user) {
     case "parts":
       return "/parts-purchase";
     case "accounts":
-      return "/invoice";
+      return "/car-in";
+    case "customer_service":
+      return "/pre-booking";
     case "admin":
       return "/dashboard";
     default:
-      return "/car-in"; // fallback
+      return "/car-in";
   }
 }
 
-/**
- * Shell layout
- */
+/* Shell layout */
 function Shell({ user, onLogout }) {
   const navigate = useNavigate();
-
-  // Open by default on desktop (>=768px), closed on mobile.
   const [sidebarOpen, setSidebarOpen] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
@@ -175,7 +163,6 @@ function Shell({ user, onLogout }) {
     navigate("/login", { replace: true });
   };
 
-  // If resized to desktop width, ensure the sidebar opens
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 768) setSidebarOpen(true);
@@ -186,31 +173,28 @@ function Shell({ user, onLogout }) {
 
   return (
     <div className="flex min-h-screen bg-gray-100 overflow-hidden">
-      {/* --- Desktop sidebar (md+) — controlled by sidebarOpen --- */}
+      {/* Desktop sidebar */}
       {sidebarOpen && (
         <aside className="hidden md:block w-64 shrink-0">
           <Sidebar
             username={`${user?.username} (${user?.userType ?? "user"})`}
-            onClose={() => setSidebarOpen(false)}  // ✅ close on ❌
+            onClose={() => setSidebarOpen(false)}
             onLogout={handleLogoutClick}
             userType={user?.userType}
           />
         </aside>
       )}
 
-      {/* --- Mobile drawer (smaller than md) — same state --- */}
+      {/* Mobile drawer */}
       <div
-        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
+        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
         aria-hidden={!sidebarOpen}
       >
-        {/* Backdrop */}
         <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-        {/* Drawer */}
         <aside className="relative w-64 h-full bg-white shadow-xl">
           <Sidebar
             username={`${user?.username} (${user?.userType ?? "user"})`}
-            onClose={() => setSidebarOpen(false)}  // ✅ close on ❌
+            onClose={() => setSidebarOpen(false)}
             onLogout={() => {
               setSidebarOpen(false);
               handleLogoutClick();
@@ -220,11 +204,9 @@ function Shell({ user, onLogout }) {
         </aside>
       </div>
 
-      {/* --- Main content --- */}
+      {/* Main content */}
       <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
-        {/* Top bar */}
         <div className="flex items-center justify-between mb-4">
-          {/* Menu button: visible when sidebar is closed OR on mobile */}
           <button
             className="bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700 md:hidden"
             onClick={() => setSidebarOpen(true)}
@@ -232,8 +214,6 @@ function Shell({ user, onLogout }) {
           >
             ☰ Menu
           </button>
-
-          {/* Optional: show a desktop menu button when closed on md+ */}
           {!sidebarOpen && (
             <button
               className="hidden md:inline-flex bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700"
@@ -244,7 +224,6 @@ function Shell({ user, onLogout }) {
             </button>
           )}
         </div>
-
         <Outlet />
       </main>
     </div>

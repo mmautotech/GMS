@@ -2,29 +2,20 @@
 import axiosInstance from "./axiosInstance.js";
 
 const PartsApi = {
-    /**
-     * ✅ Get all parts (supports filters: q, includeInactive, onlyInactive)
-     */
+    /** Get all ACTIVE parts (q supported) */
     getParts: async (params = {}) => {
         try {
             const { data } = await axiosInstance.get("/parts", { params });
             return {
                 success: data.success,
                 parts: Array.isArray(data.data) ? data.data : [],
-                meta: data.meta || {
-                    totalParts: 0,
-                    activeParts: 0,
-                    inactiveParts: 0,
-                },
             };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
     },
 
-    /**
-     * ✅ Get a single part by ID
-     */
+    /** Get single part (active + inactive allowed) */
     getPartById: async (id) => {
         if (!id) throw new Error("❌ getPartById: ID is required");
         try {
@@ -35,9 +26,7 @@ const PartsApi = {
         }
     },
 
-    /**
-     * ✅ Create a new part
-     */
+    /** Create */
     createPart: async (payload) => {
         if (!payload) throw new Error("❌ createPart: payload is required");
         try {
@@ -48,9 +37,7 @@ const PartsApi = {
         }
     },
 
-    /**
-     * ✅ Update an existing part
-     */
+    /** Update */
     updatePart: async (id, payload) => {
         if (!id) throw new Error("❌ updatePart: ID is required");
         if (!payload) throw new Error("❌ updatePart: payload is required");
@@ -62,9 +49,7 @@ const PartsApi = {
         }
     },
 
-    /**
-     * ✅ Deactivate a part
-     */
+    /** Deactivate (soft delete) */
     deactivatePart: async (id) => {
         if (!id) throw new Error("❌ deactivatePart: ID is required");
         try {
@@ -75,9 +60,7 @@ const PartsApi = {
         }
     },
 
-    /**
-     * ✅ Reactivate a part
-     */
+    /** Reactivate */
     activatePart: async (id) => {
         if (!id) throw new Error("❌ activatePart: ID is required");
         try {
@@ -88,12 +71,21 @@ const PartsApi = {
         }
     },
 
-    /**
-     * ✅ Dropdown list for parts (active only)
-     */
+    /** Dropdown (active parts only) */
     getPartsDropdown: async () => {
         try {
             const { data } = await axiosInstance.get("/parts/dropdown");
+            return { success: data.success, parts: data.data || [] };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Parts by booking.services */
+    getPartsByBooking: async (bookingId) => {
+        if (!bookingId) throw new Error("❌ getPartsByBooking: bookingId is required");
+        try {
+            const { data } = await axiosInstance.get(`/parts/by-booking/${bookingId}`);
             return { success: data.success, parts: data.data || [] };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
