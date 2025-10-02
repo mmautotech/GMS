@@ -1,7 +1,7 @@
-// src/pages/CarIn/BookingTable.jsx
+// src/pages/CarIn/BookingsTable.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import InvoiceModal from "./InvoiceModal.jsx"
-import BookingRow from "./BookingRow.jsx";
+import InvoiceModal from "./InvoiceModal.jsx";
+import BookingRow from "./bookingRow.jsx";
 
 export default function BookingsTable({
     bookings,
@@ -18,7 +18,7 @@ export default function BookingsTable({
     const [selectedIndex, setSelectedIndex] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
 
-    // Row refs for keyboard navigation
+    // Row refs
     const rowRefs = useRef([]);
 
     // Invoice modal state
@@ -34,6 +34,14 @@ export default function BookingsTable({
         setIsInvoiceModalOpen(false);
     };
 
+    // Refresh a specific BookingRow
+    const refreshBookingRow = (bookingId) => {
+        const idx = rows.findIndex((r) => (r.id || r._id) === bookingId);
+        if (idx !== -1 && rowRefs.current[idx]?.refresh) {
+            rowRefs.current[idx].refresh();
+        }
+    };
+
     // Keep selection stable across data changes
     useEffect(() => {
         if (!rows.length) {
@@ -43,9 +51,8 @@ export default function BookingsTable({
         }
         if (selectedId) {
             const idx = rows.findIndex((r) => (r.id || r._id) === selectedId);
-            if (idx !== -1) {
-                setSelectedIndex(idx);
-            } else {
+            if (idx !== -1) setSelectedIndex(idx);
+            else {
                 setSelectedIndex(0);
                 setSelectedId(rows[0].id || rows[0]._id);
             }
@@ -53,14 +60,13 @@ export default function BookingsTable({
             setSelectedIndex(0);
             setSelectedId(rows[0].id || rows[0]._id);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [rows.length]);
+    }, [rows.length, selectedId, rows]);
 
     // Scroll + focus when selection changes
     useEffect(() => {
         if (selectedIndex == null) return;
         const el = rowRefs.current[selectedIndex];
-        if (el) {
+        if (el && typeof el.focus === "function") {
             el.focus({ preventScroll: true });
             el.scrollIntoView({ block: "nearest", inline: "nearest" });
         }
@@ -79,14 +85,10 @@ export default function BookingsTable({
         if (!rows.length) return;
         if (e.key === "ArrowDown") {
             e.preventDefault();
-            selectRow(
-                selectedIndex == null ? 0 : Math.min(selectedIndex + 1, rows.length - 1)
-            );
+            selectRow(selectedIndex == null ? 0 : Math.min(selectedIndex + 1, rows.length - 1));
         } else if (e.key === "ArrowUp") {
             e.preventDefault();
-            selectRow(
-                selectedIndex == null ? rows.length - 1 : Math.max(selectedIndex - 1, 0)
-            );
+            selectRow(selectedIndex == null ? rows.length - 1 : Math.max(selectedIndex - 1, 0));
         }
     };
 
@@ -139,7 +141,9 @@ export default function BookingsTable({
                             rows.map((booking, idx) => (
                                 <BookingRow
                                     key={booking.id || booking._id}
-                                    ref={(el) => (rowRefs.current[idx] = el)}
+                                    ref={(el) => {
+                                        rowRefs.current[idx] = el;
+                                    }}
                                     booking={booking}
                                     index={idx}
                                     isSelected={idx === selectedIndex}
@@ -162,6 +166,7 @@ export default function BookingsTable({
                     bookingId={selectedBooking._id}
                     isOpen={isInvoiceModalOpen}
                     onClose={closeInvoiceModal}
+                    onRefreshRow={refreshBookingRow} // optional: pass refresh callback
                 />
             )}
         </div>

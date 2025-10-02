@@ -13,6 +13,7 @@ const numberFmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency: "GBP",
 });
+
 const formatDate = (d) => (d ? new Date(d).toLocaleString("en-GB") : "-");
 
 const BookingDetailModal = forwardRef(
@@ -46,25 +47,19 @@ const BookingDetailModal = forwardRef(
         }));
 
         useEffect(() => {
-            if (isOpen && booking?._id) {
-                fetchUpsells();
-            }
+            if (isOpen && booking?._id) fetchUpsells();
         }, [isOpen, booking, fetchUpsells]);
 
-        // 🔹 Close modal with Esc key
+        // Close modal with Esc key
         useEffect(() => {
             if (!isOpen) return;
 
             const handleKeyDown = (e) => {
-                if (e.key === "Escape") {
-                    onClose?.();
-                }
+                if (e.key === "Escape") onClose?.();
             };
 
             document.addEventListener("keydown", handleKeyDown);
-            return () => {
-                document.removeEventListener("keydown", handleKeyDown);
-            };
+            return () => document.removeEventListener("keydown", handleKeyDown);
         }, [isOpen, onClose]);
 
         if (!isOpen || !booking) return null;
@@ -74,8 +69,7 @@ const BookingDetailModal = forwardRef(
             {
                 type: "Prebooking",
                 service:
-                    prebookingData.services?.map((s) => s.name || s.label).join(", ") ||
-                    "-",
+                    prebookingData.services?.map((s) => s.name || s.label).join(", ") || "-",
                 part: prebookingData.parts?.map((p) => p.partName).join(", ") || "-",
                 partPrice: prebookingData.partsCost || 0,
                 labourPrice: prebookingData.labourCost || 0,
@@ -91,7 +85,7 @@ const BookingDetailModal = forwardRef(
             })),
         ];
 
-        // Totals
+        // Compute totals
         const totals = rows.reduce(
             (acc, r) => {
                 acc.partPrice += r.partPrice;
@@ -108,8 +102,7 @@ const BookingDetailModal = forwardRef(
                 quotedPrice: 0,
             }
         );
-        totals.profit =
-            totals.quotedPrice - (totals.partPrice + totals.labourPrice);
+        totals.profit = totals.quotedPrice - (totals.partPrice + totals.labourPrice);
 
         return (
             <div
@@ -120,7 +113,7 @@ const BookingDetailModal = forwardRef(
                     className="bg-white rounded-lg shadow-lg w-full max-w-4xl mx-4 max-h-[90vh] flex flex-col relative"
                     onClick={(e) => e.stopPropagation()}
                 >
-                    {/* Close X Button */}
+                    {/* Close Button */}
                     <button
                         className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
                         onClick={onClose}
@@ -134,21 +127,16 @@ const BookingDetailModal = forwardRef(
                         <div className="flex justify-between mb-4">
                             <div>
                                 <p className="text-sm text-gray-600">
-                                    <strong>Booking Date:</strong>{" "}
-                                    {formatDate(booking.bookingDate)}
+                                    <strong>Booking Date:</strong> {formatDate(booking.bookingDate)}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                    <strong>Arrival Date:</strong>{" "}
-                                    {formatDate(booking.arrivalDate)}
+                                    <strong>Arrival Date:</strong> {formatDate(booking.arrivalDate)}
                                 </p>
                             </div>
                             <div className="text-right">
-                                <p className="font-semibold">
-                                    {booking.makeModel || "-"}
-                                </p>
+                                <p className="font-semibold">{booking.makeModel || "-"}</p>
                                 <p className="text-sm text-gray-600">
-                                    <strong>Reg:</strong>{" "}
-                                    {booking.registration || "-"}
+                                    <strong>Reg:</strong> {booking.registration || "-"}
                                 </p>
                             </div>
                         </div>
@@ -182,41 +170,35 @@ const BookingDetailModal = forwardRef(
                                     <th className="py-2 px-3 border">Type</th>
                                     <th className="py-2 px-3 border">Service</th>
                                     <th className="py-2 px-3 border">Part</th>
-                                    <th className="py-2 px-3 border text-right">
-                                        Part Price
-                                    </th>
-                                    <th className="py-2 px-3 border text-right">
-                                        Labour Price
-                                    </th>
-                                    <th className="py-2 px-3 border text-right">
-                                        Booking Price
-                                    </th>
+                                    <th className="py-2 px-3 border text-right">Part Price</th>
+                                    <th className="py-2 px-3 border text-right">Labour Price</th>
+                                    <th className="py-2 px-3 border text-right">Booking Price</th>
                                     <th className="py-2 px-3 border text-right">Profit</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {rows.map((r, i) => (
-                                    <tr key={i} className="border-t">
-                                        <td className="py-2 px-3 border">{r.type}</td>
-                                        <td className="py-2 px-3 border">{r.service}</td>
-                                        <td className="py-2 px-3 border">{r.part}</td>
-                                        <td className="py-2 px-3 border text-right">
-                                            {numberFmt.format(r.partPrice)}
-                                        </td>
-                                        <td className="py-2 px-3 border text-right">
-                                            {numberFmt.format(r.labourPrice)}
-                                        </td>
-                                        <td className="py-2 px-3 border text-right">
-                                            {numberFmt.format(r.quotedPrice)}
-                                        </td>
-                                        <td className="py-2 px-3 border text-right">
-                                            {numberFmt.format(
-                                                r.quotedPrice -
-                                                (r.partPrice + r.labourPrice)
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
+                                {rows.map((r, i) => {
+                                    const profit = r.quotedPrice - (r.partPrice + r.labourPrice);
+                                    return (
+                                        <tr key={i} className="border-t">
+                                            <td className="py-2 px-3 border">{r.type}</td>
+                                            <td className="py-2 px-3 border">{r.service}</td>
+                                            <td className="py-2 px-3 border">{r.part}</td>
+                                            <td className="py-2 px-3 border text-right">
+                                                {numberFmt.format(r.partPrice)}
+                                            </td>
+                                            <td className="py-2 px-3 border text-right">
+                                                {numberFmt.format(r.labourPrice)}
+                                            </td>
+                                            <td className="py-2 px-3 border text-right">
+                                                {numberFmt.format(r.quotedPrice)}
+                                            </td>
+                                            <td className="py-2 px-3 border text-right">
+                                                {numberFmt.format(profit)}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
 
                                 {/* Totals */}
                                 <tr className="bg-gray-100 font-semibold border-t-2">
@@ -242,10 +224,7 @@ const BookingDetailModal = forwardRef(
 
                     {/* Sticky Footer */}
                     <div className="flex justify-between items-center p-4 border-t bg-gray-50">
-                        <button
-                            className="px-4 py-2 border rounded"
-                            onClick={onClose}
-                        >
+                        <button className="px-4 py-2 border rounded" onClick={onClose}>
                             Close
                         </button>
                         <button

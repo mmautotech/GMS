@@ -1,7 +1,7 @@
 // src/pages/CarIn/UpsellModal.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { UpsellApi } from "../../lib/api";
-import useServices from "../../hooks/useServices.js"; // ✅ useServices hook
+import useServices from "../../hooks/useServices.js";
 
 export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
     const [loading, setLoading] = useState(false);
@@ -10,60 +10,53 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
         partPrice: "",
         labourPrice: "",
         upsellPrice: "",
-        upsellPhoto: "", // store base64 here
+        upsellPhoto: "",
         userEditedUpsell: false,
     });
 
-    // ✅ Load services (cached via hook)
+    // Load all services
     const { list: services, loading: svcLoading, error: svcError } = useServices({ enabled: true });
 
-    // Auto-calc upsell price (unless manually edited)
+    // Exclude already booked services by name
+    const availableServices = useMemo(() => {
+        if (!booking?.services || !services) return services || [];
+
+        const bookedServiceNames = booking.services.map(s => s.name || s.label || s);
+
+        return services.filter(s => !bookedServiceNames.includes(s.name || s.label));
+    }, [booking?.services, services]);
+
+    // Auto-calc upsell price unless manually edited
     useEffect(() => {
         const part = Number(form.partPrice) || 0;
         const labour = Number(form.labourPrice) || 0;
         const autoPrice = part + labour;
-
         if (!form.userEditedUpsell) {
-            setForm((prev) => ({ ...prev, upsellPrice: autoPrice.toString() }));
+            setForm(prev => ({ ...prev, upsellPrice: autoPrice.toString() }));
         }
     }, [form.partPrice, form.labourPrice]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setForm((prev) => ({ ...prev, [name]: value }));
+        setForm(prev => ({ ...prev, [name]: value }));
     };
 
     const handleUpsellChange = (e) => {
-        setForm((prev) => ({
-            ...prev,
-            upsellPrice: e.target.value,
-            userEditedUpsell: true,
-        }));
+        setForm(prev => ({ ...prev, upsellPrice: e.target.value, userEditedUpsell: true }));
     };
 
-    // Handle photo upload and convert to base64
     const handlePhotoUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setForm((prev) => ({ ...prev, upsellPhoto: reader.result }));
-        };
-        reader.readAsDataURL(file); // convert file to base64
+        reader.onloadend = () => setForm(prev => ({ ...prev, upsellPhoto: reader.result }));
+        reader.readAsDataURL(file);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!booking?._id) {
-            alert("No booking selected for upsell");
-            return;
-        }
-
-        if (!form.upsellPhoto) {
-            alert("Upsell confirmation photo is required");
-            return;
-        }
+        if (!booking?._id) return alert("No booking selected");
+        if (!form.upsellPhoto) return alert("Upsell confirmation photo is required");
 
         setLoading(true);
         try {
@@ -72,13 +65,16 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                 partsCost: Number(form.partPrice) || 0,
                 labourCost: Number(form.labourPrice) || 0,
                 upsellPrice: Number(form.upsellPrice) || 0,
-                upsellConfirmationPhoto: form.upsellPhoto, // send base64 to backend
+                upsellConfirmationPhoto: form.upsellPhoto,
             });
 
-            onSaved?.(upsell);
+            // Notify parent and refresh car data
+            if (onSaved) onSaved(upsell);
+
+            // Close modal
             onClose();
         } catch (err) {
-            console.error("Upsell creation failed", err.response?.data || err.message);
+            console.error(err);
             alert("Failed to create upsell");
         } finally {
             setLoading(false);
@@ -98,25 +94,22 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                         <select
                             className="w-full border rounded p-2"
                             value={form.serviceId}
-                            onChange={(e) =>
-                                setForm((prev) => ({ ...prev, serviceId: e.target.value }))
-                            }
+                            onChange={e => setForm(prev => ({ ...prev, serviceId: e.target.value }))}
                             required
                             disabled={svcLoading}
                         >
                             <option value="">
                                 {svcLoading ? "Loading services..." : "Select service"}
                             </option>
-                            {services.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                    {s.name}
+                            {availableServices.map(s => (
+                                <option key={s.id || s._id} value={s.id || s._id}>
+                                    {s.name || s.label}
                                 </option>
                             ))}
                         </select>
-                        {svcError && (
-                            <p className="text-sm text-red-600 mt-1">
-                                Failed to load services
-                            </p>
+                        {svcError && <p className="text-sm text-red-600 mt-1">Failed to load services</p>}
+                        {availableServices.length === 0 && !svcLoading && (
+                            <p className="text-sm text-gray-600 mt-1">All services already booked</p>
                         )}
                     </div>
 
@@ -161,9 +154,7 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
 
                     {/* Photo upload */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">
-                            Confirmation Photo
-                        </label>
+                        <label className="block text-sm font-medium mb-1">Confirmation Photo</label>
                         <input type="file" accept="image/*" onChange={handlePhotoUpload} required />
                         {form.upsellPhoto && (
                             <img

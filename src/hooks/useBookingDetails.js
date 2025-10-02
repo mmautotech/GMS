@@ -1,4 +1,3 @@
-// src/hooks/useBookingDetails.js
 import { useState, useCallback, useRef, useEffect } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 import { UpsellApi } from "../lib/api/UpsellApi.js";
@@ -12,14 +11,12 @@ export default function useBookingDetails() {
     const [bookingPhotoUrl, setBookingPhotoUrl] = useState(null);
     const [upsellPhotoUrls, setUpsellPhotoUrls] = useState({});
 
-    // Create and track blob URLs
     const makeBlobUrl = (blob) => {
         const url = URL.createObjectURL(blob);
         objectUrls.current.push(url);
         return url;
     };
 
-    // Fetch booking photo
     const fetchBookingPhoto = useCallback(async (bookingId) => {
         try {
             const res = await BookingApi.getBookingPhoto(bookingId, "original");
@@ -34,7 +31,6 @@ export default function useBookingDetails() {
         return null;
     }, []);
 
-    // Fetch upsell photo
     const fetchUpsellPhoto = useCallback(async (bookingId, upsellId) => {
         try {
             const res = await UpsellApi.getUpsellPhoto(bookingId, upsellId, "original");
@@ -50,18 +46,14 @@ export default function useBookingDetails() {
         return null;
     }, []);
 
-    // Fetch booking details + prebooking + upsells
     const fetchDetails = useCallback(async (bookingId) => {
         setLoading(true);
         setError("");
         try {
-            // 1️⃣ Fetch main booking details
             const bookingRes = await BookingApi.getBookingById(bookingId);
             const bookingData = bookingRes.ok ? bookingRes.booking : null;
 
-            // 2️⃣ Fetch upsells & prebooking info
             const upsellRes = await UpsellApi.getUpsellsByBooking(bookingId);
-
             const prebooking = upsellRes && upsellRes.success ? upsellRes : {};
             const bookingPrice = prebooking.prebookingBookingPrice || 0;
             const labourCost = prebooking.prebookingLabourCost || 0;
@@ -86,14 +78,12 @@ export default function useBookingDetails() {
 
             setDetails(bookingDetails);
 
-            // 3️⃣ Preload booking photo
             if (bookingDetails.compressedPhoto) {
                 setBookingPhotoUrl(bookingDetails.compressedPhoto);
             } else {
                 await fetchBookingPhoto(bookingId);
             }
 
-            // 4️⃣ Preload upsell photos
             for (let upsell of bookingDetails.upsells) {
                 await fetchUpsellPhoto(bookingId, upsell._id);
             }
@@ -106,7 +96,28 @@ export default function useBookingDetails() {
         }
     }, [fetchBookingPhoto, fetchUpsellPhoto]);
 
-    // Cleanup blob URLs on unmount
+    const addUpsell = useCallback(
+        async (bookingId, upsellData) => {
+            try {
+                const res = await UpsellApi.addUpsell(bookingId, upsellData);
+                if (res && res.success) {
+                    const newUpsell = res.upsell;
+                    setDetails((prev) => ({
+                        ...prev,
+                        upsells: [...prev.upsells, newUpsell],
+                    }));
+                    await fetchUpsellPhoto(bookingId, newUpsell._id);
+                    return newUpsell;
+                }
+            } catch (err) {
+                console.error("Failed to add upsell", err);
+                setError(err.message || "Failed to add upsell");
+            }
+            return null;
+        },
+        [fetchUpsellPhoto]
+    );
+
     useEffect(() => {
         return () => {
             objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
@@ -123,5 +134,6 @@ export default function useBookingDetails() {
         upsellPhotoUrls,
         fetchBookingPhoto,
         fetchUpsellPhoto,
+        addUpsell,
     };
 }

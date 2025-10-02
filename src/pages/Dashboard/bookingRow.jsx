@@ -1,6 +1,8 @@
-import React, { useMemo, forwardRef } from "react";
+import React, { useMemo, forwardRef, useState } from "react";
 import StatusBadge from "./StatusBadge.jsx";
 import ServicesCell from "./ServicesCell.jsx";
+import BookingDetailsExpandedRow from "./BookingDetailsExpandedRow.jsx";
+import useBookingDetails from "../../hooks/useBookingDetails.js";
 
 // Format date consistently
 const fmtDate = (d) =>
@@ -20,8 +22,14 @@ const fmtGBP = (val) =>
 
 const safe = (s) => (s ? String(s) : "—");
 
-const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelect }, ref) {
-    // Profit % calculation
+const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [modalPhotoUrl, setModalPhotoUrl] = useState(null);
+
+    const { details, loading, error, fetchDetails, bookingPhotoUrl, upsellPhotoUrls } =
+        useBookingDetails();
+
+    // Profit % for main booking
     const profitPct = useMemo(() => {
         const totalCost = (Number(booking.labourCost) || 0) + (Number(booking.partsCost) || 0);
         return booking.bookingPrice
@@ -29,7 +37,6 @@ const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelec
             : 0;
     }, [booking]);
 
-    // Status tooltip text
     const status = String(booking.status || "").toUpperCase();
     const hoverText = (() => {
         switch (status) {
@@ -48,77 +55,114 @@ const BookingRow = forwardRef(function BookingRow({ booking, isSelected, onSelec
         }
     })();
 
+    const handleDoubleClick = async () => {
+        setIsExpanded((prev) => !prev);
+        if (!details) await fetchDetails(booking._id);
+    };
+
+    const openPhotoModal = (url) => setModalPhotoUrl(url);
+    const closePhotoModal = () => setModalPhotoUrl(null);
+
+    const handleBookingThumbnailClick = () => {
+        if (bookingPhotoUrl) openPhotoModal(bookingPhotoUrl);
+    };
+
+    const handleUpsellThumbnailClick = (id) => {
+        const url = upsellPhotoUrls[id];
+        if (url) openPhotoModal(url);
+    };
+
     return (
-        <tr
-            ref={ref}
-            className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
-                }`}
-            role="row"
-            aria-selected={!!isSelected}
-            tabIndex={-1}
-            onClick={onSelect}
-        >
-            <td className="p-2 border">{booking.rowNumber}</td>
-
-            {/* Booking Date (createdDate) + createdBy */}
-            <td className="p-2 border">
-                <div className="leading-tight">
-                    <div>{fmtDate(booking.bookingDate)}</div>
-                    <div className="text-[11px] text-gray-500">by {safe(booking.bookedBy)}</div>
-                </div>
-            </td>
-
-            {/* Landing Date (scheduledDate) + arrivedBy if present */}
-            <td className="p-2 border">
-                <div className="leading-tight">
-                    <div>{fmtDate(booking.scheduledDate)}</div>
-                    {booking.arrivedBy && (
-                        <div className="text-[11px] text-gray-500">by {booking.arrivedBy}</div>
-                    )}
-                </div>
-            </td>
-
-            <td className="p-2 border">{booking.registration}</td>
-
-            {/* Truncate Make & Model on narrow screens */}
-            <td
-                className="p-2 border max-w-[160px] truncate"
-                title={booking.makeModel}
+        <>
+            {/* Main booking row */}
+            <tr
+                ref={ref}
+                className={`cursor-pointer outline-none ${isExpanded ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
+                    }`}
+                role="row"
+                tabIndex={-1}
+                onDoubleClick={handleDoubleClick}
             >
-                {booking.makeModel}
-            </td>
+                <td className="p-2 border">{booking.rowNumber}</td>
+                <td className="p-2 border">
+                    <div className="leading-tight">
+                        <div>{fmtDate(booking.bookingDate)}</div>
+                        <div className="text-[11px] text-gray-500">by {safe(booking.bookedBy)}</div>
+                    </div>
+                </td>
+                <td className="p-2 border">
+                    <div className="leading-tight">
+                        <div>{fmtDate(booking.scheduledDate)}</div>
+                        {booking.arrivedBy && (
+                            <div className="text-[11px] text-gray-500">by {booking.arrivedBy}</div>
+                        )}
+                    </div>
+                </td>
+                <td className="p-2 border">{booking.registration}</td>
+                <td className="p-2 border max-w-[160px] truncate" title={booking.makeModel}>
+                    {booking.makeModel}
+                </td>
+                <td className="p-2 border">
+                    <div className="leading-tight">
+                        <div>{safe(booking.ownerName)}</div>
+                        <div className="text-[11px] text-gray-600">{safe(booking.email)}</div>
+                    </div>
+                </td>
+                <td
+                    className="p-2 border hidden lg:table-cell max-w-[240px] truncate"
+                    title={booking.ownerAddress}
+                >
+                    {booking.ownerAddress} {booking.postCode}
+                </td>
+                <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
+                <td className="p-2 border hidden md:table-cell">
+                    <ServicesCell services={booking.services} remarks={booking.remarks} />
+                </td>
+                <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
+                <td className="p-2 border hidden sm:table-cell">{fmtGBP(booking.labourCost)}</td>
+                <td className="p-2 border hidden sm:table-cell">{fmtGBP(booking.partsCost)}</td>
+                <td className="p-2 border hidden md:table-cell">
+                    {Number.isFinite(profitPct) ? `${profitPct.toFixed(2)}%` : "—"}
+                </td>
+                <td className="p-2 border">
+                    <StatusBadge status={booking.status} title={hoverText} />
+                </td>
+            </tr>
 
-            <td className="p-2 border">
-                <div className="leading-tight">
-                    <div>{safe(booking.ownerName)}</div>
-                    <div className="text-[11px] text-gray-600">{safe(booking.email)}</div>
+            {/* Expanded booking details */}
+            {isExpanded && (
+                <BookingDetailsExpandedRow
+                    details={details || booking}
+                    loading={loading}
+                    error={error}
+                    bookingPhotoUrl={bookingPhotoUrl}
+                    upsellPhotoUrls={upsellPhotoUrls}
+                    handleBookingThumbnailClick={handleBookingThumbnailClick}
+                    handleUpsellThumbnailClick={handleUpsellThumbnailClick}
+                />
+            )}
+
+            {/* Photo modal */}
+            {modalPhotoUrl && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
+                    onClick={closePhotoModal}
+                >
+                    <img
+                        src={modalPhotoUrl}
+                        alt="Preview"
+                        className="max-h-[90%] max-w-[90%] object-contain rounded shadow-lg"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                    <button
+                        className="absolute top-5 right-5 text-white text-2xl font-bold"
+                        onClick={closePhotoModal}
+                    >
+                        &times;
+                    </button>
                 </div>
-            </td>
-
-            <td
-                className="p-2 border hidden lg:table-cell max-w-[240px] truncate"
-                title={booking.ownerAddress}
-            >
-                {booking.ownerAddress} {booking.postCode}
-            </td>
-
-            <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
-            <td className="p-2 border hidden md:table-cell">
-                <ServicesCell services={booking.services} remarks={booking.remarks} />
-            </td>
-
-            <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
-            <td className="p-2 border hidden sm:table-cell">{fmtGBP(booking.labourCost)}</td>
-            <td className="p-2 border hidden sm:table-cell">{fmtGBP(booking.partsCost)}</td>
-
-            <td className="p-2 border hidden md:table-cell">
-                {Number.isFinite(profitPct) ? `${profitPct.toFixed(2)}%` : "—"}
-            </td>
-
-            <td className="p-2 border">
-                <StatusBadge status={booking.status} title={hoverText} />
-            </td>
-        </tr>
+            )}
+        </>
     );
 });
 

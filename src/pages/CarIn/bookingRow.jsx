@@ -95,7 +95,12 @@ const BookingRow = forwardRef(function BookingRow(
         <>
             {/* Main Row */}
             <tr
-                ref={ref}
+                ref={(el) => {
+                    if (ref) {
+                        if (typeof ref === "function") ref(el);
+                        else ref.current = el;
+                    }
+                }}
                 role="row"
                 tabIndex={-1}
                 aria-selected={!!isSelected}
@@ -181,7 +186,6 @@ const BookingRow = forwardRef(function BookingRow(
                             <p className="text-sm text-red-500">{error}</p>
                         ) : details ? (
                             <div className="bg-white rounded-lg shadow p-5 space-y-6 text-sm">
-                                {/* Prebooking info */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                     <div>
                                         <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Complete Address</p>
@@ -245,7 +249,6 @@ const BookingRow = forwardRef(function BookingRow(
                                                         <p className="text-green-600">{fmtGBP(u.partsCost)}</p>
                                                         <p className="mt-2 text-gray-500 text-xs font-bold uppercase">Upsell Price</p>
                                                         <p className="text-blue-600">{fmtGBP(u.upsellPrice)}</p>
-
                                                     </div>
                                                     <div className="flex flex-col items-center">
                                                         {upsellPhotoUrls[u._id] ? (
@@ -277,38 +280,22 @@ const BookingRow = forwardRef(function BookingRow(
                 </tr>
             )}
 
-            {/* Lightbox for booking */}
-            {showPhoto && fullPhotoUrl &&
+            {/* Lightbox */}
+            {(showPhoto || showUpsellPhoto?.url) &&
                 createPortal(
                     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
                         <button
                             className="absolute top-4 right-4 text-white"
-                            onClick={() => setShowPhoto(false)}
+                            onClick={() => {
+                                setShowPhoto(false);
+                                setShowUpsellPhoto(null);
+                            }}
                         >
                             <X size={24} />
                         </button>
                         <img
-                            src={fullPhotoUrl}
-                            alt="Full Booking Confirmation"
-                            className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
-                        />
-                    </div>,
-                    document.body
-                )}
-
-            {/* Lightbox for upsell */}
-            {showUpsellPhoto?.url &&
-                createPortal(
-                    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
-                        <button
-                            className="absolute top-4 right-4 text-white"
-                            onClick={() => setShowUpsellPhoto(null)}
-                        >
-                            <X size={24} />
-                        </button>
-                        <img
-                            src={showUpsellPhoto.url}
-                            alt="Upsell Confirmation"
+                            src={showPhoto ? fullPhotoUrl : showUpsellPhoto?.url}
+                            alt="Full Preview"
                             className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
                         />
                     </div>,

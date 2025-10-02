@@ -363,8 +363,16 @@ export default function CarInPage() {
                     booking={selectedBooking}
                     isOpen={true}
                     onClose={handleUpsellClose}
+                    onSaved={async () => {
+                        if (bookingDetailRef.current?.refreshUpsells) {
+                            await bookingDetailRef.current.refreshUpsells();
+                        }
+                        await refresh(); // <-- refresh the main bookings list after upsell
+                        setActiveModal("booking"); // go back to booking modal
+                    }}
                 />
             )}
+
         </div>
     );
 }
