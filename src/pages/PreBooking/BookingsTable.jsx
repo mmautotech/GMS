@@ -10,6 +10,7 @@ export default function BookingsTable({
   onCarIn,
   onCancelled,
   onEdit,
+  currentUser,
 }) {
   const rows = useMemo(() => bookings || [], [bookings]);
 
@@ -134,8 +135,10 @@ export default function BookingsTable({
                   onCarIn={onCarIn}
                   onCancelled={onCancelled}
                   onEdit={onEdit}
+                  currentUser={currentUser} // ← pass it here
                 />
               ))
+
             )}
           </tbody>
         </table>

@@ -93,7 +93,15 @@ export default function App() {
             </Route>
 
             {/* Role restricted pages */}
-            <Route path="/pre-booking" element={<RequireRole user={user} allowed={["admin", "sales", "customer_service"]}><PreBooking /></RequireRole>} />
+            <Route
+              path="/pre-booking"
+              element={
+                <RequireRole user={user} allowed={["admin", "sales", "customer_service"]}>
+                  <PreBooking user={user} />
+                </RequireRole>
+              }
+            />
+
             <Route path="/car-in" element={<RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}><CarIn /></RequireRole>} />
             <Route path="/parts-purchase" element={<RequireRole user={user} allowed={["admin", "parts", "accounts"]}><PartsPurchase /></RequireRole>} />
             <Route path="/invoice" element={<RequireRole user={user} allowed={["admin", "accounts"]}><Invoices /></RequireRole>} />

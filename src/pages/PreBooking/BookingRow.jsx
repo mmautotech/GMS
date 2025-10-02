@@ -21,7 +21,16 @@ const fmtGBP = (val) =>
 const safe = (s) => (s ? String(s) : "—");
 
 const BookingRow = forwardRef(function BookingRow(
-  { booking: initialBooking, index, isSelected, onSelect, onCarIn, onCancelled, onEdit },
+  {
+    booking: initialBooking,
+    index,
+    isSelected,
+    onSelect,
+    onCarIn,
+    onCancelled,
+    onEdit,
+    currentUser, // <-- now passed down
+  },
   ref
 ) {
   const [expanded, setExpanded] = useState(false);
@@ -31,14 +40,8 @@ const BookingRow = forwardRef(function BookingRow(
   const booking = initialBooking;
   const bookingId = booking._id || booking.id;
 
-  const {
-    details,
-    loading,
-    error,
-    fetchDetails,
-    fetchPhoto,
-    originalPhotoUrl,
-  } = useBookingDetails();
+  const { details, loading, error, fetchDetails, fetchPhoto, originalPhotoUrl } =
+    useBookingDetails();
 
   const servicesText = useMemo(() => {
     if (!booking.services) return "—";
@@ -53,7 +56,6 @@ const BookingRow = forwardRef(function BookingRow(
     if (e.key === "ArrowLeft") setExpanded(false);
   };
 
-  // fetch details only when expanded
   useEffect(() => {
     if (expanded && !details && !loading) {
       fetchDetails(bookingId);
@@ -79,6 +81,11 @@ const BookingRow = forwardRef(function BookingRow(
     }
   };
 
+  // Determine if the current user can manage the booking
+  const canManageBooking =
+    currentUser &&
+    ["admin", "customer_service"].includes(currentUser.userType);
+
   return (
     <>
       {/* Main Row */}
@@ -97,7 +104,9 @@ const BookingRow = forwardRef(function BookingRow(
         <td className="p-2 border">
           <div className="leading-tight">
             <div>{fmtDate(booking.bookingDate)}</div>
-            <div className="text-[11px] text-gray-500">by {safe(booking.bookedBy)}</div>
+            <div className="text-[11px] text-gray-500">
+              by {safe(booking.bookedBy)}
+            </div>
           </div>
         </td>
         <td className="p-2 border">{fmtDate(booking.scheduledDate)}</td>
@@ -116,16 +125,30 @@ const BookingRow = forwardRef(function BookingRow(
         <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
         <td className="p-2 border">
           <div className="flex gap-2">
-            {/* Car In */}
-            <button
-              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCarIn(booking._id);
-              }}
-            >
-              <CarFront size={14} /> Car In
-            </button>
+            {/* Show Car In and Cancel only for admin or customer_service */}
+            {canManageBooking && (
+              <>
+                <button
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCarIn(booking._id);
+                  }}
+                >
+                  <CarFront size={14} /> Car In
+                </button>
+
+                <button
+                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onCancelled(booking._id);
+                  }}
+                >
+                  <Trash2 size={14} /> Cancel
+                </button>
+              </>
+            )}
 
             {/* Edit → only enabled when expanded */}
             <button
@@ -144,17 +167,6 @@ const BookingRow = forwardRef(function BookingRow(
             >
               <Edit2 size={14} /> Edit
             </button>
-
-            {/* Cancel */}
-            <button
-              className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCancelled(booking._id);
-              }}
-            >
-              <Trash2 size={14} /> Cancel
-            </button>
           </div>
         </td>
       </tr>
@@ -170,7 +182,9 @@ const BookingRow = forwardRef(function BookingRow(
             ) : details ? (
               <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
                 <div>
-                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Complete Address</p>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">
+                    Complete Address
+                  </p>
                   <p>{safe(details.ownerAddress)}</p>
                 </div>
                 <div>

@@ -25,7 +25,7 @@ const SORT_OPTIONS = [
 ];
 const LIMIT_OPTIONS = [5, 25, 50, 100];
 
-export default function PreBookingPage() {
+export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
@@ -117,7 +117,6 @@ export default function PreBookingPage() {
     },
     [updateStatus, refresh, setError]
   );
-
 
   const handleEdit = (booking) => {
     setEditingBooking(booking);
@@ -313,6 +312,7 @@ export default function PreBookingPage() {
           onCarIn={handleCarIn}
           onCancelled={handleCancelled}
           onEdit={handleEdit}
+          currentUser={user} // ← important fix
         />
       )}
 
