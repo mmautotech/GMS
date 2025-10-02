@@ -1,5 +1,5 @@
 // src/pages/Dashboard/Dashboard.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import useServices from "../../hooks/useServices.js";
 import useUsers from "../../hooks/useUsers.js";
@@ -33,7 +33,6 @@ ChartJS.register(
     Legend
 );
 
-// status values must be lowercase to match backend validator
 const ALLOWED_STATUSES = [
     { label: "PENDING", value: "pending" },
     { label: "ARRIVED", value: "arrived" },
@@ -57,8 +56,21 @@ const LIMIT_OPTIONS = [5, 25, 50, 100];
 const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
 
+const INTERVALS = ["daily", "weekly", "monthly", "yearly"];
+
+// helper to get ISO week string YYYY-WW
+function getISOWeekString(d) {
+    const date = new Date(d);
+    const target = new Date(date.valueOf());
+    const dayNr = (date.getDay() + 6) % 7;
+    target.setDate(target.getDate() - dayNr + 3);
+    const firstThursday = new Date(target.getFullYear(), 0, 4);
+    const diff = target - firstThursday;
+    const week = 1 + Math.round(diff / (7 * 24 * 3600 * 1000));
+    return `${target.getFullYear()}-W${week.toString().padStart(2, "0")}`;
+}
+
 export default function Dashboard({ user }) {
-    // ---------- DRAFT FILTERS ----------
     const [draft, setDraft] = useState({
         search: "",
         fromDate: "",
@@ -71,7 +83,8 @@ export default function Dashboard({ user }) {
         limit: 25,
     });
 
-    // Auto-adjust sortDir when sortBy changes
+    const [applied, setApplied] = useState(draft);
+
     const onDraftSortByChange = (nextSortBy) => {
         setDraft((d) => ({
             ...d,
@@ -80,25 +93,12 @@ export default function Dashboard({ user }) {
         }));
     };
 
-    // ---------- APPLIED FILTERS ----------
-    const [applied, setApplied] = useState(draft);
+    const { list: serviceOptions, map: serviceMap, loading: loadingServices, error: servicesError } =
+        useServices({ enabled: true, useSessionCache: true });
 
-    // Services (cached list + id→name map)
-    const {
-        list: serviceOptions,
-        map: serviceMap,
-        loading: loadingServices,
-        error: servicesError,
-    } = useServices({ enabled: true, useSessionCache: true });
-    // Users (cached list + id→username map)
-    const {
-        list: userOptions,
-        map: userMap,
-        loading: loadingUsers,
-        error: usersError,
-    } = useUsers({ useSessionCache: true });
+    const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
+        useUsers({ useSessionCache: true });
 
-    // Bookings hook — ONLY reacts to applied values
     const {
         list: bookings,
         loadingList,
@@ -123,9 +123,6 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
-
-
-    // ---------- APPLY & RESET ----------
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -148,24 +145,18 @@ export default function Dashboard({ user }) {
         setPage(1);
     };
 
-    // ---------- Charts ----------
-    const [monthlyRevenue, setMonthlyRevenue] = useState(Array(12).fill(0));
-    const [serviceTrends, setServiceTrends] = useState([]);
-    const [bookingStats, setBookingStats] = useState({
-        total: 0,
-        completed: 0,
-        pending: 0,
-        arrived: 0,
-        cancelled: 0,
-    });
+    const [revenue, setRevenue] = useState({ daily: [], weekly: [], monthly: Array(12).fill(0), yearly: [] });
+    const [serviceTrends, setServiceTrends] = useState({ daily: [], weekly: [], monthly: [], yearly: [] });
+    const [bookingStats, setBookingStats] = useState({ total: 0, completed: 0, pending: 0, arrived: 0, cancelled: 0 });
     const [loadingCharts, setLoadingCharts] = useState(true);
+    const [selectedInterval, setSelectedInterval] = useState("monthly");
 
-    React.useEffect(() => {
+    useEffect(() => {
         (async () => {
             try {
                 const data = await getDashboardCharts();
-                setMonthlyRevenue(data.monthlyRevenue || Array(12).fill(0));
-                setServiceTrends(data.serviceTrends || []);
+                setRevenue(data.revenue || {});
+                setServiceTrends(data.serviceTrends || {});
                 setBookingStats(data.bookings || {});
             } catch (err) {
                 console.error("Failed to fetch dashboard charts:", err);
@@ -175,36 +166,81 @@ export default function Dashboard({ user }) {
         })();
     }, []);
 
-    const monthlyRevenueData = useMemo(
-        () => ({
-            labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-            datasets: [
-                {
-                    label: "Revenue",
-                    data: monthlyRevenue,
-                    borderColor: "blue",
-                    backgroundColor: "rgba(0,0,255,0.1)",
-                    tension: 0.3,
-                },
-            ],
-        }),
-        [monthlyRevenue]
-    );
+    // ---------- Chart Data ----------
+    const revenueData = useMemo(() => {
+        const data = revenue[selectedInterval] || [];
 
-    const serviceTrendsData = useMemo(
-        () => ({
-            labels: serviceTrends.map((s) => s._id),
-            datasets: [
-                {
-                    label: "Services",
-                    data: serviceTrends.map((s) => s.count),
-                    backgroundColor: "blue",
-                },
-            ],
-        }),
-        [serviceTrends]
-    );
+        if (selectedInterval === "daily") {
+            const labels = Array.from({ length: 30 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (29 - i));
+                return d.toISOString().split("T")[0];
+            });
+            const mapData = data.reduce((acc, r) => {
+                acc[r._id] = r.totalRevenue || 0;
+                return acc;
+            }, {});
+            const values = labels.map((l) => mapData[l] || 0);
+            return { labels, datasets: [{ label: "Revenue", data: values, borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
+        }
 
+        if (selectedInterval === "weekly") {
+            const labels = Array.from({ length: 12 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - 7 * (11 - i));
+                return getISOWeekString(d);
+            });
+            const mapData = data.reduce((acc, r) => {
+                const weekLabel = `${r._id.year}-W${r._id.isoWeek.toString().padStart(2, "0")}`;
+                acc[weekLabel] = r.totalRevenue || 0;
+                return acc;
+            }, {});
+            const values = labels.map((l) => mapData[l] || 0);
+            return { labels, datasets: [{ label: "Revenue", data: values, borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
+        }
+
+        return { labels: data.map((r) => r._id || r), datasets: [{ label: "Revenue", data: data.map((r) => r.totalRevenue || r), borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
+    }, [revenue, selectedInterval]);
+
+    const serviceTrendsData = useMemo(() => {
+        const data = serviceTrends[selectedInterval] || [];
+
+        if (selectedInterval === "daily") {
+            const labels = Array.from({ length: 30 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - (29 - i));
+                return d.toISOString().split("T")[0];
+            });
+
+            const serviceMap = {};
+            labels.forEach((label) => { serviceMap[label] = {}; });
+            data.forEach((item) => { serviceMap[item.period][item.service] = item.count; });
+
+            const allServices = [...new Set(data.map((d) => d.service))];
+            const datasets = allServices.map((s) => ({ label: s, data: labels.map((l) => serviceMap[l][s] || 0), backgroundColor: "blue" }));
+            return { labels, datasets };
+        }
+
+        if (selectedInterval === "weekly") {
+            const labels = Array.from({ length: 12 }, (_, i) => {
+                const d = new Date();
+                d.setDate(d.getDate() - 7 * (11 - i));
+                return getISOWeekString(d);
+            });
+
+            const serviceMap = {};
+            labels.forEach((label) => { serviceMap[label] = {}; });
+            data.forEach((item) => { serviceMap[item.period][item.service] = item.count; });
+
+            const allServices = [...new Set(data.map((d) => d.service))];
+            const datasets = allServices.map((s) => ({ label: s, data: labels.map((l) => serviceMap[l][s] || 0), backgroundColor: "blue" }));
+            return { labels, datasets };
+        }
+
+        return { labels: data.map((s) => s.period || s._id), datasets: [{ label: "Services", data: data.map((s) => s.count), backgroundColor: "blue" }] };
+    }, [serviceTrends, selectedInterval]);
+
+    // ---------- Render ----------
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">
             <h1 className="text-2xl font-bold mb-4 text-blue-900">
@@ -220,23 +256,29 @@ export default function Dashboard({ user }) {
                 <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
             </div>
 
+            {/* Interval Toggle */}
+            <div className="flex gap-2 mb-4">
+                {INTERVALS.map((i) => (
+                    <button
+                        key={i}
+                        onClick={() => setSelectedInterval(i)}
+                        className={`px-3 py-1 rounded ${selectedInterval === i ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"
+                            }`}
+                    >
+                        {i.charAt(0).toUpperCase() + i.slice(1)}
+                    </button>
+                ))}
+            </div>
+
             {/* Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
                 <div className="border p-4 rounded h-64">
-                    <h2 className="font-semibold mb-2">Monthly Revenue</h2>
-                    {loadingCharts ? (
-                        <p>Loading...</p>
-                    ) : (
-                        <Line data={monthlyRevenueData} options={{ responsive: true, maintainAspectRatio: false }} />
-                    )}
+                    <h2 className="font-semibold mb-2">{selectedInterval.charAt(0).toUpperCase() + selectedInterval.slice(1)} Revenue</h2>
+                    {loadingCharts ? <p>Loading...</p> : <Line data={revenueData} options={{ responsive: true, maintainAspectRatio: false }} />}
                 </div>
                 <div className="border p-4 rounded h-64">
-                    <h2 className="font-semibold mb-2">Service Trends</h2>
-                    {loadingCharts ? (
-                        <p>Loading...</p>
-                    ) : (
-                        <Bar data={serviceTrendsData} options={{ responsive: true, maintainAspectRatio: false }} />
-                    )}
+                    <h2 className="font-semibold mb-2">{selectedInterval.charAt(0).toUpperCase() + selectedInterval.slice(1)} Service Trends</h2>
+                    {loadingCharts ? <p>Loading...</p> : <Bar data={serviceTrendsData} options={{ responsive: true, maintainAspectRatio: false }} />}
                 </div>
             </div>
 
