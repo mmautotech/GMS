@@ -11,6 +11,15 @@ export function useParts(initialParams = {}, bookingId = null) {
 
     const paramsRef = useRef(initialParams);
 
+    // ✅ Normalizer: always return { _id, label, partName, partNumber }
+    const normalizeParts = (rawParts = []) =>
+        rawParts.map((p) => ({
+            _id: p._id || p.id,
+            partName: p.partName || "",
+            partNumber: p.partNumber || "",
+            label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
+        }));
+
     // ✅ Single unified fetcher
     const fetchParts = useCallback(
         async (overrideParams = {}) => {
@@ -20,10 +29,10 @@ export function useParts(initialParams = {}, bookingId = null) {
             try {
                 let res;
                 if (bookingId) {
-                    // 🔹 Fetch parts for a specific booking
+                    // 🔹 Fetch parts linked to booking
                     res = await PartsApi.getPartsByBooking(bookingId);
                 } else {
-                    // 🔹 Fetch general active parts (supports q param)
+                    // 🔹 Fetch general active parts
                     const mergedParams = { ...paramsRef.current, ...overrideParams };
                     res = await PartsApi.getParts(mergedParams);
                     if (res.success) {
@@ -33,8 +42,7 @@ export function useParts(initialParams = {}, bookingId = null) {
                 }
 
                 if (res.success) {
-                    // 🔹 Already normalized in partsApi
-                    setParts(res.parts || []);
+                    setParts(normalizeParts(res.parts || []));
                 } else {
                     const errMsg = res.error || "Failed to fetch parts";
                     setError(errMsg);
@@ -57,7 +65,7 @@ export function useParts(initialParams = {}, bookingId = null) {
     }, [bookingId]);
 
     return {
-        parts,      // normalized { _id, label, partName?, partNumber? }
+        parts, // always normalized
         params,
         loading,
         error,

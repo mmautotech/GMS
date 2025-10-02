@@ -1,11 +1,10 @@
-// src/lib/api/purchaseInvoiceApi.js
 import axiosInstance from "./axiosInstance.js";
 
 // 🟢 shared normalizer
 const normalizeParams = (params = {}) => {
     const normalized = { ...params };
 
-    // convert date strings → ISO (backend can parse)
+    // convert date strings → ISO
     if (normalized.startDate instanceof Date) {
         normalized.startDate = normalized.startDate.toISOString();
     }
@@ -86,7 +85,7 @@ const PurchaseInvoiceApi = {
         }
     },
 
-    // Update status
+    // Update only status
     updateInvoiceStatus: async (id, payload) => {
         try {
             const { data } = await axiosInstance.patch(
@@ -115,7 +114,7 @@ const PurchaseInvoiceApi = {
         }
     },
 
-    // Admin-only: update invoice
+    // 🔄 Update invoice (now ANY user can update, not just admin)
     updateInvoice: async (id, payload) => {
         try {
             const { data } = await axiosInstance.put(
@@ -124,7 +123,7 @@ const PurchaseInvoiceApi = {
             );
             return {
                 success: data.success,
-                message: data.message || "Invoice updated successfully",
+                message: data.message || "Purchase invoice updated successfully",
                 id: data.id || id,
                 params: { id },
                 pagination: null,

@@ -1,4 +1,3 @@
-// src/hooks/usePurchaseInvoice.js
 import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 import PurchaseInvoiceApi from "../lib/api/purchaseInvoiceApi.js";
@@ -23,7 +22,6 @@ export function usePurchaseInvoice(id = null) {
                 const res = await PurchaseInvoiceApi.getInvoiceById(id);
 
                 if (res.success) {
-                    // Backend always returns an array in `data`
                     const fetched = res.data?.[0] || null;
                     setInvoice(fetched);
                     lastFetchedId.current = id;
@@ -42,7 +40,7 @@ export function usePurchaseInvoice(id = null) {
         [id]
     );
 
-    // 🔹 Auto-fetch when `id` changes
+    // auto-fetch
     useEffect(() => {
         if (id) {
             fetchInvoice();
@@ -52,13 +50,12 @@ export function usePurchaseInvoice(id = null) {
         }
     }, [id, fetchInvoice]);
 
-    // 🔹 Create invoice
+    // create invoice
     const createInvoice = async (payload) => {
         const res = await PurchaseInvoiceApi.createInvoice(payload);
 
         if (res.success) {
             toast.success(res.message || "✅ Purchase invoice created");
-            // reset local invoice cache
             setInvoice(null);
             lastFetchedId.current = null;
         } else {
@@ -67,7 +64,7 @@ export function usePurchaseInvoice(id = null) {
         return res;
     };
 
-    // 🔹 Update invoice (admin only)
+    // 🔄 update invoice (any user)
     const updateInvoice = async (payload) => {
         if (!id) return { success: false, error: "Invoice ID is required" };
 
@@ -82,7 +79,7 @@ export function usePurchaseInvoice(id = null) {
         return res;
     };
 
-    // 🔹 Update payment status (user self-service)
+    // update payment status only
     const updateStatus = async (newStatus) => {
         if (!id) return { success: false, error: "Invoice ID is required" };
 
@@ -99,7 +96,7 @@ export function usePurchaseInvoice(id = null) {
         return res;
     };
 
-    // 🔹 Soft delete (deactivate)
+    // delete invoice
     const deleteInvoice = async () => {
         if (!id) return { success: false, error: "Invoice ID is required" };
 

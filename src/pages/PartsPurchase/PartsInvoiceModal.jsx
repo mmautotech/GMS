@@ -45,13 +45,15 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         useBookingMap();
 
     const [formData, setFormData] = useState(defaultForm);
+
+    // fetch parts only when booking is selected
     const { parts, loading: partsLoading } = useParts({}, formData.booking);
 
     const [visible, setVisible] = useState(false);
     const [saving, setSaving] = useState(false);
     const initialReadyRef = useRef(false);
 
-    // show/hide modal
+    // modal animation
     useEffect(() => {
         if (isOpen) setVisible(true);
         else {
@@ -60,7 +62,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         }
     }, [isOpen]);
 
-    // populate for edit
+    // populate form when editing
     useEffect(() => {
         if (!isOpen) return;
         if (!invoiceId) {
@@ -68,10 +70,10 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         } else if (invoice) {
             setFormData({
                 supplier: invoice.supplier?._id || invoice.supplier || "",
-                booking: invoice.booking?.id || invoice.booking?._id || "",
+                booking: invoice.booking?._id || invoice.booking?.id || "",
                 items:
                     invoice.items?.map((i) => ({
-                        part: i.part?._id || "",
+                        part: i.part?._id || i.part || "",
                         rate: Number(i.rate) || 0,
                         quantity: Number(i.quantity) || 1,
                     })) || defaultForm.items,
@@ -83,16 +85,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
             });
         }
     }, [isOpen, invoiceId, invoice]);
-
-    // reset items when booking changes
-    useEffect(() => {
-        if (formData.booking) {
-            setFormData((prev) => ({
-                ...prev,
-                items: [{ part: "", rate: 0, quantity: 1 }],
-            }));
-        }
-    }, [formData.booking]);
 
     // escape to close
     useEffect(() => {
@@ -160,9 +152,18 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
 
         setSaving(true);
         try {
+            let payload = { ...formData };
+
+            if (invoiceId) {
+                // remove booking when updating (locked after creation)
+                const { booking, ...rest } = payload;
+                payload = rest;
+            }
+
             const res = invoiceId
-                ? await updateInvoice(formData)
-                : await createInvoice(formData);
+                ? await updateInvoice(payload)
+                : await createInvoice(payload);
+
             if (res.success) onClose();
         } finally {
             setSaving(false);
@@ -225,20 +226,29 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                     {/* Vehicle */}
                     <div className="space-y-1 mb-4">
                         <Label>Vehicle</Label>
-                        <select
-                            name="booking"
-                            value={formData.booking || ""}
-                            onChange={handleInputChange}
-                            className="w-full border rounded px-3 py-2"
-                            disabled={bookingMapLoading || showBootOverlay || saving}
-                        >
-                            <option value="">Select Vehicle</option>
-                            {bookingMap.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                    {b.label}
-                                </option>
-                            ))}
-                        </select>
+                        {invoiceId ? (
+                            <input
+                                type="text"
+                                value={bookingMap.find((b) => b.id === formData.booking)?.label || "N/A"}
+                                className="w-full border rounded px-3 py-2 bg-gray-100 text-gray-700"
+                                disabled
+                            />
+                        ) : (
+                            <select
+                                name="booking"
+                                value={formData.booking || ""}
+                                onChange={handleInputChange}
+                                className="w-full border rounded px-3 py-2"
+                                disabled={bookingMapLoading || showBootOverlay || saving}
+                            >
+                                <option value="">Select Vehicle</option>
+                                {bookingMap.map((b) => (
+                                    <option key={b.id} value={b.id}>
+                                        {b.label}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                         {bookingMapError && (
                             <p className="text-sm text-red-600">{bookingMapError}</p>
                         )}
