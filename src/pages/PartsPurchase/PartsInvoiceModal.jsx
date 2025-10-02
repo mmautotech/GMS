@@ -16,18 +16,18 @@ import { useParts } from "../../hooks/useParts.js";
 import { useBookingMap } from "../../hooks/useBookingMap.js";
 import { usePurchaseInvoice } from "../../hooks/usePurchaseInvoice.js";
 
-// ✅ Currency formatter
 const currencyFmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency: "GBP",
 });
 
-// ✅ Default form template
+const today = new Date().toISOString().slice(0, 10);
+
 const defaultForm = {
     supplier: "",
     booking: "",
     items: [{ part: "", rate: 0, quantity: 1 }],
-    paymentDate: new Date().toISOString().slice(0, 10),
+    paymentDate: today,
     vatIncluded: true,
     vendorInvoiceNumber: "",
     paymentStatus: "Unpaid",
@@ -38,34 +38,29 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
     { isOpen, onClose, invoiceId },
     ref
 ) {
-    // 🔹 Hooks
     const { suppliers, loading: suppliersLoading } = useSuppliers();
-    const { parts, loading: partsLoading } = useParts();
     const { invoice, loading: invoiceLoading, createInvoice, updateInvoice } =
         usePurchaseInvoice(invoiceId);
-    const {
-        map: bookingMap,
-        loading: bookingMapLoading,
-        error: bookingMapError,
-    } = useBookingMap();
+    const { map: bookingMap, loading: bookingMapLoading, error: bookingMapError } =
+        useBookingMap();
 
-    // 🔹 State
     const [formData, setFormData] = useState(defaultForm);
+    const { parts, loading: partsLoading } = useParts({}, formData.booking);
+
     const [visible, setVisible] = useState(false);
     const [saving, setSaving] = useState(false);
     const initialReadyRef = useRef(false);
 
-    // ─────────────────────────────── Lifecycle
+    // show/hide modal
     useEffect(() => {
-        if (isOpen) {
-            setVisible(true);
-        } else {
+        if (isOpen) setVisible(true);
+        else {
             const timeout = setTimeout(() => setVisible(false), 200);
             return () => clearTimeout(timeout);
         }
     }, [isOpen]);
 
-    // Reset form or populate when invoice changes
+    // populate for edit
     useEffect(() => {
         if (!isOpen) return;
         if (!invoiceId) {
@@ -80,8 +75,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                         rate: Number(i.rate) || 0,
                         quantity: Number(i.quantity) || 1,
                     })) || defaultForm.items,
-                paymentDate:
-                    invoice.paymentDate?.slice(0, 10) || defaultForm.paymentDate,
+                paymentDate: invoice.paymentDate?.slice(0, 10) || today,
                 vatIncluded: invoice.vatIncluded ?? true,
                 vendorInvoiceNumber: invoice.vendorInvoiceNumber || "",
                 paymentStatus: invoice.paymentStatus || "Unpaid",
@@ -90,7 +84,17 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         }
     }, [isOpen, invoiceId, invoice]);
 
-    // Escape closes modal
+    // reset items when booking changes
+    useEffect(() => {
+        if (formData.booking) {
+            setFormData((prev) => ({
+                ...prev,
+                items: [{ part: "", rate: 0, quantity: 1 }],
+            }));
+        }
+    }, [formData.booking]);
+
+    // escape to close
     useEffect(() => {
         if (!isOpen) return;
         const handleKey = (e) => e.key === "Escape" && !saving && onClose();
@@ -98,7 +102,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         return () => window.removeEventListener("keydown", handleKey);
     }, [isOpen, onClose, saving]);
 
-    // Boot overlay
     const bootReady =
         !suppliersLoading &&
         !partsLoading &&
@@ -115,7 +118,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         }
     }, [isOpen, bootReady]);
 
-    // ─────────────────────────────── Handlers
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData((prev) => ({
@@ -147,7 +149,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
     };
 
     const handleSave = async () => {
-        // Validation
         if (!formData.supplier) return toast.error("Please select a supplier");
         if (!formData.booking) return toast.error("Please select a vehicle");
         if (!formData.items.length || formData.items.some((i) => !i.part))
@@ -157,17 +158,14 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         if (formData.items.some((i) => i.rate <= 0 || i.quantity <= 0))
             return toast.error("Rate and Quantity must be greater than zero");
 
-        setSaving(true); // show overlay
+        setSaving(true);
         try {
             const res = invoiceId
                 ? await updateInvoice(formData)
                 : await createInvoice(formData);
-
-            if (res.success) {
-                onClose();
-            }
+            if (res.success) onClose();
         } finally {
-            setSaving(false); // remove overlay after response
+            setSaving(false);
         }
     };
 
@@ -175,7 +173,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
 
     if (!visible) return null;
 
-    // 🔹 Totals
     const localTotal = formData.items.reduce(
         (sum, i) => sum + (Number(i.rate) || 0) * (Number(i.quantity) || 0),
         0
@@ -185,7 +182,15 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
 
     const showBootOverlay = isOpen && invoiceId && !initialReadyRef.current;
 
-    // ─────────────────────────────── Render
+    // progressive enabling
+    const canSelectSupplier = !!formData.booking;
+    const canSelectParts = !!formData.supplier;
+    const canCreateInvoice =
+        !!formData.booking &&
+        !!formData.supplier &&
+        formData.items.some((i) => i.part) &&
+        !!formData.vendorInvoiceNumber;
+
     return (
         <div
             aria-hidden={!isOpen}
@@ -201,7 +206,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                 role="dialog"
                 aria-modal="true"
             >
-                {/* Boot or Saving Overlay */}
                 {(showBootOverlay || saving) && (
                     <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-50 rounded-xl">
                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-3"></div>
@@ -211,34 +215,13 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                     </div>
                 )}
 
-                {/* Header */}
                 <div className="p-6 border-b">
                     <h2 className="text-2xl font-semibold text-gray-800">
                         {invoiceId ? "Edit Invoice" : "Create New Invoice"}
                     </h2>
                 </div>
 
-                {/* Scrollable Content */}
                 <div className="p-6 overflow-y-auto" style={{ maxHeight: "calc(90vh - 120px)" }}>
-                    {/* Supplier */}
-                    <div className="space-y-1 mb-4">
-                        <Label>Supplier</Label>
-                        <select
-                            name="supplier"
-                            value={formData.supplier}
-                            onChange={handleInputChange}
-                            className="w-full border rounded px-3 py-2"
-                            disabled={suppliersLoading || showBootOverlay || saving}
-                        >
-                            <option value="">Select Supplier</option>
-                            {suppliers.map((s) => (
-                                <option key={s._id} value={s._id}>
-                                    {s.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
                     {/* Vehicle */}
                     <div className="space-y-1 mb-4">
                         <Label>Vehicle</Label>
@@ -261,7 +244,26 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                         )}
                     </div>
 
-                    {/* Items Table */}
+                    {/* Supplier */}
+                    <div className="space-y-1 mb-4">
+                        <Label>Supplier</Label>
+                        <select
+                            name="supplier"
+                            value={formData.supplier}
+                            onChange={handleInputChange}
+                            className="w-full border rounded px-3 py-2"
+                            disabled={!canSelectSupplier || suppliersLoading || showBootOverlay || saving}
+                        >
+                            <option value="">Select Supplier</option>
+                            {suppliers.map((s) => (
+                                <option key={s._id} value={s._id}>
+                                    {s.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Items */}
                     <div className="mb-4 max-h-[300px] overflow-y-auto border rounded-lg">
                         <table className="w-full border-collapse text-sm">
                             <thead className="bg-gray-100 sticky top-0 z-10">
@@ -287,14 +289,12 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                         handleItemChange(idx, "part", e.target.value)
                                                     }
                                                     className="w-full border rounded px-2 py-1"
-                                                    disabled={partsLoading || showBootOverlay || saving}
+                                                    disabled={!canSelectParts || partsLoading || showBootOverlay || saving}
                                                 >
                                                     <option value="">Select Part</option>
                                                     {parts.map((p) => (
                                                         <option key={p._id} value={p._id}>
-                                                            {p.partNumber
-                                                                ? `${p.partName} (${p.partNumber})`
-                                                                : p.partName}
+                                                            {p.label}
                                                         </option>
                                                     ))}
                                                 </select>
@@ -305,13 +305,9 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                     min={0}
                                                     value={item.rate}
                                                     onChange={(e) =>
-                                                        handleItemChange(
-                                                            idx,
-                                                            "rate",
-                                                            e.target.value
-                                                        )
+                                                        handleItemChange(idx, "rate", e.target.value)
                                                     }
-                                                    disabled={showBootOverlay || saving}
+                                                    disabled={!canSelectParts || showBootOverlay || saving}
                                                 />
                                             </td>
                                             <td className="p-2">
@@ -320,13 +316,9 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                     min={1}
                                                     value={item.quantity}
                                                     onChange={(e) =>
-                                                        handleItemChange(
-                                                            idx,
-                                                            "quantity",
-                                                            e.target.value
-                                                        )
+                                                        handleItemChange(idx, "quantity", e.target.value)
                                                     }
-                                                    disabled={showBootOverlay || saving}
+                                                    disabled={!canSelectParts || showBootOverlay || saving}
                                                 />
                                             </td>
                                             <td className="p-2">
@@ -338,6 +330,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                     className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded"
                                                     disabled={
                                                         formData.items.length === 1 ||
+                                                        !canSelectParts ||
                                                         showBootOverlay ||
                                                         saving
                                                     }
@@ -349,12 +342,8 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                     );
                                 })}
                                 <tr className="bg-gray-100 font-semibold border-t-2 sticky bottom-0">
-                                    <td className="p-2" colSpan={3}>
-                                        Total
-                                    </td>
-                                    <td className="p-2">
-                                        {currencyFmt.format(finalTotal)}
-                                    </td>
+                                    <td className="p-2" colSpan={3}>Total</td>
+                                    <td className="p-2">{currencyFmt.format(finalTotal)}</td>
                                     <td />
                                 </tr>
                             </tbody>
@@ -364,10 +353,37 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                     <Button
                         onClick={addItem}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mb-6"
-                        disabled={showBootOverlay || saving}
+                        disabled={!canSelectParts || showBootOverlay || saving}
                     >
                         Add Another Part
                     </Button>
+
+                    {/* Discount + VAT Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                        <div>
+                            <Label>Discount (£)</Label>
+                            <Input
+                                type="number"
+                                min={0}
+                                name="discount"
+                                value={formData.discount}
+                                onChange={handleInputChange}
+                                disabled={showBootOverlay || saving}
+                            />
+                        </div>
+                        <div className="flex items-center gap-2 mt-2 md:mt-6">
+                            <input
+                                type="checkbox"
+                                id="vatIncluded"
+                                name="vatIncluded"
+                                checked={formData.vatIncluded}
+                                onChange={handleInputChange}
+                                className="accent-blue-600"
+                                disabled={showBootOverlay || saving}
+                            />
+                            <Label htmlFor="vatIncluded">VAT Included</Label>
+                        </div>
+                    </div>
 
                     {/* Invoice Info */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -377,7 +393,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                 name="vendorInvoiceNumber"
                                 value={formData.vendorInvoiceNumber}
                                 onChange={handleInputChange}
-                                disabled={showBootOverlay || saving}
+                                disabled={!canSelectParts || showBootOverlay || saving}
                             />
                         </div>
                         <div>
@@ -404,33 +420,9 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                 <option value="Paid">Paid</option>
                             </select>
                         </div>
-                        <div>
-                            <Label>Discount (£)</Label>
-                            <Input
-                                type="number"
-                                min={0}
-                                name="discount"
-                                value={formData.discount}
-                                onChange={handleInputChange}
-                                disabled={showBootOverlay || saving}
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 mt-2 md:mt-6">
-                            <input
-                                type="checkbox"
-                                id="vatIncluded"
-                                name="vatIncluded"
-                                checked={formData.vatIncluded}
-                                onChange={handleInputChange}
-                                className="accent-blue-600"
-                                disabled={showBootOverlay || saving}
-                            />
-                            <Label htmlFor="vatIncluded">VAT Included</Label>
-                        </div>
                     </div>
                 </div>
 
-                {/* Sticky Footer */}
                 <div className="p-4 border-t flex justify-end gap-3 sticky bottom-0 bg-white">
                     <Button
                         onClick={onClose}
@@ -442,7 +434,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                     <Button
                         onClick={handleSave}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                        disabled={showBootOverlay || saving}
+                        disabled={!canCreateInvoice || showBootOverlay || saving}
                     >
                         {invoiceId ? "Update Invoice" : "Create Invoice"}
                     </Button>

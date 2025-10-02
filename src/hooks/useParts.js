@@ -20,10 +20,10 @@ export function useParts(initialParams = {}, bookingId = null) {
             try {
                 let res;
                 if (bookingId) {
-                    // 🔹 Fetch parts based on booking.services
+                    // 🔹 Fetch parts for a specific booking
                     res = await PartsApi.getPartsByBooking(bookingId);
                 } else {
-                    // 🔹 Fetch parts (active only, supports q param)
+                    // 🔹 Fetch general active parts (supports q param)
                     const mergedParams = { ...paramsRef.current, ...overrideParams };
                     res = await PartsApi.getParts(mergedParams);
                     if (res.success) {
@@ -33,6 +33,7 @@ export function useParts(initialParams = {}, bookingId = null) {
                 }
 
                 if (res.success) {
+                    // 🔹 Already normalized in partsApi
                     setParts(res.parts || []);
                 } else {
                     const errMsg = res.error || "Failed to fetch parts";
@@ -56,8 +57,8 @@ export function useParts(initialParams = {}, bookingId = null) {
     }, [bookingId]);
 
     return {
-        parts,        // 🔹 always ACTIVE parts unless bookingId used
-        params,       // last used query params
+        parts,      // normalized { _id, label, partName?, partNumber? }
+        params,
         loading,
         error,
         refetch: fetchParts,
