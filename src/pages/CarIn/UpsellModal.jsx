@@ -1,4 +1,3 @@
-// src/pages/CarIn/UpsellModal.jsx
 import React, { useState, useEffect } from "react";
 import { ServicesApi, UpsellApi } from "../../lib/api";
 
@@ -10,6 +9,7 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
         partPrice: "",
         labourPrice: "",
         upsellPrice: "",
+        upsellPhoto: "", // store base64 here
         userEditedUpsell: false,
     });
 
@@ -51,10 +51,27 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
         }));
     };
 
+    // Handle photo upload and convert to base64
+    const handlePhotoUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setForm((prev) => ({ ...prev, upsellPhoto: reader.result }));
+        };
+        reader.readAsDataURL(file); // convert file to base64
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!booking?._id) {
             alert("No booking selected for upsell");
+            return;
+        }
+
+        if (!form.upsellPhoto) {
+            alert("Upsell confirmation photo is required");
             return;
         }
 
@@ -65,6 +82,7 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                 partsCost: Number(form.partPrice) || 0,
                 labourCost: Number(form.labourPrice) || 0,
                 upsellPrice: Number(form.upsellPrice) || 0,
+                upsellConfirmationPhoto: form.upsellPhoto, // send base64 to backend
             });
 
             onSaved?.(upsell);
@@ -90,9 +108,7 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                         <select
                             className="w-full border rounded p-2"
                             value={form.serviceId}
-                            onChange={(e) =>
-                                setForm((prev) => ({ ...prev, serviceId: e.target.value }))
-                            }
+                            onChange={(e) => setForm((prev) => ({ ...prev, serviceId: e.target.value }))}
                             required
                         >
                             <option value="">Select service</option>
@@ -141,6 +157,24 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                             onChange={handleUpsellChange}
                             min="0"
                         />
+                    </div>
+
+                    {/* Photo upload */}
+                    <div>
+                        <label className="block text-sm font-medium mb-1">Confirmation Photo</label>
+                        <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoUpload}
+                            required
+                        />
+                        {form.upsellPhoto && (
+                            <img
+                                src={form.upsellPhoto}
+                                alt="Preview"
+                                className="mt-2 w-32 h-32 object-cover border rounded"
+                            />
+                        )}
                     </div>
 
                     {/* Buttons */}

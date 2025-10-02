@@ -1,7 +1,6 @@
 // src/lib/api/UpsellApi.js
 import axios from "./axiosInstance.js";
 
-
 // ✅ Get all upsells for a specific booking
 export async function getUpsellsByBooking(bookingId) {
     const res = await axios.get(`/upsell/booking/${bookingId}`);
@@ -14,9 +13,17 @@ export async function createUpsell(bookingId, data) {
     return res.data;
 }
 
-// ✅ Update upsell
-export async function updateUpsell(id, data) {
-    const res = await axios.patch(`/upsell/${id}`, data);
+// ✅ Update upsell for a specific booking and upsell
+export async function updateUpsell(bookingId, upsellId, data) {
+    const res = await axios.put(`/upsell/booking/${bookingId}/upsell/${upsellId}`, data);
+    return res.data;
+}
+
+// ✅ Get upsell photo
+export async function getUpsellPhoto(bookingId, upsellId, type = "original") {
+    const res = await axios.get(`/upsell/booking/${bookingId}/upsell/${upsellId}/photo?type=${type}`, {
+        responseType: "blob", // to handle binary image data
+    });
     return res.data;
 }
 
@@ -25,4 +32,5 @@ export const UpsellApi = {
     getUpsellsByBooking,
     createUpsell,
     updateUpsell,
+    getUpsellPhoto,
 };
