@@ -15,7 +15,6 @@ const cleanParams = (obj) =>
 const normalizeParams = (params) => {
     const normalized = { ...params };
 
-    // ✅ ensure paymentStatus is valid or removed
     if (
         normalized.paymentStatus &&
         !["Paid", "Partial", "Unpaid"].includes(normalized.paymentStatus)
@@ -23,16 +22,15 @@ const normalizeParams = (params) => {
         delete normalized.paymentStatus;
     }
 
-    // ✅ ensure dates are Date objects
-    if (normalized.startDate) {
-        normalized.startDate = new Date(normalized.startDate);
-    }
-    if (normalized.endDate) {
-        normalized.endDate = new Date(normalized.endDate);
-    }
+    if (normalized.startDate) normalized.startDate = new Date(normalized.startDate);
+    if (normalized.endDate) normalized.endDate = new Date(normalized.endDate);
 
     return cleanParams(normalized);
 };
+
+// simple in-memory cache: { [key]: { data, pagination, params, at } }
+const MEMO_CACHE = {};
+const TTL_MS = 60 * 1000; // 1 minute
 
 export function usePurchaseInvoices({ initialParams = {} } = {}) {
     const [invoices, setInvoices] = useState([]);
@@ -42,54 +40,90 @@ export function usePurchaseInvoices({ initialParams = {} } = {}) {
     const [error, setError] = useState(null);
 
     const paramsRef = useRef(initialParams);
+    const mounted = useRef(true);
 
-    // 🔹 Fetch invoices list
-    const fetchInvoices = useCallback(async (overrideParams = {}) => {
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
+
+    const fetchInvoices = useCallback(async (overrideParams = {}, force = false) => {
         setLoading(true);
         setError(null);
 
         try {
-            const mergedParams = normalizeParams({
-                ...paramsRef.current,
-                ...overrideParams,
-            });
+            const mergedParams = normalizeParams({ ...paramsRef.current, ...overrideParams });
+            const cacheKey = JSON.stringify(mergedParams);
+
+            const cached = MEMO_CACHE[cacheKey];
+            if (!force && cached && Date.now() - cached.at < TTL_MS) {
+                setInvoices(cached.data || []);
+                setPagination(cached.pagination || null);
+                setParams(cached.params || mergedParams);
+                return;
+            }
 
             const res = await PurchaseInvoiceApi.getInvoices(mergedParams);
+
+            if (!mounted.current) return;
 
             if (res.success) {
                 setInvoices(res.data || []);
                 setPagination(res.pagination || null);
                 setParams(res.params || mergedParams);
                 paramsRef.current = res.params || mergedParams;
+
+                MEMO_CACHE[cacheKey] = {
+                    data: res.data || [],
+                    pagination: res.pagination || null,
+                    params: res.params || mergedParams,
+                    at: Date.now(),
+                };
             } else {
                 const errMsg = res.error || "Failed to fetch invoices";
                 setError(errMsg);
                 toast.error(`❌ ${errMsg}`);
             }
         } catch (err) {
+            if (!mounted.current) return;
             setError(err.message);
             toast.error(`❌ ${err.message}`);
         } finally {
-            setLoading(false);
+            if (mounted.current) setLoading(false);
         }
     }, []);
 
-    // 🔹 Run once on mount
+    // Auto-fetch on mount
     useEffect(() => {
         fetchInvoices(initialParams);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Auto-refresh every 1 minute
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchInvoices(paramsRef.current, true);
+        }, TTL_MS);
+        return () => clearInterval(interval);
+    }, [fetchInvoices]);
+
+    const manualRefresh = useCallback(() => {
+        fetchInvoices(paramsRef.current, true);
+    }, [fetchInvoices]);
+
     return {
-        invoices, // list of invoices
-        pagination, // { total, page, limit, totalPages, ... }
-        params, // current filters/sorting
+        invoices,
+        pagination,
+        params,
         loading,
         error,
-        refetch: fetchInvoices,
+        refetch: manualRefresh,
         setParams: (newParams) => {
             paramsRef.current = { ...paramsRef.current, ...newParams };
             setParams(paramsRef.current);
+            fetchInvoices(paramsRef.current);
         },
     };
 }
