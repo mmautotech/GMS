@@ -4,12 +4,19 @@ import axiosInstance from "./axiosInstance.js";
 // 🔹 Normalize API response into consistent object
 const normalizeParts = (arr) =>
     (arr || []).map((p) => ({
-        _id: p._id || p.id,
+        _id: p._id || p.id,                 // ✅ always normalize ID
         partName: p.partName || p.label || "",
         isActive: p.isActive ?? true,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        label: p.partName || p.label || "", // For dropdowns / selects
+        createdAt: p.createdAt || null,
+        updatedAt: p.updatedAt || null,
+        label: p.partName || p.label || "", // ✅ consistent label for dropdowns
+    }));
+
+// 🔹 Minimal normalization (for dropdowns / bookings)
+const normalizeMinimal = (arr) =>
+    (arr || []).map((p) => ({
+        _id: p._id || p.id,                 // always `_id`
+        label: p.partName || p.label || "", // only label for display
     }));
 
 const PartsApi = {
@@ -127,7 +134,7 @@ const PartsApi = {
             const { data } = await axiosInstance.get("/parts/dropdown");
             return {
                 success: data.success,
-                parts: normalizeParts(data.data),
+                parts: normalizeMinimal(data.data), // ✅ dropdown only needs { _id, label }
             };
         } catch (err) {
             return {
@@ -144,7 +151,7 @@ const PartsApi = {
             const { data } = await axiosInstance.get(`/parts/by-booking/${bookingId}`);
             return {
                 success: data.success,
-                parts: normalizeParts(data.data),
+                parts: normalizeMinimal(data.data), // ✅ booking only needs { _id, label }
             };
         } catch (err) {
             return {

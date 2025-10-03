@@ -14,7 +14,7 @@ import { Label } from "../../ui/label";
 import { useSuppliers } from "../../hooks/useSuppliers.js";
 import { useBookingMap } from "../../hooks/useBookingMap.js";
 import { usePurchaseInvoice } from "../../hooks/usePurchaseInvoice.js";
-import useBookingParts from "../../hooks/useBookingParts.js"; // ✅ switched
+import useBookingParts from "../../hooks/useBookingParts.js";
 
 const currencyFmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -46,7 +46,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
 
     const [formData, setFormData] = useState(defaultForm);
 
-    // ✅ Fetch parts by booking (only when booking selected)
+    // ✅ Fetch parts for selected booking
     const { parts, loading: partsLoading } = useBookingParts(formData.booking, {
         enabled: !!formData.booking,
     });
@@ -55,7 +55,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
     const [saving, setSaving] = useState(false);
     const initialReadyRef = useRef(false);
 
-    // modal animation
+    // Animate modal in/out
     useEffect(() => {
         if (isOpen) setVisible(true);
         else {
@@ -64,7 +64,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         }
     }, [isOpen]);
 
-    // populate form when editing
+    // ✅ Populate form when editing
     useEffect(() => {
         if (!isOpen) return;
         if (!invoiceId) {
@@ -75,7 +75,8 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                 booking: invoice.booking?._id || invoice.booking?.id || "",
                 items:
                     invoice.items?.map((i) => ({
-                        part: i.part?._id || i.part || "",
+                        // 🔑 normalize part id for dropdown
+                        part: i.part?._id || i.part?.id || i.part || "",
                         rate: Number(i.rate) || 0,
                         quantity: Number(i.quantity) || 1,
                     })) || defaultForm.items,
@@ -88,7 +89,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         }
     }, [isOpen, invoiceId, invoice]);
 
-    // escape to close
+    // Escape key closes modal
     useEffect(() => {
         if (!isOpen) return;
         const handleKey = (e) => e.key === "Escape" && !saving && onClose();
@@ -119,7 +120,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                 ...prev,
                 items: prev.items.map((i) => ({
                     ...i,
-                    part: parts.some((p) => p._id === i.part) ? i.part : "",
+                    part: parts.find((p) => p._id === i.part)?._id || i.part, // 🔑 keep value if valid
                 })),
             }));
         }
@@ -170,7 +171,6 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
             let payload = { ...formData };
 
             if (invoiceId) {
-                // remove booking when updating (locked after creation)
                 const { booking, ...rest } = payload;
                 payload = rest;
             }
@@ -193,12 +193,11 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         (sum, i) => sum + (Number(i.rate) || 0) * (Number(i.quantity) || 0),
         0
     );
-    const discounted = Math.max(0, localTotal - (Number(formData.discount) || 0)); // ✅ prevent negative
+    const discounted = Math.max(0, localTotal - (Number(formData.discount) || 0));
     const finalTotal = formData.vatIncluded ? discounted * 1.2 : discounted;
 
     const showBootOverlay = isOpen && invoiceId && !initialReadyRef.current;
 
-    // progressive enabling
     const canSelectSupplier = !!formData.booking;
     const canSelectParts = !!formData.supplier;
     const canCreateInvoice =
@@ -222,6 +221,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                 role="dialog"
                 aria-modal="true"
             >
+                {/* Loader overlay */}
                 {(showBootOverlay || saving) && (
                     <div className="absolute inset-0 bg-white/80 flex flex-col items-center justify-center z-50 rounded-xl">
                         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-3"></div>
@@ -321,7 +321,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                         <option disabled>Loading parts…</option>
                                                     )}
                                                     {!partsLoading && parts.length === 0 && (
-                                                        <option disabled>No parts available for this booking</option>
+                                                        <option disabled>No parts available</option>
                                                     )}
                                                     {parts.map((p) => (
                                                         <option key={p._id} value={p._id}>
@@ -352,9 +352,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                     disabled={!canSelectParts || showBootOverlay || saving}
                                                 />
                                             </td>
-                                            <td className="p-2">
-                                                {currencyFmt.format(rowTotal)}
-                                            </td>
+                                            <td className="p-2">{currencyFmt.format(rowTotal)}</td>
                                             <td className="p-2">
                                                 <Button
                                                     onClick={() => removeItem(idx)}
@@ -389,7 +387,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                         Add Another Part
                     </Button>
 
-                    {/* Discount + VAT Row */}
+                    {/* Discount + VAT */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                         <div>
                             <Label>Discount (£)</Label>

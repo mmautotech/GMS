@@ -26,6 +26,7 @@ export default function useBookingParts(bookingId, { enabled = true } = {}) {
             return;
         }
 
+        // ✅ Use cache if still valid
         const cached = MEMO_CACHE[bookingId];
         if (!force && cached && Date.now() - cached.at < TTL_MS) {
             setParts(cached.parts || []);
@@ -41,6 +42,7 @@ export default function useBookingParts(bookingId, { enabled = true } = {}) {
             if (!mounted.current) return;
 
             if (res.success) {
+                // Always normalized to { _id, label }
                 setParts(res.parts || []);
                 MEMO_CACHE[bookingId] = { parts: res.parts || [], at: Date.now() };
             } else {
@@ -72,7 +74,7 @@ export default function useBookingParts(bookingId, { enabled = true } = {}) {
     }, [bookingId, fetchParts]);
 
     return {
-        parts,        // array of { _id, label }
+        parts,        // ✅ always array of { _id, label }
         loading,
         error,
         refresh: () => fetchParts(true), // manual reload

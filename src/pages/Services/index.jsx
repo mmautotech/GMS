@@ -27,12 +27,18 @@ export default function EntityPage() {
         getPartsCountById,
     } = useServices();
 
-    // ✅ Parts – either global or service-specific
+    // ✅ Parts – global or service-specific
     const {
         parts,
         refetch: refreshParts,
         loading: loadingParts,
     } = useParts({ serviceId: selectedService?._id });
+
+    // 🔄 Ensure both services & parts are refreshed together
+    const handleDataChanged = () => {
+        refreshServices();
+        refreshParts();
+    };
 
     // 🔎 Filters
     const filteredServices = services.filter((s) =>
@@ -44,11 +50,13 @@ export default function EntityPage() {
     );
 
     // --- Handlers ---
+    // --- Handlers ---
     const handleDeleteService = async (srv) => {
         try {
             await ServiceApi.deleteService(srv._id);
             toast.success(`✅ Service "${srv.name}" disabled`);
-            refreshServices();
+            setSelectedService(null);   // 🔹 reset parts panel
+            handleDataChanged();
         } catch {
             toast.error("❌ Failed to disable service");
         }
@@ -58,7 +66,8 @@ export default function EntityPage() {
         try {
             await ServiceApi.activateService(srv._id);
             toast.success(`✅ Service "${srv.name}" reactivated`);
-            refreshServices();
+            setSelectedService(null);   // 🔹 reset parts panel
+            handleDataChanged();
         } catch {
             toast.error("❌ Failed to reactivate service");
         }
@@ -73,9 +82,7 @@ export default function EntityPage() {
                 await PartsApi.activatePart(part._id);
                 toast.success(`✅ Part "${part.partName || part.label}" activated`);
             }
-
-            refreshParts();      // refresh parts list
-            refreshServices();   // keep counts in sync
+            handleDataChanged();
         } catch {
             toast.error("❌ Failed to update part");
         }
@@ -136,10 +143,10 @@ export default function EntityPage() {
                                         <tr
                                             key={srv._id}
                                             className={`cursor-pointer hover:bg-blue-50 transition ${selectedService?._id === srv._id
-                                                    ? "bg-blue-100"
-                                                    : idx % 2 === 0
-                                                        ? "bg-white"
-                                                        : "bg-gray-50/50"
+                                                ? "bg-blue-100"
+                                                : idx % 2 === 0
+                                                    ? "bg-white"
+                                                    : "bg-gray-50/50"
                                                 }`}
                                             onClick={() => setSelectedService(srv)}
                                         >
@@ -307,8 +314,8 @@ export default function EntityPage() {
                                                 <button
                                                     onClick={() => handleTogglePart(p)}
                                                     className={`p-2 ${p.isActive
-                                                            ? "bg-red-500 hover:bg-red-600"
-                                                            : "bg-green-500 hover:bg-green-600"
+                                                        ? "bg-red-500 hover:bg-red-600"
+                                                        : "bg-green-500 hover:bg-green-600"
                                                         } text-white rounded-lg`}
                                                 >
                                                     {p.isActive ? <Trash2 size={16} /> : <RotateCcw size={16} />}
@@ -343,17 +350,14 @@ export default function EntityPage() {
                 isOpen={serviceModalOpen}
                 onClose={() => setServiceModalOpen(false)}
                 service={editingService}
-                onSaved={refreshServices}
+                onSaved={handleDataChanged}
             />
 
             <PartModal
                 isOpen={partModalOpen}
                 onClose={() => setPartModalOpen(false)}
                 part={editingPart}
-                onSaved={() => {
-                    refreshParts();
-                    refreshServices();
-                }}
+                onSaved={handleDataChanged}
             />
         </div>
     );
