@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { parseNum, numberFmt, percentFmt } from "../../utils/fmt.js";
 import Select from "react-select";
 import toast from "react-hot-toast";
-import useServices from "../../hooks/useServices.js"; // ✅ useServices hook
+import useServiceOptions from "../../hooks/useServiceOptions.js"; // ✅ switched
 
 const EMPTY = {
   vehicleRegNo: "",
@@ -22,7 +22,7 @@ const EMPTY = {
   remarks: "",
   bookingConfirmationPhoto: "",
   bookingDate: "",
-  _newPhoto: false, // 🔹 internal flag
+  _newPhoto: false,
 };
 
 export default function BookingForm({ loading, onSubmit, onCancel, initialData }) {
@@ -30,15 +30,17 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
   const [original, setOriginal] = useState(EMPTY);
 
   // ✅ Load cached service options
-  const { list: serviceList, loading: svcLoading, error: svcError } = useServices({ enabled: true });
+  const {
+    list: serviceOptions,
+    loading: svcLoading,
+    error: svcError,
+  } = useServiceOptions({ useSessionCache: true });
 
-  // Map services → react-select options
-  const serviceOptions = useMemo(() => {
-    return (serviceList || []).map((s) => ({
-      value: s.id,
-      label: s.name,
-    }));
-  }, [serviceList]);
+  // react-select options from serviceOptions
+  const selectOptions = useMemo(
+    () => (serviceOptions || []).map((s) => ({ value: s.id, label: s.name })),
+    [serviceOptions]
+  );
 
   // --- Prefill form if editing ---
   useEffect(() => {
@@ -84,7 +86,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
     }
   }, [initialData]);
 
-  // --- Handle input changes ---
+  // --- Handlers ---
   const handleChange = useCallback((e) => {
     const { name, value } = e.target;
     setForm((f) => ({ ...f, [name]: value }));
@@ -96,6 +98,12 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File too large (max 5 MB)");
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setForm((f) => ({
@@ -114,7 +122,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
     const parts = parseNum(form.prebookingPartsCost);
     const cost = labour + parts;
     const pf = price - cost;
-    const pct = cost > 0 ? (pf / cost) * 100 : 0;
+    const pct = price > 0 ? (pf / price) * 100 : 0;
     return { profit: pf, profitPct: pct };
   }, [form.prebookingBookingPrice, form.prebookingLabourCost, form.prebookingPartsCost]);
 
@@ -125,10 +133,14 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
       if (key === "bookingDate" || key === "_newPhoto") continue;
       const val = form[key];
       const orig = original[key];
+
       if (Array.isArray(val)) {
         const valIds = val.map((v) => v.value || v);
         const origIds = Array.isArray(orig) ? orig.map((v) => v.value || v) : [];
-        if (JSON.stringify(valIds) !== JSON.stringify(origIds)) {
+        if (
+          valIds.length !== origIds.length ||
+          !valIds.every((v, i) => v === origIds[i])
+        ) {
           diff["prebookingServices"] = valIds;
         }
       } else if (key === "bookingConfirmationPhoto") {
@@ -136,22 +148,14 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
       } else if (val !== orig) {
         switch (key) {
           case "ownerPostalCode":
-            diff.ownerPostalCode = val;
-            break;
           case "ownerNumber":
-            diff.ownerNumber = val;
-            break;
           case "ownerEmail":
-            diff.ownerEmail = val;
+            diff[key] = String(val).trim();
             break;
           case "prebookingBookingPrice":
-            diff.prebookingBookingPrice = parseNum(val);
-            break;
           case "prebookingLabourCost":
-            diff.prebookingLabourCost = parseNum(val);
-            break;
           case "prebookingPartsCost":
-            diff.prebookingPartsCost = parseNum(val);
+            diff[key] = parseNum(val);
             break;
           default:
             diff[key] = val;
@@ -161,14 +165,12 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
     return diff;
   };
 
-  // --- Dirty check ---
   const isDirty = useMemo(() => {
     if (!initialData) return true;
     const diff = buildDiffPayload(form, original);
     return Object.keys(diff).length > 0;
   }, [form, original, initialData]);
 
-  // --- Submit ---
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
@@ -213,7 +215,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
   );
 
   const handleReset = useCallback(() => {
-    setForm(original);
+    setForm((f) => ({ ...original, _newPhoto: false }));
     toast("Form reset", { icon: "🔄" });
   }, [original]);
 
@@ -234,21 +236,21 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         />
 
         {/* Basic Info */}
-        <input type="text" name="vehicleRegNo" placeholder="Reg No." value={form.vehicleRegNo} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
-        <input type="text" name="makeModel" placeholder="Make & Model" value={form.makeModel} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
+        <input autoComplete="off" maxLength={15} type="text" name="vehicleRegNo" placeholder="Reg No." value={form.vehicleRegNo} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
+        <input autoComplete="off" type="text" name="makeModel" placeholder="Make & Model" value={form.makeModel} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
         <input type="text" name="ownerName" placeholder="Owner Name" value={form.ownerName} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
         <input type="text" name="ownerAddress" placeholder="Owner Address" value={form.ownerAddress} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
-        <input type="text" name="ownerPostalCode" placeholder="Post Code" value={form.ownerPostalCode} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
+        <input maxLength={10} type="text" name="ownerPostalCode" placeholder="Post Code" value={form.ownerPostalCode} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
         <input type="tel" name="ownerNumber" placeholder="Phone Number" value={form.ownerNumber} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
         <input type="text" name="source" placeholder="Source" value={form.source} onChange={handleChange} className="border border-gray-300 rounded p-2" required />
-        <input type="email" name="ownerEmail" placeholder="Email" value={form.ownerEmail} onChange={handleChange} className="border border-gray-300 rounded p-2 w-full md:col-span-2" required />
+        <input autoComplete="off" type="email" name="ownerEmail" placeholder="Email" value={form.ownerEmail} onChange={handleChange} className="border border-gray-300 rounded p-2 w-full md:col-span-2" required />
 
         {/* Services */}
         <div className="md:col-span-2">
           <label className="block mb-1 text-sm font-medium text-gray-700">Select Services</label>
           <Select
             isMulti
-            options={serviceOptions}
+            options={selectOptions}
             value={form.prebookingServices}
             onChange={handleServicesChange}
             placeholder={svcLoading ? "Loading services..." : "Choose services..."}
@@ -268,7 +270,7 @@ export default function BookingForm({ loading, onSubmit, onCancel, initialData }
         <input type="text" name="profitPercentage" placeholder="Profit %" value={percentFmt(profitPct)} readOnly className="border border-gray-300 rounded p-2 bg-gray-100" tabIndex={-1} />
 
         {/* Remarks */}
-        <input type="text" name="remarks" placeholder="Remarks" value={form.remarks} onChange={handleChange} className="border border-gray-300 rounded p-2 md:col-span-2" />
+        <textarea name="remarks" placeholder="Remarks" value={form.remarks} onChange={handleChange} className="border border-gray-300 rounded p-2 md:col-span-2" rows={3} />
 
         {/* File Upload */}
         <div className="md:col-span-2">

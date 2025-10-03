@@ -1,11 +1,10 @@
-// src/pages/PreBooking/index.jsx
 import React, { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { usePreBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
-import useServices from "../../hooks/useServices.js";
+import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useUsers from "../../hooks/useUsers.js";
 
 import ParamsSummary from "../../components/ParamsSummary.jsx";
@@ -50,13 +49,12 @@ export default function PreBookingPage({ user }) {
 
   const { saving, create, update, setError, updateStatus } = useBookings();
 
-  // services
+  // ✅ services (using lean hook)
   const {
     list: serviceOptions,
-    map: serviceMap,
     loading: loadingServices,
     error: servicesError,
-  } = useServices({ enabled: true });
+  } = useServiceOptions({ useSessionCache: true });
 
   // users
   const {
@@ -69,16 +67,13 @@ export default function PreBookingPage({ user }) {
   // actions
   const handleCarIn = useCallback(
     async (id) => {
-      if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) {
-        return;
-      }
+      if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
 
       try {
         const res = await updateStatus(id, "arrived");
-
         if (res.ok) {
           toast.success(res.message || "Car marked as arrived!");
-          await refresh(); // reload fresh list
+          await refresh();
           navigate("/car-in");
         } else {
           toast.error(res.error || "Failed to mark as arrived");
@@ -95,16 +90,13 @@ export default function PreBookingPage({ user }) {
 
   const handleCancelled = useCallback(
     async (id) => {
-      if (!window.confirm("Are you sure you want to CANCEL this booking?")) {
-        return;
-      }
+      if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
 
       try {
         const res = await updateStatus(id, "cancelled");
-
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
-          await refresh(); // always reload list
+          await refresh();
         } else {
           toast.error(res.error || "Failed to cancel booking");
         }
@@ -156,13 +148,9 @@ export default function PreBookingPage({ user }) {
 
   const resetFilters = () => {
     const fresh = {
-      search: "",
-      fromDate: "",
-      toDate: "",
-      services: "",
-      user: "",
-      sortBy: "createdDate",
-      sortDir: "desc",
+      search: "", fromDate: "", toDate: "",
+      services: "", user: "",
+      sortBy: "createdDate", sortDir: "desc",
       limit: 25,
     };
     setDraft(fresh);
@@ -171,11 +159,9 @@ export default function PreBookingPage({ user }) {
   };
 
   const params = useMemo(() => {
-    return backendParams ? {
-      ...backendParams,
-      perPage: backendParams.perPage ?? backendParams.limit,
-      page
-    } : { ...preBookingParams, perPage: preBookingParams.limit, page };
+    return backendParams
+      ? { ...backendParams, perPage: backendParams.perPage ?? backendParams.limit, page }
+      : { ...preBookingParams, perPage: preBookingParams.limit, page };
   }, [backendParams, preBookingParams, page]);
 
   return (
@@ -219,8 +205,8 @@ export default function PreBookingPage({ user }) {
               </option>
             ) : (
               serviceOptions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
+                <option key={s.value} value={s.value}>
+                  {s.label}
                 </option>
               ))
             )}
@@ -271,9 +257,7 @@ export default function PreBookingPage({ user }) {
             </select>
             <select
               value={draft.limit}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, limit: Number(e.target.value) }))
-              }
+              onChange={(e) => setDraft((d) => ({ ...d, limit: Number(e.target.value) }))}
               className="border rounded px-3 py-2 w-full"
             >
               {LIMIT_OPTIONS.map((opt) => (
@@ -301,7 +285,14 @@ export default function PreBookingPage({ user }) {
       </div>
 
       {/* Params Summary */}
-      <ParamsSummary params={params} serviceMap={serviceMap} userMap={userMap} />
+      <ParamsSummary
+        params={params}
+        serviceMap={serviceOptions.reduce((acc, s) => {
+          acc[s.value] = s.label;
+          return acc;
+        }, {})}
+        userMap={userMap}
+      />
 
       {/* Table */}
       {loadingList ? (
@@ -312,7 +303,7 @@ export default function PreBookingPage({ user }) {
           onCarIn={handleCarIn}
           onCancelled={handleCancelled}
           onEdit={handleEdit}
-          currentUser={user} // ← important fix
+          currentUser={user}
         />
       )}
 
@@ -325,8 +316,7 @@ export default function PreBookingPage({ user }) {
             onClick={() => hasPrevPage && setPage(page - 1)}
             className={`px-3 py-1 rounded ${hasPrevPage
               ? "bg-blue-600 text-white"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
           >
             Prev
           </button>
@@ -338,8 +328,7 @@ export default function PreBookingPage({ user }) {
             onClick={() => hasNextPage && setPage(page + 1)}
             className={`px-3 py-1 rounded ${hasNextPage
               ? "bg-blue-600 text-white"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
           >
             Next
           </button>

@@ -161,7 +161,7 @@ export default function EntityPage() {
                             </tr>
                         </thead>
                     </table>
-                    <div className="max-h-[300px] overflow-y-auto">
+                    <div className="max-h-[600px] overflow-y-auto">
                         <table className="min-w-full bg-white">
                             <tbody>
                                 {loadingServices ? (
@@ -274,7 +274,7 @@ export default function EntityPage() {
                                 onClick={() => setSelectedService(null)}
                                 className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow"
                             >
-                                ← Back to All Services
+                                ← Back to All
                             </button>
                         )}
                         <button
@@ -320,7 +320,7 @@ export default function EntityPage() {
                             </tr>
                         </thead>
                     </table>
-                    <div className="max-h-[300px] overflow-y-auto">
+                    <div className="max-h-[600px] overflow-y-auto">
                         <table className="min-w-full bg-white">
                             <tbody>
                                 {loadingParts && !selectedService ? (

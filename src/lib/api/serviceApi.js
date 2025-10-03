@@ -27,6 +27,14 @@ const normalizeParts = (arr) =>
         label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
     }));
 
+const normalizeServiceOptions = (arr) =>
+    (arr || []).map((s) => ({
+        id: s.id,
+        name: s.name,
+        label: s.name,   // good for <select> dropdowns
+        value: s.id,     // standard value field
+    }));
+
 // --- API ---
 const ServiceApi = {
     /** List all services (ids only for parts + count) */
@@ -132,14 +140,23 @@ const ServiceApi = {
         }
     },
 
-    /** Options (id+name only) */
+    /** Options (id+name only, for dropdowns) */
     getServiceOptions: async ({ enabled, format = "list" } = {}) => {
         const params = {};
         if (enabled !== undefined) params.enabled = String(enabled);
         if (format) params.format = format;
         try {
             const { data } = await axiosInstance.get("/service/options", { params });
-            return { success: data.success, options: normalizeServices(data.data) };
+
+            // backend already returns {id, name}, normalize for dropdowns
+            const options = (data.data || []).map((s) => ({
+                id: s.id,
+                name: s.name,
+                label: s.name, // for react-select or HTML option
+                value: s.id,   // for controlled select components
+            }));
+
+            return { success: data.success, options };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }

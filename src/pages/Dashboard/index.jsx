@@ -1,7 +1,7 @@
 // src/pages/Dashboard/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
-import useServices from "../../hooks/useServices.js";
+import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useUsers from "../../hooks/useUsers.js";
 
 import BookingsTable from "./bookingsTable.jsx";
@@ -56,8 +56,12 @@ export default function Dashboard({ user }) {
         }));
     };
 
-    const { list: serviceOptions, map: serviceMap, loading: loadingServices, error: servicesError } =
-        useServices({ enabled: true, useSessionCache: true });
+    // ✅ New hook for service options
+    const {
+        list: serviceOptions,
+        loading: loadingServices,
+        error: servicesError,
+    } = useServiceOptions({ useSessionCache: true });
 
     const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
         useUsers({ useSessionCache: true });
@@ -108,7 +112,7 @@ export default function Dashboard({ user }) {
         setPage(1);
     };
 
-    // ---------- Dummy stats placeholder ----------
+    // ---------- Stats ----------
     const [bookingStats, setBookingStats] = useState({
         total: bookings?.length || 0,
         completed: 0,
@@ -143,6 +147,7 @@ export default function Dashboard({ user }) {
                 <StatCard title="Arrived" value={bookingStats.arrived || 0} />
                 <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
             </div>
+
             <DashboardCharts />
 
             {/* Filters */}
@@ -192,8 +197,8 @@ export default function Dashboard({ user }) {
                             </option>
                         ) : (
                             serviceOptions.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                    {s.name}
+                                <option key={s.value} value={s.value}>
+                                    {s.label}
                                 </option>
                             ))
                         )}
@@ -281,7 +286,10 @@ export default function Dashboard({ user }) {
             {params && (
                 <ParamsSummary
                     params={params}
-                    serviceMap={serviceMap}
+                    serviceMap={serviceOptions.reduce((acc, s) => {
+                        acc[s.value] = s.label;
+                        return acc;
+                    }, {})}
                     userMap={userMap}
                 />
             )}
@@ -294,7 +302,10 @@ export default function Dashboard({ user }) {
                     <button
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
-                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                        className={`px-3 py-1 rounded ${hasPrevPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Prev
                     </button>
@@ -304,7 +315,10 @@ export default function Dashboard({ user }) {
                     <button
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
-                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                        className={`px-3 py-1 rounded ${hasNextPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Next
                     </button>
