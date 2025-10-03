@@ -1,12 +1,12 @@
 // src/pages/Dashboard/Dashboard.jsx
 import React, { useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
-import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useUsers from "../../hooks/useUsers.js";
+import useServiceOptions from "../../hooks/useServiceOptions.js";
 
 import BookingsTable from "./bookingsTable.jsx";
-import StatCard from "../../components/StatCard.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
+import StatCard from "../../components/StatCard.jsx";
 import DashboardCharts from "../../components/DashboardCharts.jsx";
 
 const ALLOWED_STATUSES = [
@@ -148,7 +148,9 @@ export default function Dashboard({ user }) {
                 <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
             </div>
 
-            <DashboardCharts />
+            <div className="mb-6">
+                <DashboardCharts />
+            </div>
 
             {/* Filters */}
             <div className="mb-3 space-y-3">
@@ -303,8 +305,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -316,8 +318,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next

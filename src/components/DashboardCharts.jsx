@@ -1,5 +1,5 @@
 // src/components/DashboardCharts.jsx
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import {
     Chart as ChartJS,
@@ -12,7 +12,7 @@ import {
     Tooltip,
     Legend,
 } from "chart.js";
-import { getDashboardCharts } from "../lib/api/statsApi.js";
+import useDashboardStats from "../hooks/useDashboardStats.js";
 
 ChartJS.register(
     CategoryScale,
@@ -29,30 +29,13 @@ const INTERVALS = ["daily", "weekly", "monthly", "yearly"];
 
 export default function DashboardCharts() {
     const [selectedInterval, setSelectedInterval] = useState("monthly");
-    const [serviceMode, setServiceMode] = useState("snapshot"); // 🔹 NEW toggle
-    const [loading, setLoading] = useState(true);
-    const [revenue, setRevenue] = useState({});
-    const [serviceTrends, setServiceTrends] = useState({});
 
-    useEffect(() => {
-        (async () => {
-            setLoading(true);
-            try {
-                const data = await getDashboardCharts();
-                setRevenue(data.revenue || {});
-                setServiceTrends(data.serviceTrends || {});
-            } catch (err) {
-                console.error("Failed to fetch dashboard charts:", err);
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, []);
+    const { revenue, serviceTrends, loading, error } = useDashboardStats();
 
     // ---------- Revenue Chart ----------
     const revenueData = useMemo(() => {
         const data = revenue[selectedInterval] || [];
-        if (!data.length) return { labels: [], datasets: [] };
+        if (!data || !data.length) return { labels: [], datasets: [] };
 
         if (selectedInterval === "monthly" && Array.isArray(data)) {
             return {
@@ -62,11 +45,11 @@ export default function DashboardCharts() {
                 datasets: [
                     {
                         label: "Revenue (£)",
-                        data: data,
-                        fill: true,
-                        backgroundColor: "rgba(59, 130, 246, 0.1)",
+                        data,
                         borderColor: "rgba(59, 130, 246, 1)",
+                        backgroundColor: "rgba(59, 130, 246, 0.1)",
                         tension: 0.4,
+                        fill: true,
                         pointRadius: 4,
                         pointHoverRadius: 6,
                     },
@@ -80,10 +63,10 @@ export default function DashboardCharts() {
                 {
                     label: "Revenue (£)",
                     data: data.map((d) => d.totalRevenue || 0),
-                    fill: true,
-                    backgroundColor: "rgba(59, 130, 246, 0.1)",
                     borderColor: "rgba(59, 130, 246, 1)",
+                    backgroundColor: "rgba(59, 130, 246, 0.1)",
                     tension: 0.4,
+                    fill: true,
                     pointRadius: 4,
                     pointHoverRadius: 6,
                 },
@@ -96,9 +79,7 @@ export default function DashboardCharts() {
         maintainAspectRatio: false,
         plugins: {
             legend: { position: "top" },
-            tooltip: {
-                callbacks: { label: (ctx) => `£${ctx.raw.toLocaleString()}` },
-            },
+            tooltip: { callbacks: { label: (ctx) => `£${ctx.raw.toLocaleString()}` } },
         },
         scales: {
             y: { beginAtZero: true, ticks: { callback: (v) => `£${v}` } },
@@ -106,71 +87,43 @@ export default function DashboardCharts() {
         },
     };
 
-    // ---------- Service Trends Chart ----------
+    // ---------- Service Trends (Interval only) ----------
     const serviceTrendsData = useMemo(() => {
-        if (serviceMode === "snapshot") {
-            // ✅ Snapshot mode: aggregate counts per service
-            const data = serviceTrends[selectedInterval] || [];
-            if (!data.length) return { labels: [], datasets: [] };
+        const data = serviceTrends[selectedInterval] || [];
+        if (!data || !data.length) return { labels: [], datasets: [] };
 
-            const serviceCounts = {};
-            data.forEach((item) => {
-                serviceCounts[item.service] =
-                    (serviceCounts[item.service] || 0) + item.count;
-            });
+        const labels = [...new Set(data.map((d) => d.period))];
+        const services = [...new Set(data.map((d) => d.service))];
+        const colors = [
+            "rgba(99, 102, 241, 0.8)",
+            "rgba(16, 185, 129, 0.8)",
+            "rgba(251, 191, 36, 0.8)",
+            "rgba(239, 68, 68, 0.8)",
+            "rgba(14, 165, 233, 0.8)",
+            "rgba(168, 85, 247, 0.8)",
+        ];
 
-            return {
-                labels: Object.keys(serviceCounts),
-                datasets: [
-                    {
-                        label: "Count",
-                        data: Object.values(serviceCounts),
-                        backgroundColor: "rgba(59, 130, 246, 0.9)",
-                        borderRadius: 6,
-                        barThickness: 40,
-                    },
-                ],
-            };
-        } else {
-            // ✅ Interval mode (your existing grouped dataset view)
-            const data = serviceTrends[selectedInterval] || [];
-            if (!data.length) return { labels: [], datasets: [] };
+        const mapData = {};
+        labels.forEach((l) => (mapData[l] = {}));
+        data.forEach((d) => {
+            mapData[d.period][d.service] = d.count;
+        });
 
-            const labels = [...new Set(data.map((d) => d.period))];
-            const allServices = [...new Set(data.map((d) => d.service))];
-            const colors = [
-                "rgba(99, 102, 241, 0.8)",
-                "rgba(16, 185, 129, 0.8)",
-                "rgba(251, 191, 36, 0.8)",
-                "rgba(239, 68, 68, 0.8)",
-                "rgba(14, 165, 233, 0.8)",
-                "rgba(168, 85, 247, 0.8)",
-            ];
+        const datasets = services.map((s, idx) => ({
+            label: s,
+            data: labels.map((l) => mapData[l][s] || 0),
+            backgroundColor: colors[idx % colors.length],
+            borderRadius: 6,
+        }));
 
-            const mapData = {};
-            labels.forEach((label) => (mapData[label] = {}));
-            data.forEach((item) => {
-                if (!mapData[item.period]) mapData[item.period] = {};
-                mapData[item.period][item.service] = item.count;
-            });
-
-            const datasets = allServices.map((service, idx) => ({
-                label: service,
-                data: labels.map((l) => mapData[l][service] || 0),
-                backgroundColor: colors[idx % colors.length],
-                borderRadius: 6,
-                barThickness: 20,
-            }));
-
-            return { labels, datasets };
-        }
-    }, [serviceTrends, selectedInterval, serviceMode]);
+        return { labels, datasets };
+    }, [serviceTrends, selectedInterval]);
 
     const serviceTrendsOptions = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: serviceMode === "snapshot" ? "none" : "top" },
+            legend: { position: "top" },
             tooltip: { mode: "index", intersect: false },
         },
         scales: {
@@ -188,8 +141,8 @@ export default function DashboardCharts() {
                         key={i}
                         onClick={() => setSelectedInterval(i)}
                         className={`px-4 py-2 rounded font-medium transition ${selectedInterval === i
-                                ? "bg-indigo-600 text-white shadow"
-                                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                            ? "bg-indigo-600 text-white shadow"
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                             }`}
                     >
                         {i.charAt(0).toUpperCase() + i.slice(1)}
@@ -206,38 +159,22 @@ export default function DashboardCharts() {
                     </h2>
                     {loading ? (
                         <p className="text-gray-500">Loading...</p>
+                    ) : error ? (
+                        <p className="text-red-500">{error}</p>
                     ) : (
                         <Line data={revenueData} options={revenueOptions} />
                     )}
                 </div>
 
-                {/* Service Trends */}
+                {/* Service Trends (Interval Only) */}
                 <div className="bg-white border rounded-lg shadow p-4 h-80">
-                    <div className="flex justify-between items-center mb-3">
-                        <h2 className="text-lg font-semibold">Service Trends</h2>
-                        <div className="space-x-2">
-                            <button
-                                onClick={() => setServiceMode("snapshot")}
-                                className={`px-3 py-1 rounded ${serviceMode === "snapshot"
-                                        ? "bg-blue-600 text-white"
-                                        : "bg-gray-200 text-gray-700"
-                                    }`}
-                            >
-                                Snapshot
-                            </button>
-                            <button
-                                onClick={() => setServiceMode("interval")}
-                                className={`px-3 py-1 rounded ${serviceMode === "interval"
-                                        ? "bg-blue-600 text-white"
-                                        : "bg-gray-200 text-gray-700"
-                                    }`}
-                            >
-                                Interval
-                            </button>
-                        </div>
-                    </div>
+                    <h2 className="text-lg font-semibold mb-3">
+                        Service Trends ({selectedInterval})
+                    </h2>
                     {loading ? (
                         <p className="text-gray-500">Loading...</p>
+                    ) : error ? (
+                        <p className="text-red-500">{error}</p>
                     ) : (
                         <Bar data={serviceTrendsData} options={serviceTrendsOptions} />
                     )}
