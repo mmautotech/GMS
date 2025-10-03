@@ -1,6 +1,9 @@
 // src/hooks/useBookings.js
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
+
+const MEMO_CACHE = {}; // { [key]: { items, totalPages, totalItems, hasNextPage, hasPrevPage, at } }
+const TTL_MS = 2 * 1000; // 1 minute TTL
 
 export default function useBookings({
     status,
@@ -8,7 +11,7 @@ export default function useBookings({
     toDate,
     search = "",
     services,
-    user,                    // ✅ added user filter
+    user,
     initialPage = 1,
     pageSize = 25,
     sortBy = "createdDate",
@@ -28,10 +31,46 @@ export default function useBookings({
     const [activeParams, setActiveParams] = useState(null);
     const [meta, setMeta] = useState(null);
 
+    const mounted = useRef(true);
+
+    useEffect(() => {
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
+
     // --- Fetch bookings ---
     const fetchBookings = useCallback(async () => {
         setLoadingList(true);
         setError("");
+
+        // Generate a cache key based on current filters & pagination
+        const cacheKey = JSON.stringify({
+            page,
+            pageSize,
+            sortBy,
+            sortDir,
+            status,
+            fromDate,
+            toDate,
+            search,
+            services,
+            user,
+        });
+
+        const cached = MEMO_CACHE[cacheKey];
+        if (cached && Date.now() - cached.at < TTL_MS) {
+            setItems(cached.items || []);
+            setTotalPages(cached.totalPages || 1);
+            setTotalItems(cached.totalItems || 0);
+            setHasNextPage(cached.hasNextPage || false);
+            setHasPrevPage(cached.hasPrevPage || false);
+            setActiveParams(cached.params || null);
+            setMeta(cached.meta || null);
+            setLoadingList(false);
+            return;
+        }
+
         try {
             const res = await BookingApi.getBookings({
                 page,
@@ -43,8 +82,10 @@ export default function useBookings({
                 toDate,
                 search,
                 services,
-                user,           // ✅ include user filter
+                user,
             });
+
+            if (!mounted.current) return;
 
             if (res.ok) {
                 const normalizedItems = (res.items || []).map((b) => ({
@@ -60,13 +101,25 @@ export default function useBookings({
                 setHasPrevPage(res.pagination?.hasPrevPage ?? false);
                 setActiveParams(res.params || null);
                 setMeta(res.meta || null);
+
+                MEMO_CACHE[cacheKey] = {
+                    items: normalizedItems,
+                    totalPages: res.pagination?.totalPages ?? 1,
+                    totalItems: res.pagination?.total ?? 0,
+                    hasNextPage: res.pagination?.hasNextPage ?? false,
+                    hasPrevPage: res.pagination?.hasPrevPage ?? false,
+                    params: res.params || null,
+                    meta: res.meta || null,
+                    at: Date.now(),
+                };
             } else {
                 setError(res.error || "Failed to fetch bookings");
             }
         } catch (err) {
+            if (!mounted.current) return;
             setError(err?.message || "Failed to fetch bookings");
         } finally {
-            setLoadingList(false);
+            if (mounted.current) setLoadingList(false);
         }
     }, [
         page,
@@ -78,11 +131,20 @@ export default function useBookings({
         toDate,
         search,
         services,
-        user,       // ✅ re-fetch when user changes
+        user,
     ]);
 
+    // Auto-fetch when dependencies change
     useEffect(() => {
         fetchBookings();
+    }, [fetchBookings]);
+
+    // Auto-refresh every 1 minute
+    useEffect(() => {
+        const interval = setInterval(() => {
+            fetchBookings();
+        }, TTL_MS);
+        return () => clearInterval(interval);
     }, [fetchBookings]);
 
     // --- Create booking ---
@@ -184,22 +246,19 @@ export default function useBookings({
         return await BookingApi.exportBookings(activeParams);
     };
 
-    // --- Refresh wrapper ---
+    // --- Manual refresh ---
     const refresh = () => fetchBookings();
 
     return {
-        // data
         items,
         list: useMemo(() => items, [items]),
         setList: setItems,
 
-        // status
         loadingList,
         saving,
         error,
         setError,
 
-        // paging
         page,
         setPage,
         totalPages,
@@ -208,11 +267,9 @@ export default function useBookings({
         hasPrevPage,
         pageSize,
 
-        // server-echoed params & meta
         params: activeParams,
         meta,
 
-        // actions
         fetchBookings,
         refresh,
         create,

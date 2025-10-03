@@ -11,6 +11,18 @@ export default function useBookingDetails() {
     const [bookingPhotoUrl, setBookingPhotoUrl] = useState(null);
     const [upsellPhotoUrls, setUpsellPhotoUrls] = useState({});
 
+    const currentBookingId = useRef(null);
+    const mounted = useRef(true);
+
+    useEffect(() => {
+        return () => {
+            mounted.current = false;
+            // Cleanup object URLs
+            objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+            objectUrls.current = [];
+        };
+    }, []);
+
     const makeBlobUrl = (blob) => {
         const url = URL.createObjectURL(blob);
         objectUrls.current.push(url);
@@ -20,7 +32,7 @@ export default function useBookingDetails() {
     const fetchBookingPhoto = useCallback(async (bookingId) => {
         try {
             const res = await BookingApi.getBookingPhoto(bookingId, "original");
-            if (res.ok && res.blob) {
+            if (res.ok && res.blob && mounted.current) {
                 const url = makeBlobUrl(res.blob);
                 setBookingPhotoUrl(url);
                 return url;
@@ -34,7 +46,7 @@ export default function useBookingDetails() {
     const fetchUpsellPhoto = useCallback(async (bookingId, upsellId) => {
         try {
             const res = await UpsellApi.getUpsellPhoto(bookingId, upsellId, "original");
-            if (res) {
+            if (res && mounted.current) {
                 const blob = res instanceof Blob ? res : new Blob([res], { type: "image/png" });
                 const url = makeBlobUrl(blob);
                 setUpsellPhotoUrls((prev) => ({ ...prev, [upsellId]: url }));
@@ -47,6 +59,7 @@ export default function useBookingDetails() {
     }, []);
 
     const fetchDetails = useCallback(async (bookingId) => {
+        currentBookingId.current = bookingId;
         setLoading(true);
         setError("");
         try {
@@ -76,6 +89,8 @@ export default function useBookingDetails() {
                 upsells: prebooking.upsells || [],
             };
 
+            if (!mounted.current) return;
+
             setDetails(bookingDetails);
 
             if (bookingDetails.compressedPhoto) {
@@ -90,9 +105,10 @@ export default function useBookingDetails() {
 
             return bookingDetails;
         } catch (err) {
+            if (!mounted.current) return;
             setError(err.message || "Failed to fetch booking details");
         } finally {
-            setLoading(false);
+            if (mounted.current) setLoading(false);
         }
     }, [fetchBookingPhoto, fetchUpsellPhoto]);
 
@@ -102,6 +118,8 @@ export default function useBookingDetails() {
                 const res = await UpsellApi.addUpsell(bookingId, upsellData);
                 if (res && res.success) {
                     const newUpsell = res.upsell;
+                    if (!mounted.current) return null;
+
                     setDetails((prev) => ({
                         ...prev,
                         upsells: [...prev.upsells, newUpsell],
@@ -111,19 +129,26 @@ export default function useBookingDetails() {
                 }
             } catch (err) {
                 console.error("Failed to add upsell", err);
-                setError(err.message || "Failed to add upsell");
+                if (mounted.current) setError(err.message || "Failed to add upsell");
             }
             return null;
         },
         [fetchUpsellPhoto]
     );
 
+    // ===============================
+    // Auto-refresh every 1 minute
+    // ===============================
+    const refresh = useCallback(async () => {
+        if (currentBookingId.current) {
+            await fetchDetails(currentBookingId.current);
+        }
+    }, [fetchDetails]);
+
     useEffect(() => {
-        return () => {
-            objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
-            objectUrls.current = [];
-        };
-    }, []);
+        const interval = setInterval(refresh, 60000); // 1 minute
+        return () => clearInterval(interval);
+    }, [refresh]);
 
     return {
         details,
@@ -135,5 +160,6 @@ export default function useBookingDetails() {
         fetchBookingPhoto,
         fetchUpsellPhoto,
         addUpsell,
+        refresh, // expose manual refresh
     };
 }
