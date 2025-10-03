@@ -29,16 +29,14 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    id: null,
-                    params: null,
-                    pagination: null,
-                    data: null,
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                id: null,
+                params: null,
+                pagination: null,
+                data: null,
+            };
         }
     },
 
@@ -46,20 +44,42 @@ const PurchaseInvoiceApi = {
     getInvoices: async (params = {}) => {
         try {
             const normalized = normalizeParams(params);
-            const { data } = await axiosInstance.get("/purchase-invoices", {
-                params: normalized,
-            });
+            const { data } = await axiosInstance.get("/purchase-invoices", { params: normalized });
             return data; // { success, params, pagination, data }
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    params,
-                    pagination: null,
-                    data: [],
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                params,
+                pagination: null,
+                data: [],
+            };
+        }
+    },
+
+    // Get invoices by booking ID (dashboard)
+    getInvoicesByBookingId: async (bookingId) => {
+        try {
+            const { data } = await axiosInstance.get(`/purchase-invoices/booking/${bookingId}`);
+
+            // Normalize items: add partName and partNumber
+            const normalizedInvoices = data.map((inv) => ({
+                ...inv,
+                items: inv.items.map((item) => ({
+                    ...item,
+                    partName: item.part?.partName || "Unknown Part",
+                    partNumber: item.part?.partNumber || "",
+                })),
+            }));
+
+            return normalizedInvoices;
+        } catch (err) {
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                bookingId,
+                data: [],
+            };
         }
     },
 
@@ -67,31 +87,36 @@ const PurchaseInvoiceApi = {
     getInvoiceById: async (id) => {
         try {
             const { data } = await axiosInstance.get(`/purchase-invoices/${id}`);
+            const invoice = data?.data?.[0] || null;
+
+            if (invoice) {
+                invoice.items = invoice.items.map((item) => ({
+                    ...item,
+                    partName: item.part?.partName || "Unknown Part",
+                    partNumber: item.part?.partNumber || "",
+                }));
+            }
+
             return {
                 ...data,
-                invoice: data?.data?.[0] || null,
+                invoice,
             };
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    params: { id },
-                    pagination: null,
-                    data: [],
-                    invoice: null,
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                params: { id },
+                pagination: null,
+                data: [],
+                invoice: null,
+            };
         }
     },
 
     // Update only status
     updateInvoiceStatus: async (id, payload) => {
         try {
-            const { data } = await axiosInstance.patch(
-                `/purchase-invoices/${id}/status`,
-                payload
-            );
+            const { data } = await axiosInstance.patch(`/purchase-invoices/${id}/status`, payload);
             return {
                 success: data.success,
                 message: data.message || "Invoice status updated",
@@ -101,26 +126,21 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    id,
-                    params: { id },
-                    pagination: null,
-                    data: null,
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                id,
+                params: { id },
+                pagination: null,
+                data: null,
+            };
         }
     },
 
-    // 🔄 Update invoice (now ANY user can update, not just admin)
+    // Full update
     updateInvoice: async (id, payload) => {
         try {
-            const { data } = await axiosInstance.put(
-                `/purchase-invoices/${id}`,
-                payload
-            );
+            const { data } = await axiosInstance.put(`/purchase-invoices/${id}`, payload);
             return {
                 success: data.success,
                 message: data.message || "Purchase invoice updated successfully",
@@ -130,16 +150,14 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    id,
-                    params: { id },
-                    pagination: null,
-                    data: null,
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                id,
+                params: { id },
+                pagination: null,
+                data: null,
+            };
         }
     },
 
@@ -156,16 +174,14 @@ const PurchaseInvoiceApi = {
                 data: null,
             };
         } catch (err) {
-            return (
-                err.response?.data || {
-                    success: false,
-                    error: err.message,
-                    id,
-                    params: { id },
-                    pagination: null,
-                    data: null,
-                }
-            );
+            return err.response?.data || {
+                success: false,
+                error: err.message,
+                id,
+                params: { id },
+                pagination: null,
+                data: null,
+            };
         }
     },
 };

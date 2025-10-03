@@ -1,5 +1,5 @@
 // src/pages/Dashboard/Dashboard.jsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import useServices from "../../hooks/useServices.js";
 import useUsers from "../../hooks/useUsers.js";
@@ -7,31 +7,7 @@ import useUsers from "../../hooks/useUsers.js";
 import BookingsTable from "./bookingsTable.jsx";
 import StatCard from "../../components/StatCard.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
-
-import { Line, Bar } from "react-chartjs-2";
-import {
-    Chart as ChartJS,
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend,
-} from "chart.js";
-import { getDashboardCharts } from "../../lib/api/statsApi.js";
-
-ChartJS.register(
-    CategoryScale,
-    LinearScale,
-    PointElement,
-    LineElement,
-    BarElement,
-    Title,
-    Tooltip,
-    Legend
-);
+import DashboardCharts from "../../components/DashboardCharts.jsx";
 
 const ALLOWED_STATUSES = [
     { label: "PENDING", value: "pending" },
@@ -53,22 +29,9 @@ const SORT_OPTIONS = [
 ];
 
 const LIMIT_OPTIONS = [5, 25, 50, 100];
+
 const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
-
-const INTERVALS = ["daily", "weekly", "monthly", "yearly"];
-
-// helper to get ISO week string YYYY-WW
-function getISOWeekString(d) {
-    const date = new Date(d);
-    const target = new Date(date.valueOf());
-    const dayNr = (date.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const firstThursday = new Date(target.getFullYear(), 0, 4);
-    const diff = target - firstThursday;
-    const week = 1 + Math.round(diff / (7 * 24 * 3600 * 1000));
-    return `${target.getFullYear()}-W${week.toString().padStart(2, "0")}`;
-}
 
 export default function Dashboard({ user }) {
     const [draft, setDraft] = useState({
@@ -145,102 +108,27 @@ export default function Dashboard({ user }) {
         setPage(1);
     };
 
-    const [revenue, setRevenue] = useState({ daily: [], weekly: [], monthly: Array(12).fill(0), yearly: [] });
-    const [serviceTrends, setServiceTrends] = useState({ daily: [], weekly: [], monthly: [], yearly: [] });
-    const [bookingStats, setBookingStats] = useState({ total: 0, completed: 0, pending: 0, arrived: 0, cancelled: 0 });
-    const [loadingCharts, setLoadingCharts] = useState(true);
-    const [selectedInterval, setSelectedInterval] = useState("monthly");
+    // ---------- Dummy stats placeholder ----------
+    const [bookingStats, setBookingStats] = useState({
+        total: bookings?.length || 0,
+        completed: 0,
+        pending: 0,
+        arrived: 0,
+        cancelled: 0,
+    });
 
     useEffect(() => {
-        (async () => {
-            try {
-                const data = await getDashboardCharts();
-                setRevenue(data.revenue || {});
-                setServiceTrends(data.serviceTrends || {});
-                setBookingStats(data.bookings || {});
-            } catch (err) {
-                console.error("Failed to fetch dashboard charts:", err);
-            } finally {
-                setLoadingCharts(false);
-            }
-        })();
-    }, []);
+        const stats = { total: 0, completed: 0, pending: 0, arrived: 0, cancelled: 0 };
+        bookings?.forEach((b) => {
+            stats.total += 1;
+            if (b.status === "completed") stats.completed += 1;
+            else if (b.status === "pending") stats.pending += 1;
+            else if (b.status === "arrived") stats.arrived += 1;
+            else if (b.status === "cancelled") stats.cancelled += 1;
+        });
+        setBookingStats(stats);
+    }, [bookings]);
 
-    // ---------- Chart Data ----------
-    const revenueData = useMemo(() => {
-        const data = revenue[selectedInterval] || [];
-
-        if (selectedInterval === "daily") {
-            const labels = Array.from({ length: 30 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().split("T")[0];
-            });
-            const mapData = data.reduce((acc, r) => {
-                acc[r._id] = r.totalRevenue || 0;
-                return acc;
-            }, {});
-            const values = labels.map((l) => mapData[l] || 0);
-            return { labels, datasets: [{ label: "Revenue", data: values, borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
-        }
-
-        if (selectedInterval === "weekly") {
-            const labels = Array.from({ length: 12 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - 7 * (11 - i));
-                return getISOWeekString(d);
-            });
-            const mapData = data.reduce((acc, r) => {
-                const weekLabel = `${r._id.year}-W${r._id.isoWeek.toString().padStart(2, "0")}`;
-                acc[weekLabel] = r.totalRevenue || 0;
-                return acc;
-            }, {});
-            const values = labels.map((l) => mapData[l] || 0);
-            return { labels, datasets: [{ label: "Revenue", data: values, borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
-        }
-
-        return { labels: data.map((r) => r._id || r), datasets: [{ label: "Revenue", data: data.map((r) => r.totalRevenue || r), borderColor: "blue", backgroundColor: "rgba(0,0,255,0.1)", tension: 0.3 }] };
-    }, [revenue, selectedInterval]);
-
-    const serviceTrendsData = useMemo(() => {
-        const data = serviceTrends[selectedInterval] || [];
-
-        if (selectedInterval === "daily") {
-            const labels = Array.from({ length: 30 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().split("T")[0];
-            });
-
-            const serviceMap = {};
-            labels.forEach((label) => { serviceMap[label] = {}; });
-            data.forEach((item) => { serviceMap[item.period][item.service] = item.count; });
-
-            const allServices = [...new Set(data.map((d) => d.service))];
-            const datasets = allServices.map((s) => ({ label: s, data: labels.map((l) => serviceMap[l][s] || 0), backgroundColor: "blue" }));
-            return { labels, datasets };
-        }
-
-        if (selectedInterval === "weekly") {
-            const labels = Array.from({ length: 12 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - 7 * (11 - i));
-                return getISOWeekString(d);
-            });
-
-            const serviceMap = {};
-            labels.forEach((label) => { serviceMap[label] = {}; });
-            data.forEach((item) => { serviceMap[item.period][item.service] = item.count; });
-
-            const allServices = [...new Set(data.map((d) => d.service))];
-            const datasets = allServices.map((s) => ({ label: s, data: labels.map((l) => serviceMap[l][s] || 0), backgroundColor: "blue" }));
-            return { labels, datasets };
-        }
-
-        return { labels: data.map((s) => s.period || s._id), datasets: [{ label: "Services", data: data.map((s) => s.count), backgroundColor: "blue" }] };
-    }, [serviceTrends, selectedInterval]);
-
-    // ---------- Render ----------
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">
             <h1 className="text-2xl font-bold mb-4 text-blue-900">
@@ -255,36 +143,10 @@ export default function Dashboard({ user }) {
                 <StatCard title="Arrived" value={bookingStats.arrived || 0} />
                 <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
             </div>
-
-            {/* Interval Toggle */}
-            <div className="flex gap-2 mb-4">
-                {INTERVALS.map((i) => (
-                    <button
-                        key={i}
-                        onClick={() => setSelectedInterval(i)}
-                        className={`px-3 py-1 rounded ${selectedInterval === i ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-800"
-                            }`}
-                    >
-                        {i.charAt(0).toUpperCase() + i.slice(1)}
-                    </button>
-                ))}
-            </div>
-
-            {/* Charts */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
-                <div className="border p-4 rounded h-64">
-                    <h2 className="font-semibold mb-2">{selectedInterval.charAt(0).toUpperCase() + selectedInterval.slice(1)} Revenue</h2>
-                    {loadingCharts ? <p>Loading...</p> : <Line data={revenueData} options={{ responsive: true, maintainAspectRatio: false }} />}
-                </div>
-                <div className="border p-4 rounded h-64">
-                    <h2 className="font-semibold mb-2">{selectedInterval.charAt(0).toUpperCase() + selectedInterval.slice(1)} Service Trends</h2>
-                    {loadingCharts ? <p>Loading...</p> : <Bar data={serviceTrendsData} options={{ responsive: true, maintainAspectRatio: false }} />}
-                </div>
-            </div>
+            <DashboardCharts />
 
             {/* Filters */}
             <div className="mb-3 space-y-3">
-                {/* Row 1 */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <input
                         type="text"
@@ -338,9 +200,7 @@ export default function Dashboard({ user }) {
                     </select>
                 </div>
 
-                {/* Row 2 */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                    {/* Sorting Controls */}
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 flex-1">
                         <select
                             value={draft.user}
@@ -374,7 +234,6 @@ export default function Dashboard({ user }) {
                                 </option>
                             ))}
                         </select>
-
                         <select
                             value={draft.sortDir}
                             onChange={(e) => setDraft((d) => ({ ...d, sortDir: e.target.value }))}
@@ -383,7 +242,6 @@ export default function Dashboard({ user }) {
                             <option value="asc">Ascending</option>
                             <option value="desc">Descending</option>
                         </select>
-
                         <select
                             value={draft.limit}
                             onChange={(e) => setDraft((d) => ({ ...d, limit: Number(e.target.value) }))}
@@ -397,7 +255,6 @@ export default function Dashboard({ user }) {
                         </select>
                     </div>
 
-                    {/* Action Buttons - always on right side */}
                     <div className="flex gap-2 md:ml-4">
                         <button
                             onClick={applyFilters}
@@ -421,27 +278,23 @@ export default function Dashboard({ user }) {
                 </div>
             </div>
 
-            {/* Echo of applied params */}
             {params && (
                 <ParamsSummary
                     params={params}
                     serviceMap={serviceMap}
-                    userMap={userMap}   // ✅ added
+                    userMap={userMap}
                 />
             )}
 
-            {/* Bookings Table */}
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
-            {/* Pagination Footer */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
                     <button
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
-                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            }`}
+                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                     >
                         Prev
                     </button>
@@ -451,8 +304,7 @@ export default function Dashboard({ user }) {
                     <button
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
-                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            }`}
+                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                     >
                         Next
                     </button>

@@ -1,5 +1,6 @@
 // src/pages/Login.jsx
 import React, { useState } from "react";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function Login({ onLogin, onRegister, onForgotPassword }) {
     const [mode, setMode] = useState("login"); // "login" | "register" | "forgot"
@@ -8,6 +9,7 @@ export default function Login({ onLogin, onRegister, onForgotPassword }) {
     const [email, setEmail] = useState("");
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
 
     async function handleSubmit(e) {
         e.preventDefault();
@@ -67,15 +69,22 @@ export default function Login({ onLogin, onRegister, onForgotPassword }) {
                     )}
 
                     {(mode === "login" || mode === "register") && (
-                        <div>
+                        <div className="relative">
                             <label className="block text-sm mb-1">Password</label>
                             <input
-                                type="password"
-                                className="w-full border rounded px-3 py-2"
+                                type={showPassword ? "text" : "password"}
+                                className="w-full border rounded px-3 py-2 pr-10"
                                 placeholder="••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                             />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword((prev) => !prev)}
+                                className="absolute inset-y-0 right-2 top-7 flex items-center px-1 text-gray-600"
+                            >
+                                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                            </button>
                         </div>
                     )}
 
@@ -101,11 +110,6 @@ export default function Login({ onLogin, onRegister, onForgotPassword }) {
                 </form>
 
                 <div className="mt-6 text-center text-sm text-gray-600 space-y-2">
-                    {mode === "login" && (
-                        <>
-
-                        </>
-                    )}
                     {mode !== "login" && (
                         <p>
                             <button

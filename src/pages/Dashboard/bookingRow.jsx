@@ -1,7 +1,7 @@
 import React, { useMemo, forwardRef, useState } from "react";
 import StatusBadge from "./StatusBadge.jsx";
 import ServicesCell from "./ServicesCell.jsx";
-import BookingDetailsExpandedRow from "./BookingDetailsExpandedRow.jsx";
+import BookingDetailsModal from "./BookingDetailsModal.jsx";
 import useBookingDetails from "../../hooks/useBookingDetails.js";
 
 // Format date consistently
@@ -23,7 +23,7 @@ const fmtGBP = (val) =>
 const safe = (s) => (s ? String(s) : "—");
 
 const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
-    const [isExpanded, setIsExpanded] = useState(false);
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalPhotoUrl, setModalPhotoUrl] = useState(null);
 
     const { details, loading, error, fetchDetails, bookingPhotoUrl, upsellPhotoUrls } =
@@ -56,9 +56,11 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
     })();
 
     const handleDoubleClick = async () => {
-        setIsExpanded((prev) => !prev);
+        setIsModalOpen(true);
         if (!details) await fetchDetails(booking._id);
     };
+
+    const closeModal = () => setIsModalOpen(false);
 
     const openPhotoModal = (url) => setModalPhotoUrl(url);
     const closePhotoModal = () => setModalPhotoUrl(null);
@@ -77,8 +79,7 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
             {/* Main booking row */}
             <tr
                 ref={ref}
-                className={`cursor-pointer outline-none ${isExpanded ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
-                    }`}
+                className="cursor-pointer hover:bg-gray-50"
                 role="row"
                 tabIndex={-1}
                 onDoubleClick={handleDoubleClick}
@@ -129,9 +130,9 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
                 </td>
             </tr>
 
-            {/* Expanded booking details */}
-            {isExpanded && (
-                <BookingDetailsExpandedRow
+            {/* Modal with booking details */}
+            {isModalOpen && (
+                <BookingDetailsModal
                     details={details || booking}
                     loading={loading}
                     error={error}
@@ -139,10 +140,11 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
                     upsellPhotoUrls={upsellPhotoUrls}
                     handleBookingThumbnailClick={handleBookingThumbnailClick}
                     handleUpsellThumbnailClick={handleUpsellThumbnailClick}
+                    onClose={closeModal}
                 />
             )}
 
-            {/* Photo modal */}
+            {/* Photo preview modal */}
             {modalPhotoUrl && (
                 <div
                     className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
