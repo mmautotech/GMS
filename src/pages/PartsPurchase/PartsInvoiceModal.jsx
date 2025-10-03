@@ -12,9 +12,9 @@ import { Input } from "../../ui/input";
 import { Label } from "../../ui/label";
 
 import { useSuppliers } from "../../hooks/useSuppliers.js";
-import { useParts } from "../../hooks/useParts.js";
 import { useBookingMap } from "../../hooks/useBookingMap.js";
 import { usePurchaseInvoice } from "../../hooks/usePurchaseInvoice.js";
+import useBookingParts from "../../hooks/useBookingParts.js"; // ✅ switched
 
 const currencyFmt = new Intl.NumberFormat("en-GB", {
     style: "currency",
@@ -46,8 +46,10 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
 
     const [formData, setFormData] = useState(defaultForm);
 
-    // fetch parts only when booking is selected
-    const { parts, loading: partsLoading } = useParts({}, formData.booking);
+    // ✅ Fetch parts by booking (only when booking selected)
+    const { parts, loading: partsLoading } = useBookingParts(formData.booking, {
+        enabled: !!formData.booking,
+    });
 
     const [visible, setVisible] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -109,6 +111,19 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
             initialReadyRef.current = true;
         }
     }, [isOpen, bootReady]);
+
+    // ✅ Reset invalid parts when booking changes
+    useEffect(() => {
+        if (formData.booking && !partsLoading) {
+            setFormData((prev) => ({
+                ...prev,
+                items: prev.items.map((i) => ({
+                    ...i,
+                    part: parts.some((p) => p._id === i.part) ? i.part : "",
+                })),
+            }));
+        }
+    }, [formData.booking, partsLoading, parts]);
 
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -178,7 +193,7 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
         (sum, i) => sum + (Number(i.rate) || 0) * (Number(i.quantity) || 0),
         0
     );
-    const discounted = localTotal - (Number(formData.discount) || 0);
+    const discounted = Math.max(0, localTotal - (Number(formData.discount) || 0)); // ✅ prevent negative
     const finalTotal = formData.vatIncluded ? discounted * 1.2 : discounted;
 
     const showBootOverlay = isOpen && invoiceId && !initialReadyRef.current;
@@ -302,6 +317,12 @@ const PartsInvoiceModal = forwardRef(function PartsInvoiceModal(
                                                     disabled={!canSelectParts || partsLoading || showBootOverlay || saving}
                                                 >
                                                     <option value="">Select Part</option>
+                                                    {partsLoading && (
+                                                        <option disabled>Loading parts…</option>
+                                                    )}
+                                                    {!partsLoading && parts.length === 0 && (
+                                                        <option disabled>No parts available for this booking</option>
+                                                    )}
                                                     {parts.map((p) => (
                                                         <option key={p._id} value={p._id}>
                                                             {p.label}

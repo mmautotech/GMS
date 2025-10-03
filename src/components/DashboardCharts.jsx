@@ -27,20 +27,9 @@ ChartJS.register(
 
 const INTERVALS = ["daily", "weekly", "monthly", "yearly"];
 
-// Helper: ISO week string
-function getISOWeekString(d) {
-    const date = new Date(d);
-    const target = new Date(date.valueOf());
-    const dayNr = (date.getDay() + 6) % 7;
-    target.setDate(target.getDate() - dayNr + 3);
-    const firstThursday = new Date(target.getFullYear(), 0, 4);
-    const diff = target - firstThursday;
-    const week = 1 + Math.round(diff / (7 * 24 * 3600 * 1000));
-    return `${target.getFullYear()}-W${week.toString().padStart(2, "0")}`;
-}
-
 export default function DashboardCharts() {
     const [selectedInterval, setSelectedInterval] = useState("monthly");
+    const [serviceMode, setServiceMode] = useState("snapshot"); // 🔹 NEW toggle
     const [loading, setLoading] = useState(true);
     const [revenue, setRevenue] = useState({});
     const [serviceTrends, setServiceTrends] = useState({});
@@ -65,43 +54,32 @@ export default function DashboardCharts() {
         const data = revenue[selectedInterval] || [];
         if (!data.length) return { labels: [], datasets: [] };
 
-        let labels = [];
-        let values = [];
-
-        if (selectedInterval === "daily") {
-            labels = Array.from({ length: 30 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().split("T")[0];
-            });
-            const mapData = data.reduce((acc, r) => {
-                acc[r._id] = r.totalRevenue || 0;
-                return acc;
-            }, {});
-            values = labels.map((l) => mapData[l] || 0);
-        } else if (selectedInterval === "weekly") {
-            labels = Array.from({ length: 12 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - 7 * (11 - i));
-                return getISOWeekString(d);
-            });
-            const mapData = data.reduce((acc, r) => {
-                const weekLabel = `${r._id.year}-W${r._id.isoWeek.toString().padStart(2, "0")}`;
-                acc[weekLabel] = r.totalRevenue || 0;
-                return acc;
-            }, {});
-            values = labels.map((l) => mapData[l] || 0);
-        } else {
-            labels = data.map((r) => r._id || r);
-            values = data.map((r) => r.totalRevenue || r);
+        if (selectedInterval === "monthly" && Array.isArray(data)) {
+            return {
+                labels: Array.from({ length: 12 }, (_, i) =>
+                    `${new Date().getFullYear()}-${String(i + 1).padStart(2, "0")}`
+                ),
+                datasets: [
+                    {
+                        label: "Revenue (£)",
+                        data: data,
+                        fill: true,
+                        backgroundColor: "rgba(59, 130, 246, 0.1)",
+                        borderColor: "rgba(59, 130, 246, 1)",
+                        tension: 0.4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                    },
+                ],
+            };
         }
 
         return {
-            labels,
+            labels: data.map((d) => d._id || d.period),
             datasets: [
                 {
                     label: "Revenue (£)",
-                    data: values,
+                    data: data.map((d) => d.totalRevenue || 0),
                     fill: true,
                     backgroundColor: "rgba(59, 130, 246, 0.1)",
                     borderColor: "rgba(59, 130, 246, 1)",
@@ -117,99 +95,100 @@ export default function DashboardCharts() {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: "top", labels: { font: { size: 14 } } },
+            legend: { position: "top" },
             tooltip: {
-                callbacks: {
-                    label: (context) => `£${context.raw.toLocaleString()}`,
-                },
+                callbacks: { label: (ctx) => `£${ctx.raw.toLocaleString()}` },
             },
         },
         scales: {
-            y: { beginAtZero: true, ticks: { callback: (v) => `£${v}` }, grid: { color: "rgba(0,0,0,0.05)" } },
-            x: { grid: { color: "rgba(0,0,0,0.05)" } },
+            y: { beginAtZero: true, ticks: { callback: (v) => `£${v}` } },
+            x: { grid: { display: false } },
         },
     };
 
     // ---------- Service Trends Chart ----------
     const serviceTrendsData = useMemo(() => {
-        const data = serviceTrends[selectedInterval] || [];
-        if (!data.length) return { labels: [], datasets: [] };
+        if (serviceMode === "snapshot") {
+            // ✅ Snapshot mode: aggregate counts per service
+            const data = serviceTrends[selectedInterval] || [];
+            if (!data.length) return { labels: [], datasets: [] };
 
-        let labels = [];
-        if (selectedInterval === "daily") {
-            labels = Array.from({ length: 30 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - (29 - i));
-                return d.toISOString().split("T")[0];
+            const serviceCounts = {};
+            data.forEach((item) => {
+                serviceCounts[item.service] =
+                    (serviceCounts[item.service] || 0) + item.count;
             });
-        } else if (selectedInterval === "weekly") {
-            labels = Array.from({ length: 12 }, (_, i) => {
-                const d = new Date();
-                d.setDate(d.getDate() - 7 * (11 - i));
-                return getISOWeekString(d);
+
+            return {
+                labels: Object.keys(serviceCounts),
+                datasets: [
+                    {
+                        label: "Count",
+                        data: Object.values(serviceCounts),
+                        backgroundColor: "rgba(59, 130, 246, 0.9)",
+                        borderRadius: 6,
+                        barThickness: 40,
+                    },
+                ],
+            };
+        } else {
+            // ✅ Interval mode (your existing grouped dataset view)
+            const data = serviceTrends[selectedInterval] || [];
+            if (!data.length) return { labels: [], datasets: [] };
+
+            const labels = [...new Set(data.map((d) => d.period))];
+            const allServices = [...new Set(data.map((d) => d.service))];
+            const colors = [
+                "rgba(99, 102, 241, 0.8)",
+                "rgba(16, 185, 129, 0.8)",
+                "rgba(251, 191, 36, 0.8)",
+                "rgba(239, 68, 68, 0.8)",
+                "rgba(14, 165, 233, 0.8)",
+                "rgba(168, 85, 247, 0.8)",
+            ];
+
+            const mapData = {};
+            labels.forEach((label) => (mapData[label] = {}));
+            data.forEach((item) => {
+                if (!mapData[item.period]) mapData[item.period] = {};
+                mapData[item.period][item.service] = item.count;
             });
-        } else if (selectedInterval === "monthly") {
-            labels = Array.from({ length: 12 }, (_, i) => {
-                const m = new Date();
-                m.setMonth(i);
-                return `${m.getFullYear()}-${(m.getMonth() + 1).toString().padStart(2, "0")}`;
-            });
-        } else if (selectedInterval === "yearly") {
-            labels = [...new Set(data.map((d) => d.period || d._id))].sort();
+
+            const datasets = allServices.map((service, idx) => ({
+                label: service,
+                data: labels.map((l) => mapData[l][service] || 0),
+                backgroundColor: colors[idx % colors.length],
+                borderRadius: 6,
+                barThickness: 20,
+            }));
+
+            return { labels, datasets };
         }
-
-        const mapData = {};
-        labels.forEach((label) => (mapData[label] = {}));
-        data.forEach((item) => {
-            const period = item.period || item._id || "";
-            if (!mapData[period]) mapData[period] = {};
-            mapData[period][item.service] = item.count;
-        });
-
-        const allServices = [...new Set(data.map((d) => d.service))];
-        const colors = [
-            "rgba(99, 102, 241, 0.8)",
-            "rgba(16, 185, 129, 0.8)",
-            "rgba(251, 191, 36, 0.8)",
-            "rgba(239, 68, 68, 0.8)",
-            "rgba(14, 165, 233, 0.8)",
-            "rgba(168, 85, 247, 0.8)",
-        ];
-
-        const datasets = allServices.map((service, idx) => ({
-            label: service,
-            data: labels.map((l) => mapData[l][service] || 0),
-            backgroundColor: colors[idx % colors.length],
-            borderRadius: 6,
-            barThickness: 24,
-        }));
-
-        return { labels, datasets };
-    }, [serviceTrends, selectedInterval]);
+    }, [serviceTrends, selectedInterval, serviceMode]);
 
     const serviceTrendsOptions = {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: "top", labels: { font: { size: 14 } } },
+            legend: { position: serviceMode === "snapshot" ? "none" : "top" },
             tooltip: { mode: "index", intersect: false },
         },
         scales: {
-            y: { beginAtZero: true, grid: { color: "rgba(0,0,0,0.05)" } },
-            x: { grid: { color: "rgba(0,0,0,0.05)" } },
+            y: { beginAtZero: true },
+            x: { grid: { display: false } },
         },
     };
 
     return (
-        <div className="space-y-6">
+        <div>
             {/* Interval Toggle */}
-            <div className="flex gap-3 mb-4">
+            <div className="flex gap-2 mb-6">
                 {INTERVALS.map((i) => (
                     <button
                         key={i}
                         onClick={() => setSelectedInterval(i)}
-                        className={`px-4 py-2 rounded font-medium transition duration-200 ${selectedInterval === i
-                                ? "bg-indigo-600 text-white shadow-lg"
+                        className={`px-4 py-2 rounded font-medium transition ${selectedInterval === i
+                                ? "bg-indigo-600 text-white shadow"
                                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                             }`}
                     >
@@ -218,25 +197,49 @@ export default function DashboardCharts() {
                 ))}
             </div>
 
-            {/* Charts Grid */}
+            {/* Charts */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Revenue Chart */}
-                <div className="bg-white border rounded-lg shadow p-5 h-96 flex flex-col">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Revenue ({selectedInterval})</h3>
+                {/* Revenue */}
+                <div className="bg-white border rounded-lg shadow p-4 h-80">
+                    <h2 className="text-lg font-semibold mb-3">
+                        Revenue ({selectedInterval})
+                    </h2>
                     {loading ? (
-                        <p className="text-gray-500 text-center mt-auto">Loading...</p>
+                        <p className="text-gray-500">Loading...</p>
                     ) : (
-                        <Line data={revenueData} options={revenueOptions} className="flex-1" />
+                        <Line data={revenueData} options={revenueOptions} />
                     )}
                 </div>
 
-                {/* Service Trends Chart */}
-                <div className="bg-white border rounded-lg shadow p-5 h-96 flex flex-col">
-                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Service Trends ({selectedInterval})</h3>
+                {/* Service Trends */}
+                <div className="bg-white border rounded-lg shadow p-4 h-80">
+                    <div className="flex justify-between items-center mb-3">
+                        <h2 className="text-lg font-semibold">Service Trends</h2>
+                        <div className="space-x-2">
+                            <button
+                                onClick={() => setServiceMode("snapshot")}
+                                className={`px-3 py-1 rounded ${serviceMode === "snapshot"
+                                        ? "bg-blue-600 text-white"
+                                        : "bg-gray-200 text-gray-700"
+                                    }`}
+                            >
+                                Snapshot
+                            </button>
+                            <button
+                                onClick={() => setServiceMode("interval")}
+                                className={`px-3 py-1 rounded ${serviceMode === "interval"
+                                        ? "bg-blue-600 text-white"
+                                        : "bg-gray-200 text-gray-700"
+                                    }`}
+                            >
+                                Interval
+                            </button>
+                        </div>
+                    </div>
                     {loading ? (
-                        <p className="text-gray-500 text-center mt-auto">Loading...</p>
+                        <p className="text-gray-500">Loading...</p>
                     ) : (
-                        <Bar data={serviceTrendsData} options={serviceTrendsOptions} className="flex-1" />
+                        <Bar data={serviceTrendsData} options={serviceTrendsOptions} />
                     )}
                 </div>
             </div>

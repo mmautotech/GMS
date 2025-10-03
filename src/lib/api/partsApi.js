@@ -149,7 +149,10 @@ const PartsApi = {
             const { data } = await axiosInstance.get(`/parts/by-booking/${bookingId}`);
             return {
                 success: data.success,
-                parts: normalizeParts(data.data),
+                parts: (data.data || []).map((p) => ({
+                    _id: p.id,       // map backend id → _id
+                    label: p.label,  // directly use backend label
+                })),
             };
         } catch (err) {
             return {
