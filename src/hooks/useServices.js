@@ -8,7 +8,7 @@ const MEMO_CACHE = {
     map: {},
     at: 0,
 };
-const TTL_MS = 60 * 1000; // 1 minute TTL
+const TTL_MS = 30 * 1000; // 1 minute TTL
 
 export default function useServices({ useSessionCache = true } = {}) {
     const [list, setList] = useState(MEMO_CACHE.list);

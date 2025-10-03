@@ -4,7 +4,7 @@ import PurchaseInvoiceApi from "../lib/api/purchaseInvoiceApi.js";
 
 // Simple in-memory cache: { [invoiceId]: { data, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 minute
+const TTL_MS = 30 * 1000; // 1 minute
 
 export function usePurchaseInvoice(id = null) {
     const [invoice, setInvoice] = useState(null);

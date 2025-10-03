@@ -8,7 +8,7 @@ const MEMO_CACHE = {
     map: null,  // { [id]: username }
     at: 0,
 };
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
+const TTL_MS = 5 * 30 * 1000; // 5 minutes
 
 export default function useUsers({ useSessionCache = true } = {}) {
     const [list, setList] = useState(MEMO_CACHE.list || []);

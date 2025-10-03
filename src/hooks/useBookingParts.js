@@ -4,7 +4,7 @@ import PartsApi from "../lib/api/partsApi.js";
 
 // In-memory cache: { [bookingId]: { parts, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 minute
+const TTL_MS = 30 * 1000; // 1 minute
 
 export default function useBookingParts(bookingId, { enabled = true } = {}) {
     const [parts, setParts] = useState([]);

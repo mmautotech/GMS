@@ -108,71 +108,19 @@ export default function BookingDetailsModal({
                                         </p>
                                         <img
                                             src={bookingPhotoUrl}
-                                            alt="Booking Preview"
-                                            className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80"
-                                            onClick={handleBookingThumbnailClick}
+                                            alt="Booking Confirmation Preview"
+                                            className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80 transition-opacity duration-200"
+                                            onClick={() => handleBookingThumbnailClick(bookingPhotoUrl)}
                                         />
                                     </>
                                 ) : (
                                     <p className="text-gray-500 text-xs">No Photo</p>
                                 )}
                             </div>
+
                         </div>
 
-                        {/* Parts Section */}
-                        {/* Parts Section */}
-                        {(details.parts?.length > 0 || invoices.some((inv) => inv.items?.length > 0)) && (
-                            <div className="mt-6">
-                                <h4 className="text-gray-700 font-bold text-sm uppercase border-b pb-2 mb-3">
-                                    Parts & Purchases
-                                </h4>
 
-                                <div className="overflow-x-auto">
-                                    <table className="min-w-full text-sm border rounded-lg">
-                                        <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
-                                            <tr>
-                                                <th className="px-3 py-2 text-left">Part Name</th>
-                                                <th className="px-3 py-2 text-left">Part Number</th>
-                                                <th className="px-3 py-2 text-right">Rate</th>
-                                                <th className="px-3 py-2 text-center">Qty</th>
-                                                <th className="px-3 py-2 text-left">Supplier</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {/* Parts directly from booking (if any) */}
-                                            {details.parts?.map((p, idx) => (
-                                                <tr key={`booking-part-${idx}`} className="hover:bg-gray-50">
-                                                    <td className="px-3 py-2">{p.part?.name || "Unknown Part"}</td>
-                                                    <td className="px-3 py-2">{p.part?.partNumber || "—"}</td>
-                                                    <td className="px-3 py-2 text-right text-green-600">
-                                                        {fmtGBP(p.rate)}
-                                                    </td>
-                                                    <td className="px-3 py-2 text-center">{p.quantity}</td>
-                                                    <td className="px-3 py-2 text-gray-500">Booking</td>
-                                                </tr>
-                                            ))}
-
-                                            {/* Parts from invoices */}
-                                            {invoices.map((inv) =>
-                                                inv.items?.map((item, idx) => (
-                                                    <tr key={`inv-${inv._id}-${idx}`} className="hover:bg-gray-50">
-                                                        <td className="px-3 py-2">{item.partName}</td>
-                                                        <td className="px-3 py-2">{item.partNumber || "—"}</td>
-                                                        <td className="px-3 py-2 text-right text-green-600">
-                                                            {fmtGBP(item.rate)}
-                                                        </td>
-                                                        <td className="px-3 py-2 text-center">{item.quantity}</td>
-                                                        <td className="px-3 py-2 text-gray-600">
-                                                            {item.supplier?.name || "Unknown"}
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        )}
 
 
                         {/* Upsells */}
@@ -227,6 +175,56 @@ export default function BookingDetailsModal({
                                 </div>
                             </div>
                         )}
+
+
+                        {/* Parts Section */}
+                        {(details.parts?.length > 0 || invoices.some((inv) => inv.items?.length > 0)) && (
+                            <div className="mt-6">
+                                <h4 className="text-gray-700 font-bold text-sm uppercase border-b pb-2 mb-3">
+                                    Parts & Purchases
+                                </h4>
+
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full text-sm border rounded-lg table-auto">
+                                        <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
+                                            <tr>
+                                                <th className="px-4 py-2 text-left w-1/3">Part Name</th>
+                                                <th className="px-4 py-2 text-right w-1/6">Rate</th>
+                                                <th className="px-4 py-2 text-center w-1/6">Qty</th>
+                                                <th className="px-4 py-2 text-left w-1/3">Supplier</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {/* Parts directly from booking */}
+                                            {details.parts?.map((p, idx) => (
+                                                <tr key={`booking-part-${idx}`} className="hover:bg-gray-50">
+                                                    <td className="px-4 py-2">{p.part?.name || "Unknown Part"}</td>
+                                                    <td className="px-4 py-2 text-right text-green-600">{fmtGBP(p.rate)}</td>
+                                                    <td className="px-4 py-2 text-center">{p.quantity}</td>
+                                                    <td className="px-4 py-2 text-gray-500">Booking</td>
+                                                </tr>
+                                            ))}
+
+                                            {/* Parts from invoices */}
+                                            {invoices.map((inv) =>
+                                                inv.items?.map((item, idx) => (
+                                                    <tr key={`inv-${inv._id}-${idx}`} className="hover:bg-gray-50">
+                                                        <td className="px-4 py-2">{item.partName}</td>
+                                                        <td className="px-4 py-2 text-right text-green-600">{fmtGBP(item.rate)}</td>
+                                                        <td className="px-4 py-2 text-center">{item.quantity}</td>
+                                                        <td className="px-4 py-2 text-gray-600">{item.supplier?.name || "Unknown"}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+
+
+
                     </div>
                 )}
             </div>

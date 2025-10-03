@@ -7,7 +7,7 @@ import { useEffect, useRef, useCallback } from "react";
  * @param {number} interval - refresh interval in ms
  * @returns {Object} { setCurrentId } - function to update the current ID
  */
-export default function useAutoRefreshWithId(fetchFn, interval = 60000) {
+export default function useAutoRefreshWithId(fetchFn, interval = 30000) {
     const currentId = useRef(null);
 
     // Set the ID to refresh

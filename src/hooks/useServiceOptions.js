@@ -4,7 +4,7 @@ import ServiceApi from "../lib/api/serviceApi.js";
 
 // 🔹 Cache structure: { [cacheKey]: { list, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 minute cache TTL
+const TTL_MS = 30 * 1000; // 1 minute cache TTL
 
 export default function useServiceOptions({
     enabled,

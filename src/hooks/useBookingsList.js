@@ -4,7 +4,7 @@ import { BookingApi } from "../lib/api/bookingApi.js";
 
 // Simple in-memory cache for each fetcher + params combination
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 minute
+const TTL_MS = 30 * 1000; // 1 minute
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
