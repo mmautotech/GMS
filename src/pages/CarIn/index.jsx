@@ -1,10 +1,9 @@
-// src/pages/CarIn/index.jsx
 import React, { useState, useMemo, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 
 import { useArrivedBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
-import useServices from "../../hooks/useServices.js";
+import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useUsers from "../../hooks/useUsers.js";
 
 import ParamsSummary from "../../components/ParamsSummary.jsx";
@@ -65,13 +64,12 @@ export default function CarInPage({ currentUser }) {
     // status update hook
     const { setError, updateStatus } = useBookings();
 
-    // services
+    // ✅ services (options only)
     const {
         list: serviceOptions,
-        map: serviceMap,
         loading: loadingServices,
         error: servicesError,
-    } = useServices({ enabled: true });
+    } = useServiceOptions({ useSessionCache: true });
 
     // users
     const {
@@ -83,7 +81,6 @@ export default function CarInPage({ currentUser }) {
 
     // --- Actions ---
 
-    // --- Handle Car Out ---
     const handleCarOut = useCallback(
         async (booking) => {
             if (!window.confirm("Are you sure you want to mark this car as COMPLETED (Car Out)?")) {
@@ -96,7 +93,7 @@ export default function CarInPage({ currentUser }) {
 
                 if (res.ok) {
                     toast.success(res.message || "Car checked out successfully!");
-                    await refresh(); // 👈 always reload fresh list
+                    await refresh();
                 } else {
                     toast.error(res.error || "Failed to check out car");
                 }
@@ -123,7 +120,7 @@ export default function CarInPage({ currentUser }) {
 
                 if (res.ok) {
                     toast.success(res.message || "Booking cancelled successfully!");
-                    await refresh(); // always reload list
+                    await refresh();
                 } else {
                     toast.error(res.error || "Failed to cancel booking");
                 }
@@ -136,7 +133,6 @@ export default function CarInPage({ currentUser }) {
         },
         [updateStatus, refresh, setError]
     );
-
 
     const handleSelectBooking = (booking) => {
         setSelectedBooking(booking);
@@ -222,8 +218,8 @@ export default function CarInPage({ currentUser }) {
                             </option>
                         ) : (
                             serviceOptions.map((s) => (
-                                <option key={s.id} value={s.id}>
-                                    {s.name}
+                                <option key={s.value} value={s.value}>
+                                    {s.label}
                                 </option>
                             ))
                         )}
@@ -302,7 +298,14 @@ export default function CarInPage({ currentUser }) {
             </div>
 
             {/* Params Summary */}
-            <ParamsSummary params={params} serviceMap={serviceMap} userMap={userMap} />
+            <ParamsSummary
+                params={params}
+                serviceMap={serviceOptions.reduce((acc, s) => {
+                    acc[s.value] = s.label;
+                    return acc;
+                }, {})}
+                userMap={userMap}
+            />
 
             {/* Table */}
             {loadingList ? (
@@ -327,8 +330,7 @@ export default function CarInPage({ currentUser }) {
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
                             ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            }`}
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                     >
                         Prev
                     </button>
@@ -340,8 +342,7 @@ export default function CarInPage({ currentUser }) {
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
                             ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            }`}
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
                     >
                         Next
                     </button>
@@ -368,12 +369,11 @@ export default function CarInPage({ currentUser }) {
                         if (bookingDetailRef.current?.refreshUpsells) {
                             await bookingDetailRef.current.refreshUpsells();
                         }
-                        await refresh(); // <-- refresh the main bookings list after upsell
-                        setActiveModal("booking"); // go back to booking modal
+                        await refresh();
+                        setActiveModal("booking");
                     }}
                 />
             )}
-
         </div>
     );
 }
