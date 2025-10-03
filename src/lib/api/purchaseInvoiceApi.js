@@ -1,5 +1,8 @@
 import axiosInstance from "./axiosInstance.js";
 
+// Ensure baseURL has no trailing slash
+const API_URL = axiosInstance.defaults.baseURL.replace(/\/$/, "");
+
 // 🟢 shared normalizer
 const normalizeParams = (params = {}) => {
     const normalized = { ...params };
@@ -182,6 +185,26 @@ const PurchaseInvoiceApi = {
                 pagination: null,
                 data: null,
             };
+        }
+    },
+
+    // 📌 Export purchase invoice PDF by invoice ID
+    exportInvoicePdf: (id) => {
+        if (!id) return;
+
+        const url = `${API_URL}/purchase-invoices/export/pdf/invoice/${id}`;
+
+        try {
+            if (window.electronAPI?.openExternal) {
+                // ✅ Electron → open in system browser
+                window.electronAPI.openExternal(url);
+            } else {
+                // ✅ Browser fallback
+                window.open(url, "_blank");
+            }
+        } catch (err) {
+            console.error("Error opening purchase invoice PDF:", err);
+            window.open(url, "_blank"); // last fallback
         }
     },
 };

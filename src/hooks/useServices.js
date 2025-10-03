@@ -1,4 +1,3 @@
-// src/hooks/useServices.js
 import { useEffect, useRef, useState, useCallback } from "react";
 import ServiceApi from "../lib/api/serviceApi.js";
 
@@ -122,7 +121,7 @@ export default function useServices({ useSessionCache = true } = {}) {
     }, [fetchServices]);
 
     return {
-        list,       // [{ _id, name, enabled, createdAt, updatedAt, partsCount }]
+        list,       // full services [{ _id, name, enabled, parts, partsCount }]
         map,        // { _id: { name, partsCount, enabled } }
         getNameById,
         getPartsCountById,

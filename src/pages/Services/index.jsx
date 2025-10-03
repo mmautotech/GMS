@@ -27,33 +27,35 @@ export default function EntityPage() {
         loading: loadingServices,
         getPartsCountById,
     } = useServices();
+
     const {
         parts,
         refetch: refreshParts,
         loading: loadingParts,
     } = useParts();
 
-    // 🔹 Fetch parts for selected service with cache
-    const fetchServiceParts = useCallback(async (serviceId) => {
-        if (servicePartsCache[serviceId]) {
-            return; // already cached
-        }
-        try {
-            const res = await ServiceApi.getServiceParts(serviceId);
-            if (res.success) {
-                setServicePartsCache((prev) => ({
-                    ...prev,
-                    [serviceId]: res.parts || [],
-                }));
+    // 🔹 Fetch and cache service parts
+    const fetchServiceParts = useCallback(
+        async (serviceId, force = false) => {
+            if (!force && servicePartsCache[serviceId]) return;
+            try {
+                const res = await ServiceApi.getServiceParts(serviceId);
+                if (res.success) {
+                    setServicePartsCache((prev) => ({
+                        ...prev,
+                        [serviceId]: res.parts || [],
+                    }));
+                }
+            } catch (err) {
+                console.error("Failed to fetch service parts:", err);
+                toast.error("❌ Failed to load service parts");
+                setServicePartsCache((prev) => ({ ...prev, [serviceId]: [] }));
             }
-        } catch (err) {
-            console.error("Failed to fetch service parts:", err);
-            toast.error("❌ Failed to load service parts");
-            setServicePartsCache((prev) => ({ ...prev, [serviceId]: [] }));
-        }
-    }, [servicePartsCache]);
+        },
+        [servicePartsCache]
+    );
 
-    // Filters
+    // 🔎 Filters
     const filteredServices = services.filter((s) =>
         s.name?.toLowerCase().includes(searchServices.toLowerCase())
     );
@@ -72,7 +74,7 @@ export default function EntityPage() {
             await ServiceApi.deleteService(srv._id);
             toast.success(`✅ Service "${srv.name}" disabled`);
             refreshServices();
-        } catch (err) {
+        } catch {
             toast.error("❌ Failed to disable service");
         }
     };
@@ -82,7 +84,7 @@ export default function EntityPage() {
             await ServiceApi.activateService(srv._id);
             toast.success(`✅ Service "${srv.name}" reactivated`);
             refreshServices();
-        } catch (err) {
+        } catch {
             toast.error("❌ Failed to reactivate service");
         }
     };
@@ -96,18 +98,15 @@ export default function EntityPage() {
                 await PartsApi.activatePart(part._id);
                 toast.success(`✅ Part "${part.partName}" activated`);
             }
+
             if (serviceId) {
                 // refresh cache for this service only
-                const res = await ServiceApi.getServiceParts(serviceId);
-                setServicePartsCache((prev) => ({
-                    ...prev,
-                    [serviceId]: res.parts || [],
-                }));
+                await fetchServiceParts(serviceId, true);
             } else {
                 refreshParts();
             }
             refreshServices();
-        } catch (err) {
+        } catch {
             toast.error("❌ Failed to update part");
         }
     };
@@ -146,18 +145,10 @@ export default function EntityPage() {
                     <table className="min-w-full bg-white">
                         <thead className="bg-gray-50 sticky top-0 z-10">
                             <tr>
-                                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600">
-                                    Service Name
-                                </th>
-                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">
-                                    Parts Count
-                                </th>
-                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">
-                                    Active
-                                </th>
-                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">
-                                    Actions
-                                </th>
+                                <th className="px-6 py-3 text-left text-sm font-semibold text-gray-600">Service Name</th>
+                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">Parts Count</th>
+                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">Active</th>
+                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">Actions</th>
                             </tr>
                         </thead>
                     </table>
@@ -175,10 +166,10 @@ export default function EntityPage() {
                                         <tr
                                             key={srv._id}
                                             className={`cursor-pointer hover:bg-blue-50 transition ${selectedService?._id === srv._id
-                                                ? "bg-blue-100"
-                                                : idx % 2 === 0
-                                                    ? "bg-white"
-                                                    : "bg-gray-50/50"
+                                                    ? "bg-blue-100"
+                                                    : idx % 2 === 0
+                                                        ? "bg-white"
+                                                        : "bg-gray-50/50"
                                                 }`}
                                         >
                                             {/* 🔹 clicking name loads all parts */}
@@ -301,8 +292,7 @@ export default function EntityPage() {
                     />
                 </div>
 
-
-                {/* Table */}
+                {/* Parts Table */}
                 <div className="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
                     <table className="min-w-full bg-white">
                         <thead className="bg-gray-50 sticky top-0 z-10">
@@ -311,12 +301,8 @@ export default function EntityPage() {
                                     Part Name (Part Number)
                                     <div className="text-xs text-gray-400">Description</div>
                                 </th>
-                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">
-                                    Active
-                                </th>
-                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">
-                                    Actions
-                                </th>
+                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">Active</th>
+                                <th className="px-6 py-3 text-center text-sm font-semibold text-gray-600">Actions</th>
                             </tr>
                         </thead>
                     </table>
@@ -345,9 +331,7 @@ export default function EntityPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {p.description || ""}
-                                                </div>
+                                                <div className="text-xs text-gray-500">{p.description || ""}</div>
                                             </td>
                                             <td className="px-6 py-4 text-center">
                                                 <input
@@ -372,8 +356,8 @@ export default function EntityPage() {
                                                         handleTogglePart(p, selectedService?._id)
                                                     }
                                                     className={`p-2 ${p.isActive
-                                                        ? "bg-red-500 hover:bg-red-600"
-                                                        : "bg-green-500 hover:bg-green-600"
+                                                            ? "bg-red-500 hover:bg-red-600"
+                                                            : "bg-green-500 hover:bg-green-600"
                                                         } text-white rounded-lg`}
                                                 >
                                                     {p.isActive ? <Trash2 size={16} /> : <RotateCcw size={16} />}
@@ -408,7 +392,7 @@ export default function EntityPage() {
                 isOpen={serviceModalOpen}
                 onClose={() => setServiceModalOpen(false)}
                 service={editingService}
-                onSaved={() => refreshServices()}
+                onSaved={refreshServices}
             />
 
             <PartModal

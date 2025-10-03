@@ -1,19 +1,16 @@
 // src/lib/api/partsApi.js
 import axiosInstance from "./axiosInstance.js";
 
-// 🔹 Normalize API response into consistent object
+// 🔹 Normalize API response into consistent object (only partName kept)
 const normalizeParts = (arr) =>
     (arr || []).map((p) => ({
         _id: p._id,
         partName: p.partName || "",
-        partNumber: p.partNumber || "",
-        description: p.description || "",
         isActive: p.isActive ?? true,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        __v: p.__v,
         // For dropdowns / selects
-        label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
+        label: p.partName,
     }));
 
 const PartsApi = {
@@ -24,6 +21,7 @@ const PartsApi = {
             return {
                 success: data.success,
                 parts: normalizeParts(data.data),
+                pagination: data.pagination || null,
             };
         } catch (err) {
             return {
@@ -55,8 +53,7 @@ const PartsApi = {
     /** Create part */
     createPart: async (payload) => {
         try {
-            // ⚠️ backend does NOT accept serviceId
-            const { serviceId, ...cleanPayload } = payload;
+            const { serviceId, ...cleanPayload } = payload; // strip if passed accidentally
             const { data } = await axiosInstance.post("/parts", cleanPayload);
             return {
                 success: data.success,
@@ -74,7 +71,7 @@ const PartsApi = {
     /** Update part */
     updatePart: async (id, payload) => {
         try {
-            const { serviceId, ...cleanPayload } = payload; // strip serviceId if passed
+            const { serviceId, ...cleanPayload } = payload;
             const { data } = await axiosInstance.put(`/parts/${id}`, cleanPayload);
             return {
                 success: data.success,
@@ -131,7 +128,7 @@ const PartsApi = {
                 success: data.success,
                 parts: (data.data || []).map((p) => ({
                     _id: p.id,       // normalize id → _id
-                    label: p.label,  // use backend label
+                    label: p.label,  // backend already returns partName
                 })),
             };
         } catch (err) {
@@ -150,8 +147,8 @@ const PartsApi = {
             return {
                 success: data.success,
                 parts: (data.data || []).map((p) => ({
-                    _id: p.id,       // map backend id → _id
-                    label: p.label,  // directly use backend label
+                    _id: p.id,
+                    label: p.label,
                 })),
             };
         } catch (err) {

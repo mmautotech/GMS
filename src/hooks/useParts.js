@@ -3,9 +3,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { toast } from "react-toastify";
 import PartsApi from "../lib/api/partsApi.js";
 
-// In-memory cache: { [key]: { parts, pagination, at } }
+// 🔹 In-memory cache: { key: { parts, pagination, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 minute TTL
+const TTL_MS = 60 * 1000; // cache duration (1 minute)
 
 export function useParts(initialParams = {}, bookingId = null) {
     const [parts, setParts] = useState([]);
@@ -17,7 +17,7 @@ export function useParts(initialParams = {}, bookingId = null) {
     const paramsRef = useRef(initialParams);
     const mounted = useRef(true);
 
-    // Track mounted state to prevent state updates on unmounted component
+    // Cleanup on unmount
     useEffect(() => {
         mounted.current = true;
         return () => {
@@ -25,62 +25,76 @@ export function useParts(initialParams = {}, bookingId = null) {
         };
     }, []);
 
-    // Fetch parts with caching
-    const fetchParts = useCallback(async (overrideParams = {}) => {
-        setLoading(true);
-        setError(null);
+    // ✅ Fetch parts (with caching)
+    const fetchParts = useCallback(
+        async (overrideParams = {}) => {
+            setLoading(true);
+            setError(null);
 
-        const mergedParams = { ...paramsRef.current, ...overrideParams };
-        const cacheKey = bookingId
-            ? `booking-${bookingId}`
-            : `general-${JSON.stringify(mergedParams)}`;
+            const mergedParams = { ...paramsRef.current, ...overrideParams };
+            const cacheKey = bookingId
+                ? `booking-${bookingId}`
+                : `general-${JSON.stringify(mergedParams)}`;
 
-        // Serve from cache if valid
-        const cached = MEMO_CACHE[cacheKey];
-        if (cached && Date.now() - cached.at < TTL_MS) {
-            setParts(cached.parts || []);
-            setPagination(cached.pagination || { page: 1, limit: 10, total: 0 });
-            setLoading(false);
-            return;
-        }
-
-        try {
-            let res;
-            if (bookingId) {
-                res = await PartsApi.getPartsByBooking(bookingId);
-            } else {
-                res = await PartsApi.getParts(mergedParams);
-                if (res.success && mounted.current) setParams(mergedParams);
-                paramsRef.current = mergedParams;
+            // Serve from cache if still fresh
+            const cached = MEMO_CACHE[cacheKey];
+            if (cached && Date.now() - cached.at < TTL_MS) {
+                if (!mounted.current) return;
+                setParts(cached.parts);
+                setPagination(cached.pagination);
+                setLoading(false);
+                return;
             }
 
-            if (!mounted.current) return;
+            try {
+                let res;
+                if (bookingId) {
+                    res = await PartsApi.getPartsByBooking(bookingId);
+                } else {
+                    res = await PartsApi.getParts(mergedParams);
+                    if (res.success && mounted.current) {
+                        paramsRef.current = mergedParams;
+                        setParams(mergedParams);
+                    }
+                }
 
-            if (res.success) {
-                setParts(res.parts || []);
-                if (res.pagination) setPagination(res.pagination);
+                if (!mounted.current) return;
 
-                MEMO_CACHE[cacheKey] = {
-                    parts: res.parts || [],
-                    pagination: res.pagination || { page: 1, limit: 10, total: 0 },
-                    at: Date.now(),
-                };
-            } else {
-                const errMsg = res.error || "Failed to fetch parts";
+                if (res.success) {
+                    const updatedPagination =
+                        res.pagination || {
+                            page: 1,
+                            limit: res.parts?.length || 0,
+                            total: res.parts?.length || 0,
+                        };
+
+                    setParts(res.parts || []);
+                    setPagination(updatedPagination);
+
+                    // ✅ Store in cache
+                    MEMO_CACHE[cacheKey] = {
+                        parts: res.parts || [],
+                        pagination: updatedPagination,
+                        at: Date.now(),
+                    };
+                } else {
+                    const errMsg = res.error || "Failed to fetch parts";
+                    if (errMsg !== error) toast.error(`❌ ${errMsg}`);
+                    setError(errMsg);
+                    setParts([]);
+                }
+            } catch (err) {
+                if (!mounted.current) return;
+                const errMsg = err.message || "Unexpected error";
+                if (errMsg !== error) toast.error(`❌ ${errMsg}`);
                 setError(errMsg);
                 setParts([]);
-                toast.error(`❌ ${errMsg}`);
+            } finally {
+                if (mounted.current) setLoading(false);
             }
-        } catch (err) {
-            if (!mounted.current) return;
-            const errMsg = err.message || "Unexpected error";
-            setError(errMsg);
-            setParts([]);
-            toast.error(`❌ ${errMsg}`);
-        } finally {
-            if (mounted.current) setLoading(false);
-        }
-    }, [bookingId]);
+        },
+        [bookingId, error]
+    );
 
     // Auto-fetch on mount & bookingId change
     useEffect(() => {
@@ -96,7 +110,7 @@ export function useParts(initialParams = {}, bookingId = null) {
         return () => clearInterval(interval);
     }, [fetchParts]);
 
-    // Manual refresh
+    // Manual refresh (invalidate cache)
     const manualRefresh = useCallback(() => {
         const bookingKey = `booking-${bookingId}`;
         const generalKey = `general-${JSON.stringify(paramsRef.current)}`;
@@ -111,29 +125,14 @@ export function useParts(initialParams = {}, bookingId = null) {
     }, [fetchParts, bookingId]);
 
     return {
-        parts,          // list of parts
-        params,         // current query params
-        pagination,     // { page, limit, total }
+        parts,        // list of parts
+        params,       // current query params
+        pagination,   // { page, limit, total }
         loading,
         error,
-        refetch: manualRefresh,
-        setParams: (newParams) => {
-            const updated = { ...paramsRef.current, ...newParams };
-            paramsRef.current = updated;
-            setParams(updated);
-            fetchParts(updated);
-        },
-        setPage: (page) => {
-            const updated = { ...paramsRef.current, page };
-            paramsRef.current = updated;
-            setParams(updated);
-            fetchParts(updated);
-        },
-        setSearch: (q) => {
-            const updated = { ...paramsRef.current, q, page: 1 };
-            paramsRef.current = updated;
-            setParams(updated);
-            fetchParts(updated);
-        },
+        refetch: manualRefresh, // clears cache then refetches
+        setParams: (newParams) => fetchParts({ ...paramsRef.current, ...newParams }),
+        setPage: (page) => fetchParts({ ...paramsRef.current, page }),
+        setSearch: (q) => fetchParts({ ...paramsRef.current, q, page: 1 }),
     };
 }

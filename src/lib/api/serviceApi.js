@@ -4,35 +4,31 @@ import axiosInstance from "./axiosInstance.js";
 // --- Normalizers ---
 const normalizeServices = (arr) =>
     (arr || []).map((s) => ({
-        _id: s._id,
+        _id: s._id || s.id,
         name: s.name || "",
         enabled: s.enabled ?? true,
         createdAt: s.createdAt,
         updatedAt: s.updatedAt,
-        parts: Array.isArray(s.parts) ? s.parts : [], // ids only for list
+        // Backend returns parts as [{ id, label }]
+        parts: Array.isArray(s.parts)
+            ? s.parts.map((p) => ({ _id: p._id || p.id, label: p.label }))
+            : [],
         partsCount: s.partsCount ?? (s.parts ? s.parts.length : 0),
         label: s.name,
     }));
 
 const normalizeParts = (arr) =>
     (arr || []).map((p) => ({
-        _id: p._id,
-        partName: p.partName || "",
-        partNumber: p.partNumber || "",
-        description: p.description || "",
-        isActive: p.isActive ?? true,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        __v: p.__v,
-        label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
+        _id: p._id || p.id,
+        label: p.label || p.partName || "",
     }));
 
 const normalizeServiceOptions = (arr) =>
     (arr || []).map((s) => ({
         id: s.id,
         name: s.name,
-        label: s.name,   // good for <select> dropdowns
-        value: s.id,     // standard value field
+        label: s.name, // good for <select> dropdowns
+        value: s.id,   // standard value field
     }));
 
 // --- API ---
@@ -53,12 +49,7 @@ const ServiceApi = {
             const { data } = await axiosInstance.get(`/service/${id}`);
             return {
                 success: data.success,
-                service: data.data
-                    ? {
-                        ...normalizeServices([data.data])[0],
-                        parts: normalizeParts(data.data.parts || []),
-                    }
-                    : null,
+                service: data.data ? normalizeServices([data.data])[0] : null,
             };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
@@ -71,12 +62,7 @@ const ServiceApi = {
             const { data } = await axiosInstance.post("/service", payload);
             return {
                 success: data.success,
-                service: data.data
-                    ? {
-                        ...normalizeServices([data.data])[0],
-                        parts: normalizeParts(data.data.parts || []),
-                    }
-                    : null,
+                service: data.data ? normalizeServices([data.data])[0] : null,
             };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
@@ -89,12 +75,7 @@ const ServiceApi = {
             const { data } = await axiosInstance.patch(`/service/${id}`, payload);
             return {
                 success: data.success,
-                service: data.data
-                    ? {
-                        ...normalizeServices([data.data])[0],
-                        parts: normalizeParts(data.data.parts || []),
-                    }
-                    : null,
+                service: data.data ? normalizeServices([data.data])[0] : null,
                 message: data.message || "",
             };
         } catch (err) {
@@ -108,12 +89,7 @@ const ServiceApi = {
             const { data } = await axiosInstance.delete(`/service/${id}`);
             return {
                 success: data.success,
-                service: data.data
-                    ? {
-                        ...normalizeServices([data.data])[0],
-                        parts: normalizeParts(data.data.parts || []),
-                    }
-                    : null,
+                service: data.data ? normalizeServices([data.data])[0] : null,
                 message: data.message || "",
             };
         } catch (err) {
@@ -127,12 +103,7 @@ const ServiceApi = {
             const { data } = await axiosInstance.patch(`/service/${id}/activate`);
             return {
                 success: data.success,
-                service: data.data
-                    ? {
-                        ...normalizeServices([data.data])[0],
-                        parts: normalizeParts(data.data.parts || []),
-                    }
-                    : null,
+                service: data.data ? normalizeServices([data.data])[0] : null,
                 message: data.message || "",
             };
         } catch (err) {
@@ -147,22 +118,13 @@ const ServiceApi = {
         if (format) params.format = format;
         try {
             const { data } = await axiosInstance.get("/service/options", { params });
-
-            // backend already returns {id, name}, normalize for dropdowns
-            const options = (data.data || []).map((s) => ({
-                id: s.id,
-                name: s.name,
-                label: s.name, // for react-select or HTML option
-                value: s.id,   // for controlled select components
-            }));
-
-            return { success: data.success, options };
+            return { success: data.success, options: normalizeServiceOptions(data.data) };
         } catch (err) {
             return err.response?.data || { success: false, error: err.message };
         }
     },
 
-    /** Legacy: get only parts of a service */
+    /** Get only parts of a service */
     getServiceParts: async (id) => {
         try {
             const { data } = await axiosInstance.get(`/service/${id}/parts`);
