@@ -1,17 +1,18 @@
+// src/hooks/useServices.js
 import { useEffect, useRef, useState, useCallback } from "react";
 import ServiceApi from "../lib/api/serviceApi.js";
 
-// In-memory cache
+// 🔹 In-memory cache
 const MEMO_CACHE = {
     list: [],
     map: {},
     at: 0,
 };
-const TTL_MS = 60 * 1000; // 1 minute refresh TTL
+const TTL_MS = 60 * 1000; // 1 minute TTL
 
 export default function useServices({ useSessionCache = true } = {}) {
-    const [list, setList] = useState(MEMO_CACHE.list || []);
-    const [map, setMap] = useState(MEMO_CACHE.map || {});
+    const [list, setList] = useState(MEMO_CACHE.list);
+    const [map, setMap] = useState(MEMO_CACHE.map);
     const [loading, setLoading] = useState(!MEMO_CACHE.list.length);
     const [error, setError] = useState("");
 
@@ -22,7 +23,7 @@ export default function useServices({ useSessionCache = true } = {}) {
         };
     }, []);
 
-    // --- Fetch services ---
+    // ✅ Fetch services (from API, normalized in ServiceApi)
     const fetchServices = useCallback(async () => {
         try {
             setLoading(true);
@@ -35,7 +36,7 @@ export default function useServices({ useSessionCache = true } = {}) {
 
             const services = res.services || [];
 
-            // Cache in-memory
+            // 🔹 Cache in-memory
             MEMO_CACHE.list = services;
             MEMO_CACHE.map = services.reduce((acc, s) => {
                 acc[s._id] = {
@@ -47,16 +48,16 @@ export default function useServices({ useSessionCache = true } = {}) {
             }, {});
             MEMO_CACHE.at = Date.now();
 
-            // Update state
-            setList(MEMO_CACHE.list);
+            // 🔹 Update state
+            setList(services);
             setMap(MEMO_CACHE.map);
 
-            // Optionally persist to sessionStorage
+            // 🔹 Optionally persist to sessionStorage
             if (useSessionCache) {
                 sessionStorage.setItem(
                     "svc_cache",
                     JSON.stringify({
-                        list: MEMO_CACHE.list,
+                        list: services,
                         map: MEMO_CACHE.map,
                         at: MEMO_CACHE.at,
                     })
@@ -70,7 +71,7 @@ export default function useServices({ useSessionCache = true } = {}) {
         }
     }, [useSessionCache]);
 
-    // --- Initial + cached load ---
+    // ✅ Initial + cached load
     useEffect(() => {
         if (useSessionCache && !MEMO_CACHE.list.length) {
             const raw = sessionStorage.getItem("svc_cache");
@@ -102,7 +103,7 @@ export default function useServices({ useSessionCache = true } = {}) {
         fetchServices();
     }, [useSessionCache, fetchServices]);
 
-    // --- Auto-refresh every 1 minute ---
+    // ✅ Auto-refresh every 1 minute
     useEffect(() => {
         const interval = setInterval(() => {
             fetchServices();
@@ -121,7 +122,7 @@ export default function useServices({ useSessionCache = true } = {}) {
     }, [fetchServices]);
 
     return {
-        list,       // full services [{ _id, name, enabled, parts, partsCount }]
+        list,       // full normalized services [{ _id, name, enabled, parts, partsCount, createdAt, updatedAt }]
         map,        // { _id: { name, partsCount, enabled } }
         getNameById,
         getPartsCountById,

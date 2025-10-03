@@ -1,16 +1,15 @@
 // src/lib/api/partsApi.js
 import axiosInstance from "./axiosInstance.js";
 
-// 🔹 Normalize API response into consistent object (only partName kept)
+// 🔹 Normalize API response into consistent object
 const normalizeParts = (arr) =>
     (arr || []).map((p) => ({
-        _id: p._id,
-        partName: p.partName || "",
+        _id: p._id || p.id,
+        partName: p.partName || p.label || "",
         isActive: p.isActive ?? true,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        // For dropdowns / selects
-        label: p.partName,
+        label: p.partName || p.label || "", // For dropdowns / selects
     }));
 
 const PartsApi = {
@@ -53,7 +52,7 @@ const PartsApi = {
     /** Create part */
     createPart: async (payload) => {
         try {
-            const { serviceId, ...cleanPayload } = payload; // strip if passed accidentally
+            const { serviceId, ...cleanPayload } = payload; // strip serviceId if passed
             const { data } = await axiosInstance.post("/parts", cleanPayload);
             return {
                 success: data.success,
@@ -93,6 +92,7 @@ const PartsApi = {
             return {
                 success: data.success,
                 part: data.data ? normalizeParts([data.data])[0] : null,
+                message: data.message || "Part deactivated",
             };
         } catch (err) {
             return {
@@ -110,6 +110,7 @@ const PartsApi = {
             return {
                 success: data.success,
                 part: data.data ? normalizeParts([data.data])[0] : null,
+                message: data.message || "Part reactivated",
             };
         } catch (err) {
             return {
@@ -120,16 +121,13 @@ const PartsApi = {
         }
     },
 
-    /** Dropdown options */
+    /** Dropdown options (active parts only) */
     getPartsDropdown: async () => {
         try {
             const { data } = await axiosInstance.get("/parts/dropdown");
             return {
                 success: data.success,
-                parts: (data.data || []).map((p) => ({
-                    _id: p.id,       // normalize id → _id
-                    label: p.label,  // backend already returns partName
-                })),
+                parts: normalizeParts(data.data),
             };
         } catch (err) {
             return {
@@ -146,10 +144,7 @@ const PartsApi = {
             const { data } = await axiosInstance.get(`/parts/by-booking/${bookingId}`);
             return {
                 success: data.success,
-                parts: (data.data || []).map((p) => ({
-                    _id: p.id,
-                    label: p.label,
-                })),
+                parts: normalizeParts(data.data),
             };
         } catch (err) {
             return {

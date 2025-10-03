@@ -2,7 +2,7 @@
 import axios from "axios";
 
 // ✅ Always use API URL from .env
-const API_URL = "http://192.168.18.84:5000/api";
+const API_URL = "http://localhost:5000/api";
 
 // ✅ Create Axios instance
 const axiosInstance = axios.create({

@@ -2,23 +2,22 @@
 import React, { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { toast } from "react-toastify";
-import Select from "react-select"; // ✅ searchable dropdown
+import Select from "react-select";
 import ServiceApi from "../../lib/api/serviceApi.js";
 import PartsApi from "../../lib/api/partsApi.js";
 
 export default function ServiceModal({ isOpen, onClose, service = null, onSaved }) {
     const [formData, setFormData] = useState({ name: "", parts: [] });
-    const [parts, setParts] = useState([]); // dropdown list from backend
+    const [partsOptions, setPartsOptions] = useState([]);
     const [saving, setSaving] = useState(false);
 
-    // 🔹 Load parts dropdown when modal opens
+    // 🔹 Load parts dropdown from backend
     useEffect(() => {
         const loadParts = async () => {
             const res = await PartsApi.getPartsDropdown();
             if (res.success) {
-                // react-select needs { value, label }
-                setParts((res.parts || []).map((p) => ({
-                    value: p.id || p._id,
+                setPartsOptions((res.parts || []).map((p) => ({
+                    value: p._id || p.id,
                     label: p.label,
                 })));
             } else {
@@ -28,15 +27,13 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
         if (isOpen) loadParts();
     }, [isOpen]);
 
-    // 🔹 Load service values into form
+    // 🔹 Load service values when editing
     useEffect(() => {
         if (service) {
             setFormData({
                 name: service.name || "",
                 parts: service.parts?.map((p) =>
-                    typeof p === "string"
-                        ? p
-                        : p._id || p.id
+                    typeof p === "string" ? p : p._id || p.id
                 ) || [],
             });
         } else {
@@ -49,10 +46,10 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handlePartsChange = (selectedOptions) => {
+    const handlePartsChange = (selected) => {
         setFormData((prev) => ({
             ...prev,
-            parts: selectedOptions ? selectedOptions.map((opt) => opt.value) : [],
+            parts: selected ? selected.map((opt) => opt.value) : [],
         }));
     };
 
@@ -64,10 +61,6 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
         }
         if (trimmedName.length < 2 || trimmedName.length > 50) {
             toast.error("⚠️ Service name must be 2–50 characters long");
-            return;
-        }
-        if (!Array.isArray(formData.parts)) {
-            toast.error("⚠️ Parts must be an array");
             return;
         }
 
@@ -94,7 +87,7 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
                 toast.error(res.error || "❌ Failed to save service");
             }
         } catch (err) {
-            console.error(err);
+            console.error("❌ handleSave error:", err);
             toast.error("❌ Unexpected error occurred");
         } finally {
             setSaving(false);
@@ -103,8 +96,9 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
 
     if (!isOpen) return null;
 
-    // Pre-select already chosen parts
-    const selectedParts = parts.filter((p) => formData.parts.includes(p.value));
+    const selectedParts = partsOptions.filter((opt) =>
+        formData.parts.includes(opt.value)
+    );
 
     return (
         <div
@@ -137,20 +131,20 @@ export default function ServiceModal({ isOpen, onClose, service = null, onSaved 
                             name="name"
                             value={formData.name}
                             onChange={handleChange}
-                            placeholder="Full Service"
+                            placeholder="Enter service name"
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                             disabled={saving}
                             onKeyDown={(e) => e.key === "Enter" && handleSave()}
                         />
                     </div>
 
-                    {/* Parts Multi-select with Search */}
+                    {/* Parts Multi-select */}
                     <div>
                         <label className="block text-sm font-medium mb-1">Select Parts</label>
                         <Select
                             isMulti
                             isDisabled={saving}
-                            options={parts}
+                            options={partsOptions}
                             value={selectedParts}
                             onChange={handlePartsChange}
                             placeholder="Choose parts..."

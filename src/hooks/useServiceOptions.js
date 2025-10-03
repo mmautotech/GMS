@@ -1,9 +1,10 @@
+// src/hooks/useServiceOptions.js
 import { useEffect, useRef, useState, useCallback } from "react";
 import ServiceApi from "../lib/api/serviceApi.js";
 
-// Cache structure: { [cacheKey]: { list, at } }
+// 🔹 Cache structure: { [cacheKey]: { list, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 1 min cache TTL
+const TTL_MS = 60 * 1000; // 1 minute cache TTL
 
 export default function useServiceOptions({
     enabled,
@@ -23,6 +24,7 @@ export default function useServiceOptions({
         };
     }, []);
 
+    // ✅ Fetch service options
     const fetchOptions = useCallback(async () => {
         setLoading(true);
         setError("");
@@ -35,10 +37,11 @@ export default function useServiceOptions({
 
             const options = res.options || [];
 
-            // update cache
+            // 🔹 Update memory cache
             MEMO_CACHE[cacheKey] = { list: options, at: Date.now() };
             setList(options);
 
+            // 🔹 Optionally persist to sessionStorage
             if (useSessionCache) {
                 sessionStorage.setItem(
                     `svc_options_cache_${cacheKey}`,
@@ -54,9 +57,9 @@ export default function useServiceOptions({
         }
     }, [enabled, format, useSessionCache, cacheKey]);
 
-    // --- Initial load with cache ---
+    // ✅ Initial load (session cache → memory cache → API)
     useEffect(() => {
-        // 1. Try sessionStorage cache
+        // 1. Session cache
         if (useSessionCache) {
             const raw = sessionStorage.getItem(`svc_options_cache_${cacheKey}`);
             if (raw) {
@@ -73,7 +76,7 @@ export default function useServiceOptions({
             }
         }
 
-        // 2. Try memory cache
+        // 2. Memory cache
         const cached = MEMO_CACHE[cacheKey];
         if (cached && Date.now() - cached.at < TTL_MS) {
             setList(cached.list || []);
@@ -85,14 +88,14 @@ export default function useServiceOptions({
         fetchOptions();
     }, [cacheKey, useSessionCache, fetchOptions]);
 
-    // --- Auto refresh every TTL ---
+    // ✅ Auto refresh every TTL
     useEffect(() => {
         const interval = setInterval(fetchOptions, TTL_MS);
         return () => clearInterval(interval);
     }, [fetchOptions]);
 
     return {
-        list, // always normalized [{ id, name, label, value }]
+        list,       // always normalized [{ id, name, label, value }]
         loading,
         error,
         refresh: fetchOptions, // manual refresh

@@ -5,11 +5,7 @@ import PartsApi from "../../lib/api/partsApi.js";
 import { toast } from "react-toastify";
 
 export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
-    const [formData, setFormData] = useState({
-        partName: "",
-        partNumber: "",
-        description: "",
-    });
+    const [formData, setFormData] = useState({ partName: "" });
     const [saving, setSaving] = useState(false);
     const [errors, setErrors] = useState({});
     const firstInvalidRef = useRef(null);
@@ -17,13 +13,9 @@ export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
     // Reset form when modal opens
     useEffect(() => {
         if (part) {
-            setFormData({
-                partName: part.partName || "",
-                partNumber: part.partNumber || "",
-                description: part.description || "",
-            });
+            setFormData({ partName: part.partName || "" });
         } else {
-            setFormData({ partName: "", partNumber: "", description: "" });
+            setFormData({ partName: "" });
         }
         setErrors({});
     }, [part, isOpen]);
@@ -38,18 +30,12 @@ export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
-        setErrors((prev) => ({ ...prev, [name]: "" })); // clear field error
+        setErrors((prev) => ({ ...prev, [name]: "" }));
     };
 
     const validate = () => {
         const newErrors = {};
         if (!formData.partName.trim()) newErrors.partName = "Part Name is required";
-        if (formData.partNumber && !/^[A-Za-z0-9-]+$/.test(formData.partNumber)) {
-            newErrors.partNumber = "Part Number can only contain letters, numbers, or dashes";
-        }
-        if (formData.description.length > 200) {
-            newErrors.description = "Description cannot exceed 200 characters";
-        }
         return newErrors;
     };
 
@@ -57,7 +43,6 @@ export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
         const validationErrors = validate();
         if (Object.keys(validationErrors).length > 0) {
             setErrors(validationErrors);
-            // focus first invalid field
             const firstKey = Object.keys(validationErrors)[0];
             firstInvalidRef.current?.querySelector(`[name="${firstKey}"]`)?.focus();
             return;
@@ -119,7 +104,7 @@ export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
                     <div className="mb-4 text-red-600 text-sm text-center">{errors.global}</div>
                 )}
 
-                {/* Fields */}
+                {/* Part Name Field */}
                 <div className="space-y-4">
                     <div>
                         <label className="block text-sm font-medium mb-1">
@@ -138,43 +123,6 @@ export default function PartModal({ isOpen, onClose, part = null, onSaved }) {
                         />
                         {errors.partName && (
                             <p className="text-xs text-red-500 mt-1">{errors.partName}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Part Number</label>
-                        <input
-                            type="text"
-                            name="partNumber"
-                            value={formData.partNumber}
-                            onChange={handleChange}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none ${errors.partNumber
-                                    ? "border-red-500 focus:ring-red-500"
-                                    : "border-gray-300 focus:ring-blue-500"
-                                }`}
-                            disabled={saving}
-                        />
-                        {errors.partNumber && (
-                            <p className="text-xs text-red-500 mt-1">{errors.partNumber}</p>
-                        )}
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Description</label>
-                        <textarea
-                            name="description"
-                            value={formData.description}
-                            onChange={handleChange}
-                            rows={3}
-                            maxLength={200}
-                            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:outline-none resize-none ${errors.description
-                                    ? "border-red-500 focus:ring-red-500"
-                                    : "border-gray-300 focus:ring-blue-500"
-                                }`}
-                            disabled={saving}
-                        />
-                        {errors.description && (
-                            <p className="text-xs text-red-500 mt-1">{errors.description}</p>
                         )}
                     </div>
                 </div>

@@ -1,13 +1,14 @@
+// src/hooks/useServiceById.js
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "react-toastify";
 import ServiceApi from "../lib/api/serviceApi.js";
 
 /**
  * Hook to fetch a single service by ID (with populated parts).
- * Always normalized to:
+ * Normalized to:
  * {
  *   _id, name, enabled, createdAt, updatedAt,
- *   parts: [{ _id, partName, isActive, label }],
+ *   parts: [{ _id, label, isActive }],
  *   partsCount, label
  * }
  */
@@ -42,13 +43,13 @@ export default function useServiceById(serviceId) {
         }
     }, [serviceId]);
 
-    // auto-fetch when id changes
+    // 🔹 Auto-fetch whenever serviceId changes
     useEffect(() => {
         if (serviceId) fetchService(serviceId);
     }, [serviceId, fetchService]);
 
     return {
-        service,     // full normalized service with populated parts
+        service,   // normalized service with populated parts
         loading,
         error,
         refresh: () => fetchService(serviceId), // manual refetch
