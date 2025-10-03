@@ -33,6 +33,7 @@ const BookingRow = forwardRef(function BookingRow(
         onSelectBooking,
         openInvoiceModal,
         loadingCarOutId,
+        currentUser,
     },
     ref
 ) {
@@ -91,6 +92,12 @@ const BookingRow = forwardRef(function BookingRow(
         }
     };
 
+    // Role-based button permissions
+    const canCarOut = currentUser && ["admin", "accounts"].includes(currentUser.userType);
+    const canViewInvoice = currentUser && ["admin", "accounts", "customer_service"].includes(currentUser.userType);
+    const canViewDetails = currentUser && ["admin", "accounts", "customer_service"].includes(currentUser.userType);
+    const canCancel = currentUser && ["admin", "customer_service"].includes(currentUser.userType);
+
     return (
         <>
             {/* Main Row */}
@@ -104,8 +111,7 @@ const BookingRow = forwardRef(function BookingRow(
                 role="row"
                 tabIndex={-1}
                 aria-selected={!!isSelected}
-                className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
-                    }`}
+                className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"}`}
                 onClick={onSelect}
                 onDoubleClick={() => setExpanded((p) => !p)}
             >
@@ -135,43 +141,58 @@ const BookingRow = forwardRef(function BookingRow(
                 <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
                 <td className="p-2 border">
                     <div className="flex gap-2">
-                        <button
-                            className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectBooking(booking);
-                            }}
-                        >
-                            <Eye size={14} />
-                        </button>
-                        <button
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                openInvoiceModal(booking);
-                            }}
-                        >
-                            <FileText size={14} />
-                        </button>
-                        <button
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1 disabled:opacity-50"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onCarOut(booking);
-                            }}
-                            disabled={loadingCarOutId === booking._id}
-                        >
-                            {loadingCarOutId === booking._id ? "Processing..." : <Car size={14} />}
-                        </button>
-                        <button
-                            className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onCancelled(booking._id);
-                            }}
-                        >
-                            <Trash2 size={14} />
-                        </button>
+                        {/* View Details Button - restricted */}
+                        {canViewDetails && (
+                            <button
+                                className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectBooking(booking);
+                                }}
+                            >
+                                <Eye size={14} />
+                            </button>
+                        )}
+
+                        {/* Invoice Button */}
+                        {canViewInvoice && (
+                            <button
+                                className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    openInvoiceModal(booking);
+                                }}
+                            >
+                                <FileText size={14} />
+                            </button>
+                        )}
+
+                        {/* Car Out Button */}
+                        {canCarOut && (
+                            <button
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1 disabled:opacity-50"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCarOut(booking);
+                                }}
+                                disabled={loadingCarOutId === booking._id}
+                            >
+                                {loadingCarOutId === booking._id ? "Processing..." : <Car size={14} />}
+                            </button>
+                        )}
+
+                        {/* Cancel Button */}
+                        {canCancel && (
+                            <button
+                                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCancelled(booking._id);
+                                }}
+                            >
+                                <Trash2 size={14} />
+                            </button>
+                        )}
                     </div>
                 </td>
             </tr>

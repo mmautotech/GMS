@@ -102,7 +102,13 @@ export default function App() {
               }
             />
 
-            <Route path="/car-in" element={<RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}><CarIn /></RequireRole>} />
+           // In App.jsx
+            <Route path="/car-in" element={
+              <RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}>
+                <CarIn currentUser={user} />
+              </RequireRole>
+            } />
+
             <Route path="/parts-purchase" element={<RequireRole user={user} allowed={["admin", "parts", "accounts"]}><PartsPurchase /></RequireRole>} />
             <Route path="/invoice" element={<RequireRole user={user} allowed={["admin", "accounts"]}><Invoices /></RequireRole>} />
             <Route path="/InternalInvoicesPage" element={<RequireRole user={user} allowed={["admin", "accounts"]}><InternalInvoicesPage /></RequireRole>} />

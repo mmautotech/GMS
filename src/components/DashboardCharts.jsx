@@ -125,8 +125,8 @@ export default function DashboardCharts() {
             },
         },
         scales: {
-            y: { beginAtZero: true, ticks: { callback: (v) => `£${v}` } },
-            x: { grid: { display: false } },
+            y: { beginAtZero: true, ticks: { callback: (v) => `£${v}` }, grid: { color: "rgba(0,0,0,0.05)" } },
+            x: { grid: { color: "rgba(0,0,0,0.05)" } },
         },
     };
 
@@ -201,15 +201,15 @@ export default function DashboardCharts() {
     };
 
     return (
-        <div>
+        <div className="space-y-6">
             {/* Interval Toggle */}
-            <div className="flex gap-2 mb-6">
+            <div className="flex gap-3 mb-4">
                 {INTERVALS.map((i) => (
                     <button
                         key={i}
                         onClick={() => setSelectedInterval(i)}
-                        className={`px-4 py-2 rounded font-medium transition ${selectedInterval === i
-                                ? "bg-indigo-600 text-white shadow"
+                        className={`px-4 py-2 rounded font-medium transition duration-200 ${selectedInterval === i
+                                ? "bg-indigo-600 text-white shadow-lg"
                                 : "bg-gray-200 text-gray-700 hover:bg-gray-300"
                             }`}
                     >
@@ -218,15 +218,26 @@ export default function DashboardCharts() {
                 ))}
             </div>
 
-            {/* Charts */}
+            {/* Charts Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white border rounded-lg shadow p-4 h-80">
-                    <h2 className="text-lg font-semibold mb-3">Revenue ({selectedInterval})</h2>
-                    {loading ? <p className="text-gray-500">Loading...</p> : <Line data={revenueData} options={revenueOptions} />}
+                {/* Revenue Chart */}
+                <div className="bg-white border rounded-lg shadow p-5 h-96 flex flex-col">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Revenue ({selectedInterval})</h3>
+                    {loading ? (
+                        <p className="text-gray-500 text-center mt-auto">Loading...</p>
+                    ) : (
+                        <Line data={revenueData} options={revenueOptions} className="flex-1" />
+                    )}
                 </div>
-                <div className="bg-white border rounded-lg shadow p-4 h-80">
-                    <h2 className="text-lg font-semibold mb-3">Service Trends ({selectedInterval})</h2>
-                    {loading ? <p className="text-gray-500">Loading...</p> : <Bar data={serviceTrendsData} options={serviceTrendsOptions} />}
+
+                {/* Service Trends Chart */}
+                <div className="bg-white border rounded-lg shadow p-5 h-96 flex flex-col">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-700">Service Trends ({selectedInterval})</h3>
+                    {loading ? (
+                        <p className="text-gray-500 text-center mt-auto">Loading...</p>
+                    ) : (
+                        <Bar data={serviceTrendsData} options={serviceTrendsOptions} className="flex-1" />
+                    )}
                 </div>
             </div>
         </div>

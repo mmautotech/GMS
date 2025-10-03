@@ -24,7 +24,7 @@ const SORT_OPTIONS = [
 ];
 const LIMIT_OPTIONS = [5, 25, 50, 100];
 
-export default function CarInPage() {
+export default function CarInPage({ currentUser }) {
     const bookingDetailRef = useRef(null);
 
     const [loadingCarOutId, setLoadingCarOutId] = useState(null);
@@ -314,6 +314,7 @@ export default function CarInPage() {
                     onCancelled={handleCancelled}
                     onSelectBooking={handleSelectBooking}
                     loadingCarOutId={loadingCarOutId}
+                    currentUser={currentUser}
                 />
             )}
 

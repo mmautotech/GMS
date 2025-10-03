@@ -11,17 +11,14 @@ export default function BookingsTable({
     onCarOut,
     onSelectBooking,
     loadingCarOutId,
+    currentUser, // <-- new prop
 }) {
     const rows = useMemo(() => bookings || [], [bookings]);
 
-    // Selection state
     const [selectedIndex, setSelectedIndex] = useState(null);
     const [selectedId, setSelectedId] = useState(null);
-
-    // Row refs
     const rowRefs = useRef([]);
 
-    // Invoice modal state
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
 
@@ -34,7 +31,6 @@ export default function BookingsTable({
         setIsInvoiceModalOpen(false);
     };
 
-    // Refresh a specific BookingRow
     const refreshBookingRow = (bookingId) => {
         const idx = rows.findIndex((r) => (r.id || r._id) === bookingId);
         if (idx !== -1 && rowRefs.current[idx]?.refresh) {
@@ -42,7 +38,6 @@ export default function BookingsTable({
         }
     };
 
-    // Keep selection stable across data changes
     useEffect(() => {
         if (!rows.length) {
             setSelectedIndex(null);
@@ -62,7 +57,6 @@ export default function BookingsTable({
         }
     }, [rows.length, selectedId, rows]);
 
-    // Scroll + focus when selection changes
     useEffect(() => {
         if (selectedIndex == null) return;
         const el = rowRefs.current[selectedIndex];
@@ -92,6 +86,9 @@ export default function BookingsTable({
         }
     };
 
+    // Determine if the current user is "parts"
+    const hideActions = currentUser?.userType === "parts";
+
     return (
         <div className="bg-white rounded shadow p-4">
             <h2 className="text-xl font-semibold mb-4">Arrived Bookings</h2>
@@ -114,26 +111,26 @@ export default function BookingsTable({
                             <th className="p-2 border text-[13px]">Phone</th>
                             <th className="p-2 border text-[13px]">Post Code</th>
                             <th className="p-2 border text-[13px]">Booking Price</th>
-                            <th className="p-2 border text-[13px]">Actions</th>
+                            {!hideActions && <th className="p-2 border text-[13px]">Actions</th>}
                         </tr>
                     </thead>
 
                     <tbody>
                         {loading ? (
                             <tr>
-                                <td colSpan={11} className="p-4 text-center text-gray-500">
+                                <td colSpan={hideActions ? 10 : 11} className="p-4 text-center text-gray-500">
                                     Loading arrived bookings...
                                 </td>
                             </tr>
                         ) : error ? (
                             <tr>
-                                <td colSpan={11} className="p-4 text-center text-red-500">
+                                <td colSpan={hideActions ? 10 : 11} className="p-4 text-center text-red-500">
                                     {error}
                                 </td>
                             </tr>
                         ) : rows.length === 0 ? (
                             <tr>
-                                <td colSpan={11} className="p-4 text-center text-gray-500">
+                                <td colSpan={hideActions ? 10 : 11} className="p-4 text-center text-gray-500">
                                     No arrived bookings found
                                 </td>
                             </tr>
@@ -153,6 +150,8 @@ export default function BookingsTable({
                                     onSelectBooking={onSelectBooking}
                                     openInvoiceModal={openInvoiceModal}
                                     loadingCarOutId={loadingCarOutId}
+                                    currentUser={currentUser}
+                                    hideActions={hideActions} // <-- pass flag
                                 />
                             ))
                         )}
@@ -166,7 +165,7 @@ export default function BookingsTable({
                     bookingId={selectedBooking._id}
                     isOpen={isInvoiceModalOpen}
                     onClose={closeInvoiceModal}
-                    onRefreshRow={refreshBookingRow} // optional: pass refresh callback
+                    onRefreshRow={refreshBookingRow}
                 />
             )}
         </div>
