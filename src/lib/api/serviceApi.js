@@ -1,0 +1,159 @@
+// src/lib/api/serviceApi.js
+import axiosInstance from "./axiosInstance.js";
+
+// --- Normalizers ---
+const normalizeServices = (arr) =>
+    (arr || []).map((s) => ({
+        _id: s._id,
+        name: s.name || "",
+        enabled: s.enabled ?? true,
+        createdAt: s.createdAt,
+        updatedAt: s.updatedAt,
+        parts: Array.isArray(s.parts) ? s.parts : [], // ids only for list
+        partsCount: s.partsCount ?? (s.parts ? s.parts.length : 0),
+        label: s.name,
+    }));
+
+const normalizeParts = (arr) =>
+    (arr || []).map((p) => ({
+        _id: p._id,
+        partName: p.partName || "",
+        partNumber: p.partNumber || "",
+        description: p.description || "",
+        isActive: p.isActive ?? true,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        __v: p.__v,
+        label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
+    }));
+
+// --- API ---
+const ServiceApi = {
+    /** List all services (ids only for parts + count) */
+    getServices: async (params = {}) => {
+        try {
+            const { data } = await axiosInstance.get("/service", { params });
+            return { success: data.success, services: normalizeServices(data.data) };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Get service by ID (with parts populated) */
+    getServiceById: async (id) => {
+        try {
+            const { data } = await axiosInstance.get(`/service/${id}`);
+            return {
+                success: data.success,
+                service: data.data
+                    ? {
+                        ...normalizeServices([data.data])[0],
+                        parts: normalizeParts(data.data.parts || []),
+                    }
+                    : null,
+            };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Create a new service */
+    createService: async (payload) => {
+        try {
+            const { data } = await axiosInstance.post("/service", payload);
+            return {
+                success: data.success,
+                service: data.data
+                    ? {
+                        ...normalizeServices([data.data])[0],
+                        parts: normalizeParts(data.data.parts || []),
+                    }
+                    : null,
+            };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Update service (returns updated with parts) */
+    updateService: async (id, payload) => {
+        try {
+            const { data } = await axiosInstance.patch(`/service/${id}`, payload);
+            return {
+                success: data.success,
+                service: data.data
+                    ? {
+                        ...normalizeServices([data.data])[0],
+                        parts: normalizeParts(data.data.parts || []),
+                    }
+                    : null,
+                message: data.message || "",
+            };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Soft delete (returns updated service with parts) */
+    deleteService: async (id) => {
+        try {
+            const { data } = await axiosInstance.delete(`/service/${id}`);
+            return {
+                success: data.success,
+                service: data.data
+                    ? {
+                        ...normalizeServices([data.data])[0],
+                        parts: normalizeParts(data.data.parts || []),
+                    }
+                    : null,
+                message: data.message || "",
+            };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Reactivate (returns updated service with parts) */
+    activateService: async (id) => {
+        try {
+            const { data } = await axiosInstance.patch(`/service/${id}/activate`);
+            return {
+                success: data.success,
+                service: data.data
+                    ? {
+                        ...normalizeServices([data.data])[0],
+                        parts: normalizeParts(data.data.parts || []),
+                    }
+                    : null,
+                message: data.message || "",
+            };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Options (id+name only) */
+    getServiceOptions: async ({ enabled, format = "list" } = {}) => {
+        const params = {};
+        if (enabled !== undefined) params.enabled = String(enabled);
+        if (format) params.format = format;
+        try {
+            const { data } = await axiosInstance.get("/service/options", { params });
+            return { success: data.success, options: normalizeServices(data.data) };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+
+    /** Legacy: get only parts of a service */
+    getServiceParts: async (id) => {
+        try {
+            const { data } = await axiosInstance.get(`/service/${id}/parts`);
+            return { success: data.success, parts: normalizeParts(data.data) };
+        } catch (err) {
+            return err.response?.data || { success: false, error: err.message };
+        }
+    },
+};
+
+export default ServiceApi;

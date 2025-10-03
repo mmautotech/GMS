@@ -1,17 +1,23 @@
 // src/lib/api/partsApi.js
 import axiosInstance from "./axiosInstance.js";
 
+// 🔹 Normalize API response into consistent object
 const normalizeParts = (arr) =>
     (arr || []).map((p) => ({
-        _id: p._id || p.id, // handle both { _id } and { id }
-        label:
-            p.label || (p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName),
-        partNumber: p.partNumber || null,
-        partName: p.partName || p.label || null,
+        _id: p._id,
+        partName: p.partName || "",
+        partNumber: p.partNumber || "",
+        description: p.description || "",
+        isActive: p.isActive ?? true,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+        __v: p.__v,
+        // For dropdowns / selects
+        label: p.partNumber ? `${p.partName} (${p.partNumber})` : p.partName,
     }));
 
 const PartsApi = {
-    /** Get all ACTIVE parts (q supported) */
+    /** Get all parts */
     getParts: async (params = {}) => {
         try {
             const { data } = await axiosInstance.get("/parts", { params });
@@ -20,98 +26,137 @@ const PartsApi = {
                 parts: normalizeParts(data.data),
             };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                parts: [],
+            };
         }
     },
 
-    /** Get single part (active + inactive allowed) */
+    /** Get single part by ID */
     getPartById: async (id) => {
         if (!id) throw new Error("❌ getPartById: ID is required");
         try {
             const { data } = await axiosInstance.get(`/parts/${id}`);
             return {
                 success: data.success,
-                part: data.data
-                    ? {
-                        _id: data.data._id || data.data.id,
-                        label:
-                            data.data.label ||
-                            (data.data.partNumber
-                                ? `${data.data.partName} (${data.data.partNumber})`
-                                : data.data.partName),
-                        partNumber: data.data.partNumber || null,
-                        partName: data.data.partName || data.data.label || null,
-                    }
-                    : null,
+                part: data.data ? normalizeParts([data.data])[0] : null,
             };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                part: null,
+            };
         }
     },
 
-    /** Create */
+    /** Create part */
     createPart: async (payload) => {
-        if (!payload) throw new Error("❌ createPart: payload is required");
         try {
-            const { data } = await axiosInstance.post("/parts", payload);
-            return { success: data.success, part: normalizeParts([data.data])[0] };
+            // ⚠️ backend does NOT accept serviceId
+            const { serviceId, ...cleanPayload } = payload;
+            const { data } = await axiosInstance.post("/parts", cleanPayload);
+            return {
+                success: data.success,
+                part: data.data ? normalizeParts([data.data])[0] : null,
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                part: null,
+            };
         }
     },
 
-    /** Update */
+    /** Update part */
     updatePart: async (id, payload) => {
-        if (!id) throw new Error("❌ updatePart: ID is required");
-        if (!payload) throw new Error("❌ updatePart: payload is required");
         try {
-            const { data } = await axiosInstance.put(`/parts/${id}`, payload);
-            return { success: data.success, part: normalizeParts([data.data])[0] };
+            const { serviceId, ...cleanPayload } = payload; // strip serviceId if passed
+            const { data } = await axiosInstance.put(`/parts/${id}`, cleanPayload);
+            return {
+                success: data.success,
+                part: data.data ? normalizeParts([data.data])[0] : null,
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                part: null,
+            };
         }
     },
 
     /** Deactivate (soft delete) */
     deactivatePart: async (id) => {
-        if (!id) throw new Error("❌ deactivatePart: ID is required");
         try {
             const { data } = await axiosInstance.delete(`/parts/${id}`);
-            return { success: data.success, part: normalizeParts([data.data])[0] };
+            return {
+                success: data.success,
+                part: data.data ? normalizeParts([data.data])[0] : null,
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                part: null,
+            };
         }
     },
 
     /** Reactivate */
     activatePart: async (id) => {
-        if (!id) throw new Error("❌ activatePart: ID is required");
         try {
             const { data } = await axiosInstance.patch(`/parts/${id}/activate`);
-            return { success: data.success, part: normalizeParts([data.data])[0] };
+            return {
+                success: data.success,
+                part: data.data ? normalizeParts([data.data])[0] : null,
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                part: null,
+            };
         }
     },
 
-    /** Dropdown (active parts only) */
+    /** Dropdown options */
     getPartsDropdown: async () => {
         try {
             const { data } = await axiosInstance.get("/parts/dropdown");
-            return { success: data.success, parts: normalizeParts(data.data) };
+            return {
+                success: data.success,
+                parts: (data.data || []).map((p) => ({
+                    _id: p.id,       // normalize id → _id
+                    label: p.label,  // use backend label
+                })),
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                parts: [],
+            };
         }
     },
 
-    /** Parts by booking.services */
+    /** Get parts linked to booking */
     getPartsByBooking: async (bookingId) => {
-        if (!bookingId) throw new Error("❌ getPartsByBooking: bookingId is required");
         try {
             const { data } = await axiosInstance.get(`/parts/by-booking/${bookingId}`);
-            return { success: data.success, parts: normalizeParts(data.data) };
+            return {
+                success: data.success,
+                parts: normalizeParts(data.data),
+            };
         } catch (err) {
-            return err.response?.data || { success: false, error: err.message };
+            return {
+                success: false,
+                error: err.response?.data?.error || err.message,
+                parts: [],
+            };
         }
     },
 };
