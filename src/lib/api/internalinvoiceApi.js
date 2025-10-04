@@ -1,14 +1,14 @@
-// src/lib/api/internalInvoiceApi.js
 import axiosInstance from "./axiosInstance.js";
 
 /**
- * Fetch paginated internal invoices with optional search and date filters
+ * Fetch paginated internal invoices with optional search, date, and vehicle filters
  * @param {Object} options
  * @param {number} options.page - Page number
  * @param {number} options.limit - Number of records per page
  * @param {string} options.search - Optional search keyword
  * @param {string} options.fromDate - Optional start date filter
  * @param {string} options.toDate - Optional end date filter
+ * @param {string} options.vehicleRegNo - Optional vehicle registration number filter
  */
 export const getAllInternalInvoices = async ({
     page = 1,
@@ -16,11 +16,13 @@ export const getAllInternalInvoices = async ({
     search = "",
     fromDate = "",
     toDate = "",
+    vehicleRegNo = "",
 } = {}) => {
     const params = { page, limit };
     if (search) params.search = search;
     if (fromDate) params.fromDate = fromDate;
     if (toDate) params.toDate = toDate;
+    if (vehicleRegNo) params.vehicleRegNo = vehicleRegNo;
 
     const res = await axiosInstance.get("/internal-invoices", { params });
     return res.data;
