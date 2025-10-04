@@ -1,133 +1,153 @@
 // src/App.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { Suspense } from "react";
 import { Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+// ✅ Components
 import Sidebar from "./components/Sidebar.jsx";
-import Dashboard from "./pages/Dashboard/index.jsx";
-import PreBooking from "./pages/PreBooking/index.jsx";
-import CarIn from "./pages/CarIn/index.jsx";
-import Login from "./pages/Auth/Login.jsx";
-import ForgotPassword from "./pages/Auth/ForgotPassword.jsx";
-import Register from "./pages/Auth/Register.jsx";
-import Services from "./pages/Services/index.jsx";
-import Invoices from "./pages/Invoice/invoice.jsx";
-import { Suppliers } from "./pages/Suppliers/supplier.jsx";
-import PartsPurchase from "./pages/PartsPurchase/index.jsx";
-import InternalInvoicesPage from "./pages/Invoice/InternalInvoicesPage.jsx";
 
-import { AuthApi } from "./lib/api/authApi.js";
+// ✅ Hooks
+import { useAuth } from "./hooks/useAuth.js";
+
+// ✅ Lazy-loaded Pages
+const Dashboard = React.lazy(() => import("./pages/Dashboard/index.jsx"));
+const PreBooking = React.lazy(() => import("./pages/PreBooking/index.jsx"));
+const CarIn = React.lazy(() => import("./pages/CarIn/index.jsx"));
+const Login = React.lazy(() => import("./pages/Auth/Login.jsx"));
+const ForgotPassword = React.lazy(() => import("./pages/Auth/ForgotPassword.jsx"));
+const Register = React.lazy(() => import("./pages/Auth/Register.jsx"));
+const Services = React.lazy(() => import("./pages/Services/index.jsx"));
+const Invoices = React.lazy(() => import("./pages/Invoice/invoice.jsx"));
+const Suppliers = React.lazy(() => import("./pages/Suppliers/supplier.jsx"));
+const PartsPurchase = React.lazy(() => import("./pages/PartsPurchase/index.jsx"));
+const InternalInvoicesPage = React.lazy(() => import("./pages/Invoice/InternalInvoicesPage.jsx"));
 
 export default function App() {
-  const [user, setUser] = useState(null);
+  const { user, loading, login, register, forgotPassword, logout } = useAuth();
 
-  // Restore session
-  useEffect(() => {
-    const saved = sessionStorage.getItem("gms_user");
-    if (saved) setUser(JSON.parse(saved));
-  }, []);
-
-  // Login
-  const handleLogin = useCallback(async (username, password) => {
-    try {
-      const { token, user } = await AuthApi.login(username, password);
-      AuthApi.setToken(token);
-      sessionStorage.setItem("gms_user", JSON.stringify(user));
-      setUser(user);
-      return { ok: true };
-    } catch (e) {
-      return { ok: false, error: e.message || "Network error" };
-    }
-  }, []);
-
-  // Register
-  const handleRegister = useCallback(async (username, password, userType) => {
-    try {
-      await AuthApi.register(username, password, userType);
-      toast.success(`User (${userType}) created successfully!`);
-      return { ok: true };
-    } catch (e) {
-      toast.error(e.message || "Failed to create user");
-      return { ok: false, error: e.message || "Failed to create user" };
-    }
-  }, []);
-
-  // Forgot Password
-  const handleForgotPassword = useCallback(async (username) => {
-    try {
-      const res = await AuthApi.forgotPassword(username);
-      toast.success(`Reset token: ${res.resetToken}`);
-      return { ok: true };
-    } catch (e) {
-      toast.error(e.message || "Failed to send reset token");
-      return { ok: false, error: e.message || "Failed to send reset token" };
-    }
-  }, []);
-
-  // Logout
-  const handleLogout = useCallback(() => {
-    AuthApi.clearToken();
-    sessionStorage.removeItem("gms_user");
-    setUser(null);
-  }, []);
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen text-gray-500">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <>
-      <Routes>
-        {/* Public routes */}
-        <Route
-          path="/login"
-          element={user ? <Navigate to={getDefaultRoute(user)} replace /> : <Login onLogin={handleLogin} />}
-        />
-        <Route path="/forgot-password" element={<ForgotPassword onForgotPassword={handleForgotPassword} />} />
+      <Suspense
+        fallback={
+          <div className="flex items-center justify-center h-screen text-gray-500">
+            Loading page...
+          </div>
+        }
+      >
+        <Routes>
+          {/* ---------------- PUBLIC ROUTES ---------------- */}
+          <Route
+            path="/login"
+            element={
+              user ? <Navigate to={getDefaultRoute(user)} replace /> : <Login onLogin={login} />
+            }
+          />
+          <Route
+            path="/forgot-password"
+            element={<ForgotPassword onForgotPassword={forgotPassword} />}
+          />
 
-        {/* Private routes */}
-        <Route element={<RequireAuth user={user} />}>
-          <Route element={<Shell user={user} onLogout={handleLogout} />}>
-            <Route index element={<Navigate to={getDefaultRoute(user)} replace />} />
+          {/* ---------------- PRIVATE ROUTES ---------------- */}
+          <Route element={<RequireAuth user={user} />}>
+            <Route element={<Shell user={user} onLogout={logout} />}>
+              <Route index element={<Navigate to={getDefaultRoute(user)} replace />} />
 
-            {/* Admin only */}
-            <Route element={<RequireAdmin user={user} />}>
-              <Route path="/dashboard" element={<Dashboard user={user} />} />
+              {/* Admin only */}
+              <Route element={<RequireAdmin user={user} />}>
+                <Route path="/dashboard" element={<Dashboard user={user} />} />
+              </Route>
+
+              {/* Role restricted */}
+              <Route
+                path="/pre-booking"
+                element={
+                  <RequireRole user={user} allowed={["admin", "sales", "customer_service"]}>
+                    <PreBooking user={user} />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/car-in"
+                element={
+                  <RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}>
+                    <CarIn currentUser={user} />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/parts-purchase"
+                element={
+                  <RequireRole user={user} allowed={["admin", "parts", "accounts"]}>
+                    <PartsPurchase />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/invoice"
+                element={
+                  <RequireRole user={user} allowed={["admin", "accounts"]}>
+                    <Invoices />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/InternalInvoicesPage"
+                element={
+                  <RequireRole user={user} allowed={["admin", "accounts"]}>
+                    <InternalInvoicesPage />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/suppliers"
+                element={
+                  <RequireRole user={user} allowed={["admin"]}>
+                    <Suppliers />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/services"
+                element={
+                  <RequireRole user={user} allowed={["admin"]}>
+                    <Services />
+                  </RequireRole>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <RequireRole user={user} allowed={["admin"]}>
+                    <Register onRegister={register} />
+                  </RequireRole>
+                }
+              />
             </Route>
-
-            {/* Role restricted pages */}
-            <Route
-              path="/pre-booking"
-              element={
-                <RequireRole user={user} allowed={["admin", "sales", "customer_service"]}>
-                  <PreBooking user={user} />
-                </RequireRole>
-              }
-            />
-
-           // In App.jsx
-            <Route path="/car-in" element={
-              <RequireRole user={user} allowed={["admin", "customer_service", "accounts", "parts"]}>
-                <CarIn currentUser={user} />
-              </RequireRole>
-            } />
-
-            <Route path="/parts-purchase" element={<RequireRole user={user} allowed={["admin", "parts", "accounts"]}><PartsPurchase /></RequireRole>} />
-            <Route path="/invoice" element={<RequireRole user={user} allowed={["admin", "accounts"]}><Invoices /></RequireRole>} />
-            <Route path="/InternalInvoicesPage" element={<RequireRole user={user} allowed={["admin", "accounts"]}><InternalInvoicesPage /></RequireRole>} />
-            <Route path="/suppliers" element={<RequireRole user={user} allowed={["admin"]}><Suppliers /></RequireRole>} />
-            <Route path="/services" element={<RequireRole user={user} allowed={["admin"]}><Services /></RequireRole>} />
-            <Route path="/register" element={<RequireRole user={user} allowed={["admin"]}><Register onRegister={handleRegister} /></RequireRole>} />
           </Route>
-        </Route>
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to={user ? getDefaultRoute(user) : "/login"} replace />} />
-      </Routes>
+          {/* ---------------- FALLBACK ---------------- */}
+          <Route
+            path="*"
+            element={<Navigate to={user ? getDefaultRoute(user) : "/login"} replace />}
+          />
+        </Routes>
+      </Suspense>
 
       <ToastContainer position="top-right" autoClose={3000} theme="light" />
     </>
   );
 }
 
-/* Guards */
+/* 🔒 Route Guards */
 function RequireAuth({ user }) {
   if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
@@ -146,7 +166,7 @@ function RequireRole({ user, allowed, children }) {
   return children;
 }
 
-/* Default route per role */
+/* 🧭 Role-Based Default Routes */
 function getDefaultRoute(user) {
   if (!user) return "/login";
   switch (user.userType) {
@@ -155,7 +175,7 @@ function getDefaultRoute(user) {
     case "parts":
       return "/parts-purchase";
     case "accounts":
-      return "/car-in";
+      return "/invoice";
     case "customer_service":
       return "/pre-booking";
     case "admin":
@@ -165,10 +185,10 @@ function getDefaultRoute(user) {
   }
 }
 
-/* Shell layout */
+/* 🧩 Shell Layout */
 function Shell({ user, onLogout }) {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = useState(() =>
+  const [sidebarOpen, setSidebarOpen] = React.useState(
     typeof window !== "undefined" ? window.innerWidth >= 768 : true
   );
 
@@ -177,7 +197,7 @@ function Shell({ user, onLogout }) {
     navigate("/login", { replace: true });
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 768) setSidebarOpen(true);
     };
@@ -187,7 +207,7 @@ function Shell({ user, onLogout }) {
 
   return (
     <div className="flex min-h-screen bg-gray-100 overflow-hidden">
-      {/* Desktop sidebar */}
+      {/* Sidebar (Desktop) */}
       {sidebarOpen && (
         <aside className="hidden md:block w-64 shrink-0">
           <Sidebar
@@ -199,9 +219,10 @@ function Shell({ user, onLogout }) {
         </aside>
       )}
 
-      {/* Mobile drawer */}
+      {/* Sidebar (Mobile Drawer) */}
       <div
-        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}`}
+        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
         aria-hidden={!sidebarOpen}
       >
         <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
@@ -218,7 +239,7 @@ function Shell({ user, onLogout }) {
         </aside>
       </div>
 
-      {/* Main content */}
+      {/* Main Content */}
       <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <button
@@ -228,15 +249,6 @@ function Shell({ user, onLogout }) {
           >
             ☰ Menu
           </button>
-          {!sidebarOpen && (
-            <button
-              className="hidden md:inline-flex bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open menu"
-            >
-              ☰ Menu
-            </button>
-          )}
         </div>
         <Outlet />
       </main>

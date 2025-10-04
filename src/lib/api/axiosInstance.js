@@ -1,19 +1,17 @@
-// ./axiosInstance.js
 import axios from "axios";
 
-// ✅ Always use API URL from .env
-const API_URL = "http://192.168.18.84:5000/api";
+// ✅ Get API URL from preload (injected via contextBridge in preload.js)
+const API_URL = window.env?.API_URL || "http://localhost:5000/api";
+console.log("🔗 Using API URL:", API_URL);
 
 // ✅ Create Axios instance
 const axiosInstance = axios.create({
     baseURL: API_URL,
-    timeout: 500000, // 20s timeout
-    headers: {
-        "Content-Type": "application/json",
-    },
+    timeout: 20000, // 20 seconds
+    headers: { "Content-Type": "application/json" },
 });
 
-// ✅ Request interceptor → attach token automatically
+// ✅ Request Interceptor → Attach Token
 axiosInstance.interceptors.request.use(
     (config) => {
         try {
@@ -22,39 +20,36 @@ axiosInstance.interceptors.request.use(
                 config.headers.Authorization = `Bearer ${token}`;
             }
         } catch (e) {
-            console.warn("Token fetch failed:", e);
+            console.warn("⚠️ Failed to read token:", e);
         }
         return config;
     },
     (error) => Promise.reject(error)
 );
 
-// ✅ Response interceptor → global error handling
+// ✅ Response Interceptor → Handle Global Errors
 axiosInstance.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response) {
             const { status, data } = error.response;
-            console.error(`API Error [${status}]:`, data);
+            console.error(`🚨 API Error [${status}]:`, data);
 
-            // 🔒 Auto logout if unauthorized
+            // 🔐 Auto logout if unauthorized
             if (status === 401) {
                 localStorage.removeItem("token");
+                localStorage.removeItem("user");
 
-                // Prefer SPA navigation if injected, otherwise hard reload
-                if (typeof window !== "undefined") {
-                    if (window.__APP_NAVIGATE__) {
-                        window.__APP_NAVIGATE__("/login");
-                    } else {
-                        window.location.href = "/login";
-                    }
+                if (typeof window !== "undefined" && window.__APP_NAVIGATE__) {
+                    window.__APP_NAVIGATE__("/login"); // ✅ SPA navigation
                 }
             }
         } else if (error.request) {
             console.error("🌐 Network Error:", error.message);
         } else {
-            console.error("Axios Config Error:", error.message);
+            console.error("⚙️ Axios Config Error:", error.message);
         }
+
         return Promise.reject(error);
     }
 );

@@ -9,3 +9,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
         shell.openExternal(url);
     },
 });
+// ✅ Expose environment variables (from main.js via process.env)
+contextBridge.exposeInMainWorld("env", {
+    API_URL: process.env.REACT_APP_API_URL || "http://localhost:5000/api",
+});

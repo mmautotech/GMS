@@ -1,23 +1,26 @@
 // src/main.js
 const { app, BrowserWindow, session } = require("electron");
 const path = require("path");
+const dotenv = require("dotenv");
 
-// ✅ Handle Squirrel events (create/remove shortcuts) and exit early when needed
-if (require("electron-squirrel-startup")) {
-  app.quit();
-}
+// ✅ Load environment variables from .env
+dotenv.config();
 
 let mainWindow;
 let splashWindow;
 let splashShownAt = null;
 
+// ✅ Environment variable for API
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000/api";
+
+// ✅ CSP for development (loosened for APIs on localhost + LAN)
 const DEV_CSP = [
   "default-src 'self' data: blob:",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob:",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' http://127.0.0.1:5000 http://192.168.18.84:5000 ws: http: https:",
+  `connect-src 'self' ${API_URL} ws: http: https:`,
   "worker-src 'self' blob:",
 ].join("; ");
 
@@ -30,7 +33,7 @@ function createMainWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY, // preload handles env injection
     },
   });
 
@@ -38,6 +41,7 @@ function createMainWindow() {
     mainWindow = null;
   });
 
+  // Load your React/Frontend entry point
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -99,13 +103,14 @@ if (!gotLock) {
   });
 
   app.whenReady().then(() => {
-    // Dev CSP (adjust/remove for prod)
+    // ✅ Inject Content Security Policy
     session.defaultSession.webRequest.onHeadersReceived((details, cb) => {
       const headers = details.responseHeaders || {};
       headers["Content-Security-Policy"] = [DEV_CSP];
       cb({ responseHeaders: headers });
     });
 
+    // ✅ Create splash + main window
     createSplash();
     createMainWindow();
   });
@@ -118,6 +123,11 @@ if (!gotLock) {
   });
 
   app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
+    if (process.platform !== "darwin") {
+      app.quit();
+    }
   });
 }
+
+// ✅ Expose env to preload (so renderer can read API_URL)
+process.env.API_URL = API_URL;

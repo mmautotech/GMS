@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../ui/dialo
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, restoreSupplier } from "../../lib/api/suppliersApi";
 import { toast } from "react-toastify";
 
-export function Suppliers() {
+export default function Suppliers() {
     const [suppliersList, setSuppliersList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
