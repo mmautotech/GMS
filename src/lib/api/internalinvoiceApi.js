@@ -1,14 +1,8 @@
+// src/lib/api/internalinvoiceApi.js
 import axiosInstance from "./axiosInstance.js";
 
 /**
- * Fetch paginated internal invoices with optional search, date, and vehicle filters
- * @param {Object} options
- * @param {number} options.page - Page number
- * @param {number} options.limit - Number of records per page
- * @param {string} options.search - Optional search keyword
- * @param {string} options.fromDate - Optional start date filter
- * @param {string} options.toDate - Optional end date filter
- * @param {string} options.vehicleRegNo - Optional vehicle registration number filter
+ * Fetch paginated internal invoices with optional filters
  */
 export const getAllInternalInvoices = async ({
     page = 1,
@@ -30,21 +24,57 @@ export const getAllInternalInvoices = async ({
 
 /**
  * Fetch a single internal invoice by ID
- * @param {string} id - Internal invoice ID
  */
 export const getInternalInvoiceById = async (id) => {
+    if (!id) throw new Error("Internal invoice ID is required");
     const res = await axiosInstance.get(`/internal-invoices/${id}`);
     return res.data;
 };
 
 /**
  * Create a new internal invoice
- * Only invoiceId is required in the body
- * @param {Object} payload
- * @param {string} payload.invoiceId - Main invoice ID
  */
 export const createInternalInvoice = async ({ invoiceId }) => {
     if (!invoiceId) throw new Error("invoiceId is required");
     const res = await axiosInstance.post("/internal-invoices", { invoiceId });
     return res.data;
+};
+
+/**
+ * ✅ Export / Download Internal Invoice PDF by ID
+ */
+export const exportInternalInvoiceById = async (id) => {
+    if (!id) throw new Error("Internal invoice ID is required");
+
+    try {
+        const response = await axiosInstance.get(`/internal-invoices/${id}/pdf/view`, {
+            responseType: "blob", // handle PDF correctly
+        });
+
+        const blob = new Blob([response.data], { type: "application/pdf" });
+        const url = URL.createObjectURL(blob);
+
+        // Create a temporary link to download
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `internal_invoice_${id}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        // Clean up
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("❌ Failed to export internal invoice PDF:", error);
+        throw error;
+    }
+};
+
+/**
+ * 🧾 View Internal Invoice PDF in a new tab (alternative to export)
+ */
+export const viewInternalInvoicePdf = (id) => {
+    if (!id) throw new Error("Internal invoice ID is required");
+    const url = `${axiosInstance.defaults.baseURL}/internal-invoices/${id}/pdf/view`;
+    window.open(url, "_blank");
 };

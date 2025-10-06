@@ -1,7 +1,7 @@
 // src/pages/Invoice/invoice.jsx
 import React, { useEffect, useState } from "react";
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
-import { createInternalInvoice } from "../../lib/api/internalInvoiceApi.js";
+import { createInternalInvoice } from "../../lib/api/internalinvoiceApi.js";
 import { toast } from "react-toastify";
 import StatCard from "../../components/StatCard.jsx";
 import { Eye, FileText, FilePlus } from "lucide-react";

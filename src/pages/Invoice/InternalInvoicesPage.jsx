@@ -1,9 +1,11 @@
-// src/pages/internalInvoices/InternalInvoicePage.jsx
 import React, { useEffect, useState } from "react";
-import { getAllInternalInvoices } from "../../lib/api/internalInvoiceApi.js";
 import { toast } from "react-toastify";
 import { Button } from "../../ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText } from "lucide-react";
+import {
+    getAllInternalInvoices,
+    exportInternalInvoiceById,
+} from "../../lib/api/internalinvoiceApi";
 
 const VAT_RATE = 0.2; // 20%
 
@@ -15,12 +17,12 @@ export default function InternalInvoicePage() {
     const [limit] = useState(25);
     const [totalPages, setTotalPages] = useState(1);
 
-    // Filter states
+    // Filters
     const [fromDate, setFromDate] = useState("");
     const [toDate, setToDate] = useState("");
     const [vehicleRegNo, setVehicleRegNo] = useState("");
 
-    // Fetch invoices with filters
+    // Fetch invoices
     const fetchInvoices = async () => {
         try {
             setLoading(true);
@@ -41,14 +43,27 @@ export default function InternalInvoicePage() {
         }
     };
 
-    // Fetch whenever page or filters change
     useEffect(() => {
         fetchInvoices();
     }, [page, fromDate, toDate, vehicleRegNo]);
 
+    // ✅ Export a single internal invoice PDF by ID
+    const handleExportPDF = async (id) => {
+        try {
+            toast.info("Generating PDF...");
+            await exportInternalInvoiceById(id);
+            toast.success("PDF downloaded successfully!");
+        } catch (error) {
+            console.error("❌ Export failed:", error);
+            toast.error("Failed to export PDF");
+        }
+    };
+
     return (
         <div className="p-6">
-            <h1 className="text-2xl font-bold mb-4">Internal Invoices</h1>
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold">Internal Invoices</h1>
+            </div>
 
             {/* Filters */}
             <div className="flex gap-4 mb-4 flex-wrap items-end">
@@ -113,6 +128,7 @@ export default function InternalInvoicePage() {
                 </div>
             </div>
 
+            {/* Table */}
             {loading ? (
                 <p>Loading internal invoices...</p>
             ) : invoices.length === 0 ? (
@@ -136,16 +152,14 @@ export default function InternalInvoicePage() {
                             {invoices.map((inv) => {
                                 const revenue = Number(inv.revenue || 0);
                                 const cost = Number(inv.cost || 0);
-                                const profit = (revenue - cost) / 1.2; // ✅ Divide profit by 1.2
+                                const profit = (revenue - cost) / 1.2;
 
                                 const hasVat = [...(inv.items || []), ...(inv.booking?.services || [])].some(
                                     (item) => item?.vatIncluded
                                 );
 
                                 const validItems = [...(inv.items || []), ...(inv.booking?.services || [])].filter(
-                                    (item) =>
-                                        item &&
-                                        (item.description || item.cost || item.selling || item.status)
+                                    (item) => item && (item.description || item.cost || item.selling || item.status)
                                 );
 
                                 return (
@@ -162,7 +176,7 @@ export default function InternalInvoicePage() {
                                                     ? new Date(inv.createdAt).toLocaleDateString("en-GB")
                                                     : "-"}
                                             </td>
-                                            <td className="p-2 flex justify-center">
+                                            <td className="p-2 flex justify-center gap-2">
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -176,10 +190,20 @@ export default function InternalInvoicePage() {
                                                         <ChevronDown className="w-4 h-4" />
                                                     )}
                                                 </Button>
+
+                                                {/* ✅ Export PDF Button */}
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="flex items-center gap-1"
+                                                    onClick={() => handleExportPDF(inv._id)}
+                                                >
+                                                    <FileText className="w-4 h-4" />
+                                                    PDF
+                                                </Button>
                                             </td>
                                         </tr>
 
-                                        {/* Expanded Items */}
                                         {expanded === inv._id && (
                                             <tr className="bg-gray-50">
                                                 <td colSpan="8" className="p-3">
@@ -220,25 +244,6 @@ export default function InternalInvoicePage() {
                                                                         </tr>
                                                                     );
                                                                 })}
-                                                                <tr className="bg-gray-100 font-bold">
-                                                                    <td colSpan="5" className="p-2 text-right">
-                                                                        Total VAT Paid:
-                                                                    </td>
-                                                                    <td className="p-2 text-blue-700">
-                                                                        £
-                                                                        {validItems
-                                                                            .reduce((sum, item) => {
-                                                                                const cost = Number(item.cost || 0);
-                                                                                const selling = Number(item.selling || 0);
-                                                                                const vatAmount = item.vatIncluded
-                                                                                    ? (selling || cost) * VAT_RATE
-                                                                                    : 0;
-                                                                                return sum + vatAmount;
-                                                                            }, 0)
-                                                                            .toFixed(2)}
-                                                                    </td>
-                                                                    <td colSpan="2"></td>
-                                                                </tr>
                                                             </tbody>
                                                         </table>
                                                     </div>
@@ -253,19 +258,13 @@ export default function InternalInvoicePage() {
 
                     {/* Pagination */}
                     <div className="flex justify-end gap-2 p-2">
-                        <Button
-                            disabled={page <= 1}
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                        >
+                        <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
                             Previous
                         </Button>
                         <span className="flex items-center px-2">
                             Page {page} of {totalPages}
                         </span>
-                        <Button
-                            disabled={page >= totalPages}
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                        >
+                        <Button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
                             Next
                         </Button>
                     </div>
