@@ -136,13 +136,12 @@ export default function InternalInvoicePage() {
                             {invoices.map((inv) => {
                                 const revenue = Number(inv.revenue || 0);
                                 const cost = Number(inv.cost || 0);
-                                const profit = revenue - cost;
+                                const profit = (revenue - cost) / 1.2; // ✅ Divide profit by 1.2
 
                                 const hasVat = [...(inv.items || []), ...(inv.booking?.services || [])].some(
                                     (item) => item?.vatIncluded
                                 );
 
-                                // Filter only meaningful items
                                 const validItems = [...(inv.items || []), ...(inv.booking?.services || [])].filter(
                                     (item) =>
                                         item &&
