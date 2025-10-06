@@ -2,7 +2,7 @@
   "name": "garage_management_software",
   "productName": "Garage Management Software",
   "version": "1.0.1",
-  "description": "My Electron application description",
+  "description": "Garage Management Software built with Electron and React",
   "main": ".webpack/main",
   "scripts": {
     "start": "electron-forge start",
@@ -35,12 +35,13 @@
     "copy-webpack-plugin": "^13.0.1",
     "css-loader": "^6.11.0",
     "dotenv": "^17.2.2",
-    "electron": "37.2.6",
+    "electron": "^38.2.1",
     "node-loader": "^2.1.0",
     "postcss": "^8.5.6",
     "postcss-loader": "^8.1.1",
     "react-scripts": "^5.0.1",
-    "style-loader": "^3.3.4"
+    "style-loader": "^3.3.4",
+    "webpack-dev-server": "^5.2.2"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.7",
@@ -76,5 +77,54 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.17",
     "util": "^0.12.5"
+  },
+  "config": {
+    "forge": {
+      "packagerConfig": {
+        "icon": "./src/assets/icon",
+        "asar": true
+      },
+      "makers": [
+        {
+          "name": "@electron-forge/maker-squirrel",
+          "config": {
+            "name": "garage_management_software",
+            "setupIcon": "./src/assets/icon.ico",
+            "iconUrl": "https://example.com/icon.ico"
+          }
+        },
+        {
+          "name": "@electron-forge/maker-zip"
+        },
+        {
+          "name": "@electron-forge/maker-deb"
+        },
+        {
+          "name": "@electron-forge/maker-rpm"
+        }
+      ],
+      "plugins": [
+        {
+          "name": "@electron-forge/plugin-webpack",
+          "config": {
+            "mainConfig": "./webpack.main.config.js",
+            "renderer": {
+              "config": "./webpack.renderer.config.js",
+              "entryPoints": [
+                {
+                  "html": "./src/index.html",
+                  "js": "./src/renderer.js",
+                  "name": "main_window"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "@electron-forge/plugin-auto-unpack-natives",
+          "config": {}
+        }
+      ]
+    }
   }
 }
