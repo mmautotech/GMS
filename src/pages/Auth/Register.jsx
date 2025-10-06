@@ -2,22 +2,53 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "react-toastify";
+import { Eye, EyeOff } from "lucide-react"; // 👁️ import icons
 
 export default function Register({ onRegister }) {
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [userType, setUserType] = useState("sales");
     const [busy, setBusy] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
 
     const roles = ["admin", "sales", "customer_service", "parts", "accounts"];
+
+    // ✅ Validation Function
+    const validateInputs = () => {
+        if (!username.trim() || !password.trim()) {
+            toast.error("Please fill in all fields");
+            return false;
+        }
+
+        if (username.trim().length < 3) {
+            toast.error("Username must be at least 3 characters long");
+            return false;
+        }
+
+        const usernameRegex = /^[a-zA-Z0-9_]+$/;
+        if (!usernameRegex.test(username.trim())) {
+            toast.error("Username can only contain letters, numbers, and underscores");
+            return false;
+        }
+
+        if (password.length < 6) {
+            toast.error("Password must be at least 6 characters long");
+            return false;
+        }
+
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).+$/;
+        if (!passwordRegex.test(password)) {
+            toast.error("Password must contain at least one letter and one number");
+            return false;
+        }
+
+        return true;
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        if (!username.trim() || !password.trim()) {
-            toast.error("Please fill in all fields");
-            return;
-        }
+        if (!validateInputs()) return;
 
         setBusy(true);
         try {
@@ -26,7 +57,8 @@ export default function Register({ onRegister }) {
                 setUsername("");
                 setPassword("");
                 setUserType("sales");
-            } else {
+            }
+            else {
                 toast.error(res.error || "Failed to create user");
             }
         } catch (err) {
@@ -43,6 +75,7 @@ export default function Register({ onRegister }) {
                 <h2 className="text-2xl font-bold mb-4 text-center">Create New User</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
+                    {/* Username */}
                     <div>
                         <label className="block mb-1 font-medium">Username</label>
                         <input
@@ -56,19 +89,31 @@ export default function Register({ onRegister }) {
                         />
                     </div>
 
-                    <div>
+                    {/* Password */}
+                    <div className="relative">
                         <label className="block mb-1 font-medium">Password</label>
-                        <input
-                            type="password"
-                            placeholder="Enter password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="w-full p-2 border rounded"
-                            required
-                            disabled={busy}
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Enter password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                className="w-full p-2 pr-10 border rounded"
+                                required
+                                disabled={busy}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
                     </div>
 
+                    {/* Role */}
                     <div>
                         <label className="block mb-1 font-medium">User Role</label>
                         <select
@@ -79,12 +124,14 @@ export default function Register({ onRegister }) {
                         >
                             {roles.map((role) => (
                                 <option key={role} value={role}>
-                                    {role.charAt(0).toUpperCase() + role.slice(1).replace("_", " ")}
+                                    {role.charAt(0).toUpperCase() +
+                                        role.slice(1).replace("_", " ")}
                                 </option>
                             ))}
                         </select>
                     </div>
 
+                    {/* Submit button */}
                     <button
                         type="submit"
                         className={`w-full p-2 rounded text-white transition ${busy

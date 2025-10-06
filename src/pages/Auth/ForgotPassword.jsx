@@ -1,12 +1,13 @@
-// src/pages/Auth/ForgotPassword.jsx
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../lib/api/axiosInstance.js";
+import { Eye, EyeOff } from "lucide-react"; // 👁️ icons added
 
 export default function ForgotPassword() {
     const [username, setUsername] = useState("");
     const [newPassword, setNewPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false); // 👁️ toggle state
     const [busy, setBusy] = useState(false);
     const [users, setUsers] = useState([]);
     const navigate = useNavigate();
@@ -97,18 +98,28 @@ export default function ForgotPassword() {
                         </select>
                     </div>
 
-                    {/* New Password */}
-                    <div>
+                    {/* New Password with eye toggle */}
+                    <div className="relative">
                         <label className="block mb-1 font-medium">New Password</label>
-                        <input
-                            type="password"
-                            placeholder="Enter new password"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="w-full p-2 border rounded"
-                            required
-                            disabled={busy}
-                        />
+                        <div className="relative">
+                            <input
+                                type={showPassword ? "text" : "password"}
+                                placeholder="Enter new password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                className="w-full p-2 pr-10 border rounded"
+                                required
+                                disabled={busy}
+                            />
+                            <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute inset-y-0 right-3 flex items-center text-gray-500 hover:text-gray-700"
+                                tabIndex={-1}
+                            >
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
+                        </div>
                     </div>
 
                     {/* Submit */}
