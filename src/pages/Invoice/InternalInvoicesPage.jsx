@@ -143,7 +143,7 @@ export default function InternalInvoicePage() {
                                 <th className="p-2 text-left">Revenue</th>
                                 <th className="p-2 text-left">Cost</th>
                                 <th className="p-2 text-left">Profit</th>
-                                <th className="p-2 text-left">VAT</th>
+                                <th className="p-2 text-left">VAT Included (Revenue)</th>
                                 <th className="p-2 text-left">Date</th>
                                 <th className="p-2 text-center">Actions</th>
                             </tr>
@@ -152,14 +152,24 @@ export default function InternalInvoicePage() {
                             {invoices.map((inv) => {
                                 const revenue = Number(inv.revenue || 0);
                                 const cost = Number(inv.cost || 0);
-                                const profit = (revenue - cost) / 1.2;
 
-                                const hasVat = [...(inv.items || []), ...(inv.booking?.services || [])].some(
-                                    (item) => item?.vatIncluded
-                                );
+                                // ✅ Only divide by 1.2 if VAT is included in REVENUE
+                                const revenueExVat = inv.vatIncludedInRevenue
+                                    ? revenue / 1.2
+                                    : revenue;
 
-                                const validItems = [...(inv.items || []), ...(inv.booking?.services || [])].filter(
-                                    (item) => item && (item.description || item.cost || item.selling || item.status)
+                                const profit = revenueExVat - cost;
+
+                                const validItems = [
+                                    ...(inv.items || []),
+                                    ...(inv.booking?.services || []),
+                                ].filter(
+                                    (item) =>
+                                        item &&
+                                        (item.description ||
+                                            item.cost ||
+                                            item.selling ||
+                                            item.status)
                                 );
 
                                 return (
@@ -167,10 +177,12 @@ export default function InternalInvoicePage() {
                                         <tr className="border-t hover:bg-gray-50">
                                             <td className="p-2">{inv.invoice?.invoiceNo ?? "Pending"}</td>
                                             <td className="p-2">{inv.booking?.vehicleRegNo ?? "-"}</td>
-                                            <td className="p-2 font-semibold">£{revenue.toFixed(2)}</td>
+                                            <td className="p-2 font-semibold">£{revenueExVat.toFixed(2)}</td>
                                             <td className="p-2 text-red-600">£{cost.toFixed(2)}</td>
                                             <td className="p-2 font-bold text-green-600">£{profit.toFixed(2)}</td>
-                                            <td className="p-2">{hasVat ? "Yes" : "No"}</td>
+                                            <td className="p-2">
+                                                {inv.vatIncludedInRevenue ? "Yes" : "No"}
+                                            </td>
                                             <td className="p-2">
                                                 {inv.createdAt
                                                     ? new Date(inv.createdAt).toLocaleDateString("en-GB")
@@ -215,7 +227,6 @@ export default function InternalInvoicePage() {
                                                                     <th className="p-2 text-left">Qty</th>
                                                                     <th className="p-2 text-left">Cost</th>
                                                                     <th className="p-2 text-left">Selling</th>
-                                                                    <th className="p-2 text-left">VAT Paid</th>
                                                                     <th className="p-2 text-left">VAT Included</th>
                                                                     <th className="p-2 text-left">Total</th>
                                                                     <th className="p-2 text-left">Status</th>
@@ -226,18 +237,13 @@ export default function InternalInvoicePage() {
                                                                     const qty = Number(item.quantity || 1);
                                                                     const cost = Number(item.cost || 0);
                                                                     const selling = Number(item.selling || 0);
-                                                                    const vatAmount = item.vatIncluded
-                                                                        ? (selling || cost) * VAT_RATE
-                                                                        : 0;
-                                                                    const total = (selling || cost) + vatAmount;
-
+                                                                    const total = selling * qty;
                                                                     return (
                                                                         <tr key={idx} className="border-t">
                                                                             <td className="p-2">{item.description ?? "Pending"}</td>
                                                                             <td className="p-2">{qty}</td>
                                                                             <td className="p-2 text-red-600">£{cost.toFixed(2)}</td>
                                                                             <td className="p-2">£{selling.toFixed(2)}</td>
-                                                                            <td className="p-2 text-blue-600">£{vatAmount.toFixed(2)}</td>
                                                                             <td className="p-2">{item.vatIncluded ? "Yes" : "No"}</td>
                                                                             <td className="p-2 font-semibold">£{total.toFixed(2)}</td>
                                                                             <td className="p-2">{item.status ?? "Pending"}</td>
