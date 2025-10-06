@@ -1,8 +1,9 @@
 // src/App.jsx
 import React, { Suspense } from "react";
-import { Routes, Route, Navigate, Outlet, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { motion, AnimatePresence } from "framer-motion";
 
 // ✅ Components
 import Sidebar from "./components/Sidebar.jsx";
@@ -188,68 +189,68 @@ function getDefaultRoute(user) {
 /* 🧩 Shell Layout */
 function Shell({ user, onLogout }) {
   const navigate = useNavigate();
-  const [sidebarOpen, setSidebarOpen] = React.useState(
-    typeof window !== "undefined" ? window.innerWidth >= 768 : true
-  );
+  const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = React.useState(true);
 
   const handleLogoutClick = () => {
     onLogout?.();
     navigate("/login", { replace: true });
   };
 
-  React.useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth >= 768) setSidebarOpen(true);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  // 🔹 Hide Sidebar and Menu button on Login / Forgot Password pages
+  const isAuthPage =
+    location.pathname === "/login" || location.pathname === "/forgot-password";
+
+  if (isAuthPage) {
+    return <Outlet />;
+  }
 
   return (
-    <div className="flex min-h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar (Desktop) */}
-      {sidebarOpen && (
-        <aside className="hidden md:block w-64 shrink-0">
-          <Sidebar
-            username={`${user?.username} (${user?.userType ?? "user"})`}
-            onClose={() => setSidebarOpen(false)}
-            onLogout={handleLogoutClick}
-            userType={user?.userType}
-          />
-        </aside>
-      )}
+    <div className="flex min-h-screen bg-gray-100 overflow-hidden relative">
+      {/* Sidebar (Animated) */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <motion.aside
+            key="sidebar"
+            initial={{ x: -260, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: -260, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 120, damping: 20 }}
+            className="w-64 shrink-0 fixed md:relative z-50 bg-white shadow-lg h-full"
+          >
+            <Sidebar
+              username={`${user?.username} (${user?.userType ?? "user"})`}
+              onClose={() => setSidebarOpen(false)}
+              onLogout={handleLogoutClick}
+              userType={user?.userType}
+            />
+          </motion.aside>
+        )}
+      </AnimatePresence>
 
-      {/* Sidebar (Mobile Drawer) */}
-      <div
-        className={`md:hidden fixed inset-0 z-40 transition-transform duration-200 ${sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        aria-hidden={!sidebarOpen}
-      >
-        <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
-        <aside className="relative w-64 h-full bg-white shadow-xl">
-          <Sidebar
-            username={`${user?.username} (${user?.userType ?? "user"})`}
-            onClose={() => setSidebarOpen(false)}
-            onLogout={() => {
-              setSidebarOpen(false);
-              handleLogoutClick();
-            }}
-            userType={user?.userType}
-          />
-        </aside>
-      </div>
-
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 overflow-x-hidden p-4 md:p-6">
-        <div className="flex items-center justify-between mb-4">
-          <button
-            className="bg-gray-800 text-white px-3 py-2 rounded hover:bg-gray-700 md:hidden"
+      {/* ☰ Floating Menu Icon (Visible when Sidebar closed) */}
+      <AnimatePresence>
+        {!sidebarOpen && (
+          <motion.button
+            key="menu-button"
+            initial={{ opacity: 0, x: -40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.3 }}
+            className="fixed top-4 left-4 z-50 bg-gray-800 text-white px-3 py-2 rounded shadow-lg hover:bg-gray-700"
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
           >
             ☰ Menu
-          </button>
-        </div>
+          </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Main Content */}
+      <main
+        className={`flex-1 min-w-0 transition-all duration-300 ${sidebarOpen ? "ml-64 md:ml-0" : "ml-0"
+          } p-4 md:p-6`}
+      >
         <Outlet />
       </main>
     </div>
