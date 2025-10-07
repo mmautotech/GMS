@@ -1,4 +1,11 @@
 // src/main.js
+
+// ✅ Handle Squirrel.Windows events early — must be FIRST!
+if (require("electron-squirrel-startup")) {
+  const { app } = require("electron");
+  app.quit();
+}
+
 const { app, BrowserWindow, session } = require("electron");
 const path = require("path");
 const dotenv = require("dotenv");

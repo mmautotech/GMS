@@ -81,26 +81,36 @@
   "config": {
     "forge": {
       "packagerConfig": {
-        "icon": "./src/assets/icon",
-        "asar": true
+        "asar": true,
+        "icon": "./src/assets/icon"
       },
       "makers": [
         {
           "name": "@electron-forge/maker-squirrel",
           "config": {
             "name": "garage_management_software",
+            "setupExe": "Garage_Management_Software_Setup.exe",
             "setupIcon": "./src/assets/icon.ico",
-            "iconUrl": "https://example.com/icon.ico"
+            "shortcutName": "Garage Management Software",
+            "noMsi": true,
+            "iconUrl": "https://raw.githubusercontent.com/mmautotech/gms_backend/main/src/assets/icon.ico"
           }
         },
         {
-          "name": "@electron-forge/maker-zip"
+          "name": "@electron-forge/maker-zip",
+          "platforms": [
+            "win32",
+            "darwin",
+            "linux"
+          ]
         },
         {
-          "name": "@electron-forge/maker-deb"
+          "name": "@electron-forge/maker-deb",
+          "config": {}
         },
         {
-          "name": "@electron-forge/maker-rpm"
+          "name": "@electron-forge/maker-rpm",
+          "config": {}
         }
       ],
       "plugins": [
