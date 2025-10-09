@@ -1,8 +1,8 @@
-// src/pages/Dashboard/Dashboard.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import useUsers from "../../hooks/useUsers.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
+import useDashboardStats from "../../hooks/useDashboardStats.js";
 
 import BookingsTable from "./bookingsTable.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
@@ -29,7 +29,6 @@ const SORT_OPTIONS = [
 ];
 
 const LIMIT_OPTIONS = [5, 25, 50, 100];
-
 const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
 
@@ -45,7 +44,6 @@ export default function Dashboard({ user }) {
         sortDir: "desc",
         limit: 25,
     });
-
     const [applied, setApplied] = useState(draft);
 
     const onDraftSortByChange = (nextSortBy) => {
@@ -56,16 +54,21 @@ export default function Dashboard({ user }) {
         }));
     };
 
-    // ✅ New hook for service options
+    // ✅ Dropdown Data
     const {
         list: serviceOptions,
         loading: loadingServices,
         error: servicesError,
     } = useServiceOptions({ useSessionCache: true });
 
-    const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
-        useUsers({ useSessionCache: true });
+    const {
+        list: userOptions,
+        map: userMap,
+        loading: loadingUsers,
+        error: usersError,
+    } = useUsers({ useSessionCache: true });
 
+    // ✅ Booking list
     const {
         list: bookings,
         loadingList,
@@ -90,6 +93,7 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
+    // ✅ Apply & Reset filters
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -112,47 +116,48 @@ export default function Dashboard({ user }) {
         setPage(1);
     };
 
-    // ---------- Stats ----------
-    const [bookingStats, setBookingStats] = useState({
-        total: bookings?.length || 0,
-        completed: 0,
-        pending: 0,
-        arrived: 0,
-        cancelled: 0,
-    });
-
-    useEffect(() => {
-        const stats = { total: 0, completed: 0, pending: 0, arrived: 0, cancelled: 0 };
-        bookings?.forEach((b) => {
-            stats.total += 1;
-            if (b.status === "completed") stats.completed += 1;
-            else if (b.status === "pending") stats.pending += 1;
-            else if (b.status === "arrived") stats.arrived += 1;
-            else if (b.status === "cancelled") stats.cancelled += 1;
-        });
-        setBookingStats(stats);
-    }, [bookings]);
+    /** -------------------------------
+     * ✅ Booking Stats (Global Totals)
+     -------------------------------- */
+    const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
+        useDashboardStats();
 
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">
-            <h1 className="text-2xl font-bold mb-4 text-blue-900">
-                Welcome Back{user?.username ? `, ${user.username}` : "!"}
-            </h1>
-
-            {/* StatCards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 md:gap-6 mb-6">
-                <StatCard title="Total Bookings" value={bookingStats.total || 0} />
-                <StatCard title="Completed" value={bookingStats.completed || 0} />
-                <StatCard title="Pending" value={bookingStats.pending || 0} />
-                <StatCard title="Arrived" value={bookingStats.arrived || 0} />
-                <StatCard title="Cancelled" value={bookingStats.cancelled || 0} />
+            <div className="flex justify-between items-center mb-4">
+                <h1 className="text-2xl font-bold text-blue-900">
+                    Welcome Back{user?.username ? `, ${user.username}` : "!"}
+                </h1>
+                <button
+                    onClick={refresh}
+                    disabled={loadingStats}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {loadingStats ? "Refreshing..." : "Refresh Stats"}
+                </button>
             </div>
 
+            {/* ✅ Stat Cards */}
+            {statsError ? (
+                <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
+                    Failed to load booking stats: {statsError}
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 md:gap-6 mb-6">
+                    <StatCard title="Total Bookings" value={bookingStats?.total || 0} loading={loadingStats} />
+                    <StatCard title="Completed" value={bookingStats?.completed || 0} loading={loadingStats} />
+                    <StatCard title="Pending" value={bookingStats?.pending || 0} loading={loadingStats} />
+                    <StatCard title="Arrived" value={bookingStats?.arrived || 0} loading={loadingStats} />
+                    <StatCard title="Cancelled" value={bookingStats?.cancelled || 0} loading={loadingStats} />
+                </div>
+            )}
+
+            {/* ✅ Charts */}
             <div className="mb-6">
                 <DashboardCharts />
             </div>
 
-            {/* Filters */}
+            {/* ✅ Filters */}
             <div className="mb-3 space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <input
@@ -215,9 +220,7 @@ export default function Dashboard({ user }) {
                             className="border rounded px-3 py-2 w-full"
                             disabled={loadingUsers}
                         >
-                            <option value="">
-                                {loadingUsers ? "Loading users..." : "All Users"}
-                            </option>
+                            <option value="">{loadingUsers ? "Loading users..." : "All Users"}</option>
                             {usersError ? (
                                 <option disabled value="">
                                     Failed to load users
@@ -298,6 +301,7 @@ export default function Dashboard({ user }) {
 
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
+            {/* ✅ Pagination */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
@@ -305,8 +309,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -318,8 +322,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next

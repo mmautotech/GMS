@@ -29,6 +29,9 @@ export default function PreBookingPage({ user }) {
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
 
+  // ✅ key to force data refresh
+  const [refreshKey, setRefreshKey] = useState(0);
+
   // filters
   const [draft, setDraft] = useState({
     search: "", fromDate: "", toDate: "",
@@ -38,13 +41,14 @@ export default function PreBookingPage({ user }) {
   });
   const [applied, setApplied] = useState(draft);
 
-  const preBookingParams = useMemo(() => applied, [applied]);
+  // ✅ include refreshKey to trigger re-fetch
+  const preBookingParams = useMemo(() => ({ ...applied, refreshKey }), [applied, refreshKey]);
 
   // API hooks
   const {
     items: bookings, loadingList, page, setPage,
     totalPages, totalItems, hasNextPage, hasPrevPage,
-    refresh, params: backendParams
+    params: backendParams
   } = usePreBookings(preBookingParams);
 
   const { saving, create, update, setError, updateStatus } = useBookings();
@@ -64,7 +68,7 @@ export default function PreBookingPage({ user }) {
     error: usersError,
   } = useUsers({ useSessionCache: true });
 
-  // actions
+  // ✅ actions
   const handleCarIn = useCallback(
     async (id) => {
       if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
@@ -73,7 +77,7 @@ export default function PreBookingPage({ user }) {
         const res = await updateStatus(id, "arrived");
         if (res.ok) {
           toast.success(res.message || "Car marked as arrived!");
-          await refresh();
+          setRefreshKey((k) => k + 1);
           navigate("/car-in");
         } else {
           toast.error(res.error || "Failed to mark as arrived");
@@ -85,7 +89,7 @@ export default function PreBookingPage({ user }) {
         toast.error(backendMessage);
       }
     },
-    [updateStatus, refresh, navigate, setError]
+    [updateStatus, navigate, setError]
   );
 
   const handleCancelled = useCallback(
@@ -96,7 +100,7 @@ export default function PreBookingPage({ user }) {
         const res = await updateStatus(id, "cancelled");
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
-          await refresh();
+          setRefreshKey((k) => k + 1);
         } else {
           toast.error(res.error || "Failed to cancel booking");
         }
@@ -107,7 +111,7 @@ export default function PreBookingPage({ user }) {
         toast.error(backendMessage);
       }
     },
-    [updateStatus, refresh, setError]
+    [updateStatus, setError]
   );
 
   const handleEdit = (booking) => {
@@ -115,24 +119,35 @@ export default function PreBookingPage({ user }) {
     setShowModal(true);
   };
 
+  // ✅ FIXED: now refreshes instantly after create or update
   const handleFormSubmit = async ({ payload, reset }) => {
-    if (editingBooking) {
-      const res = await update(editingBooking._id, payload);
-      if (res.ok) {
-        toast.success("Updated!");
-        reset?.();
-        setShowModal(false);
-        setEditingBooking(null);
-        refresh();
-      } else toast.error(res.error || "Failed");
-    } else {
-      const res = await create(payload);
-      if (res.ok) {
-        toast.success("Created!");
-        reset?.();
-        setShowModal(false);
-        refresh();
-      } else toast.error(res.error || "Failed");
+    try {
+      if (editingBooking) {
+        const res = await update(editingBooking._id, payload);
+        if (res.ok) {
+          toast.success("Booking updated!");
+          reset?.();
+          setShowModal(false);
+          setEditingBooking(null);
+          setRefreshKey((k) => k + 1); // 🔁 force re-fetch
+        } else {
+          toast.error(res.error || "Failed to update booking");
+        }
+      } else {
+        const res = await create(payload);
+        if (res.ok) {
+          toast.success("Booking created!");
+          reset?.();
+          setShowModal(false);
+          setRefreshKey((k) => k + 1); // 🔁 force re-fetch
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        } else {
+          toast.error(res.error || "Failed to create booking");
+        }
+      }
+    } catch (err) {
+      toast.error("Unexpected error while saving booking");
+      console.error(err);
     }
   };
 
