@@ -1,5 +1,5 @@
 // src/pages/EntityPage.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Edit2, Trash2, RotateCcw, Search } from "lucide-react";
 import { toast } from "react-toastify";
 
@@ -40,6 +40,28 @@ export default function EntityPage() {
         refreshParts();
     };
 
+    // ✅ Auto refresh on mount or when page/tab becomes active
+    useEffect(() => {
+        // Run immediately on mount
+        console.log("🚀 EntityPage mounted → refreshing services & parts");
+        refreshServices();
+        refreshParts();
+
+        // Handle tab/window visibility change
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                console.log("🔁 Page visible → refreshing services & parts");
+                refreshServices();
+                refreshParts();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => {
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
+    }, [refreshServices, refreshParts]);
+
     // 🔎 Filters
     const filteredServices = services.filter((s) =>
         s.name?.toLowerCase().includes(searchServices.toLowerCase())
@@ -50,12 +72,11 @@ export default function EntityPage() {
     );
 
     // --- Handlers ---
-    // --- Handlers ---
     const handleDeleteService = async (srv) => {
         try {
             await ServiceApi.deleteService(srv._id);
             toast.success(`✅ Service "${srv.name}" disabled`);
-            setSelectedService(null);   // 🔹 reset parts panel
+            setSelectedService(null); // reset parts panel
             handleDataChanged();
         } catch {
             toast.error("❌ Failed to disable service");
@@ -66,7 +87,7 @@ export default function EntityPage() {
         try {
             await ServiceApi.activateService(srv._id);
             toast.success(`✅ Service "${srv.name}" reactivated`);
-            setSelectedService(null);   // 🔹 reset parts panel
+            setSelectedService(null);
             handleDataChanged();
         } catch {
             toast.error("❌ Failed to reactivate service");

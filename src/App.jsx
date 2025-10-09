@@ -19,10 +19,10 @@ const Login = React.lazy(() => import("./pages/Auth/Login.jsx"));
 const ForgotPassword = React.lazy(() => import("./pages/Auth/ForgotPassword.jsx"));
 const Register = React.lazy(() => import("./pages/Auth/Register.jsx"));
 const Services = React.lazy(() => import("./pages/Services/index.jsx"));
-const Invoices = React.lazy(() => import("./pages/Invoice/invoice.jsx"));
 const Suppliers = React.lazy(() => import("./pages/Suppliers/supplier.jsx"));
 const PartsPurchase = React.lazy(() => import("./pages/PartsPurchase/index.jsx"));
-const InternalInvoicesPage = React.lazy(() => import("./pages/Invoice/InternalInvoicesPage.jsx"));
+const Invoices = React.lazy(() => import("./pages/Invoice/invoice.jsx"));
+const InternalInvoicesPage = React.lazy(() => import("./pages/Invoice/InternalInvoicesPage/index.jsx"));
 
 export default function App() {
   const { user, loading, login, register, forgotPassword, logout } = useAuth();

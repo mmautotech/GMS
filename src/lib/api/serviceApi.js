@@ -3,26 +3,31 @@ import axiosInstance from "./axiosInstance.js";
 
 // --- Normalizers ---
 const normalizeParts = (arr) =>
-    (arr || []).map((p) => ({
-        _id: p._id || p.id,
-        partName: p.partName || p.label || "",
-        isActive: p.isActive ?? true,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-        label: p.partName || p.label || "",
-    }));
+    (arr || [])
+        .filter(Boolean) // <-- filter out null parts
+        .map((p) => ({
+            _id: p._id || p.id,
+            partName: p.partName || p.label || "",
+            isActive: p.isActive ?? true,
+            createdAt: p.createdAt,
+            updatedAt: p.updatedAt,
+            label: p.partName || p.label || "",
+        }));
 
 const normalizeServices = (arr) =>
-    (arr || []).map((s) => ({
-        _id: s._id || s.id,
-        name: s.name || "",
-        enabled: s.enabled ?? true,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        parts: normalizeParts(s.parts || []),
-        partsCount: s.partsCount ?? (s.parts ? s.parts.length : 0),
-        label: s.name,
-    }));
+    (arr || [])
+        .filter(Boolean) // <-- filter out null services
+        .map((s) => ({
+            _id: s._id || s.id,
+            name: s.name || "",
+            enabled: s.enabled ?? true,
+            createdAt: s.createdAt,
+            updatedAt: s.updatedAt,
+            parts: normalizeParts(s.parts || []),
+            partsCount: s.partsCount ?? (s.parts ? s.parts.filter(Boolean).length : 0),
+            label: s.name,
+        }));
+
 
 const normalizeServiceOptions = (arr) =>
     (arr || []).map((s) => ({
