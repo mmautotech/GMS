@@ -29,7 +29,7 @@ const BookingRow = forwardRef(function BookingRow(
     onCarIn,
     onCancelled,
     onEdit,
-    currentUser, // <-- now passed down
+    currentUser,
   },
   ref
 ) {
@@ -40,8 +40,14 @@ const BookingRow = forwardRef(function BookingRow(
   const booking = initialBooking;
   const bookingId = booking._id || booking.id;
 
-  const { details, loading, error, fetchDetails, fetchPhoto, originalPhotoUrl } =
-    useBookingDetails();
+  const {
+    details,
+    loading,
+    error,
+    fetchDetails,
+    fetchBookingPhoto,
+    bookingPhotoUrl,
+  } = useBookingDetails();
 
   const servicesText = useMemo(() => {
     if (!booking.services) return "—";
@@ -62,26 +68,19 @@ const BookingRow = forwardRef(function BookingRow(
     }
   }, [expanded, bookingId, details, loading, fetchDetails]);
 
-  useEffect(() => {
-    return () => {
-      if (fullPhotoUrl) URL.revokeObjectURL(fullPhotoUrl);
-    };
-  }, [fullPhotoUrl]);
-
   const handleThumbnailClick = async () => {
-    if (originalPhotoUrl) {
-      setFullPhotoUrl(originalPhotoUrl);
+    if (bookingPhotoUrl) {
+      setFullPhotoUrl(bookingPhotoUrl);
       setShowPhoto(true);
     } else {
-      const res = await fetchPhoto(bookingId, "original");
-      if (res.ok && res.url) {
-        setFullPhotoUrl(res.url);
+      const url = await fetchBookingPhoto(bookingId);
+      if (url) {
+        setFullPhotoUrl(url);
         setShowPhoto(true);
       }
     }
   };
 
-  // Determine if the current user can manage the booking
   const canManageBooking =
     currentUser &&
     ["admin", "customer_service"].includes(currentUser.userType);
@@ -94,7 +93,9 @@ const BookingRow = forwardRef(function BookingRow(
         role="row"
         tabIndex={-1}
         aria-selected={!!isSelected}
-        className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
+        className={`cursor-pointer outline-none ${isSelected
+          ? "bg-blue-50 ring-2 ring-blue-300"
+          : "hover:bg-gray-50"
           }`}
         onClick={onSelect}
         onDoubleClick={handleRowDoubleClick}
@@ -111,7 +112,10 @@ const BookingRow = forwardRef(function BookingRow(
         </td>
         <td className="p-2 border">{fmtDate(booking.scheduledDate)}</td>
         <td className="p-2 border">{safe(booking.registration)}</td>
-        <td className="p-2 border max-w-[160px] truncate" title={booking.makeModel}>
+        <td
+          className="p-2 border max-w-[160px] truncate"
+          title={booking.makeModel}
+        >
           {safe(booking.makeModel)}
         </td>
         <td className="p-2 border">
@@ -125,7 +129,6 @@ const BookingRow = forwardRef(function BookingRow(
         <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
         <td className="p-2 border">
           <div className="flex gap-2">
-            {/* Show Car In and Cancel only for admin or customer_service */}
             {canManageBooking && (
               <>
                 <button
@@ -150,7 +153,6 @@ const BookingRow = forwardRef(function BookingRow(
               </>
             )}
 
-            {/* Edit → only enabled when expanded */}
             <button
               className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${expanded && details
                 ? "bg-gray-600 hover:bg-gray-700 text-white"
@@ -181,12 +183,14 @@ const BookingRow = forwardRef(function BookingRow(
               <p className="text-sm text-red-500">{error}</p>
             ) : details ? (
               <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
+
                 <div>
                   <p className="mt-3 text-gray-500 text-xs font-bold uppercase">
                     Complete Address
                   </p>
                   <p>{safe(details.ownerAddress)}</p>
                 </div>
+
                 <div>
                   <p className="text-gray-500 text-xs font-bold uppercase">Labour</p>
                   <p className="text-green-600">{fmtGBP(details.labourCost)}</p>
@@ -197,14 +201,18 @@ const BookingRow = forwardRef(function BookingRow(
                     {fmtGBP(details.profit)} ({details.profitPercent}%)
                   </p>
                 </div>
+
                 <div>
                   <p className="text-gray-500 text-xs font-bold uppercase">Services</p>
                   <p>{servicesText}</p>
+
                   <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Remarks</p>
-                  <p>{safe(details.remarks)}</p>
+                  <p className="whitespace-pre-wrap break-words">{safe(details.remarks)}</p>
+
                   <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Source</p>
                   <p>{safe(details.source)}</p>
                 </div>
+
                 <div className="flex flex-col items-center">
                   {details.compressedPhoto ? (
                     <>
@@ -213,7 +221,7 @@ const BookingRow = forwardRef(function BookingRow(
                       </p>
                       <img
                         src={details.compressedPhoto}
-                        alt="Booking Compressed Preview"
+                        alt={`Confirmation Photo for ${booking.registration}`}
                         className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80"
                         onClick={handleThumbnailClick}
                       />
@@ -222,6 +230,7 @@ const BookingRow = forwardRef(function BookingRow(
                     <p className="text-gray-500 text-xs">No Photo</p>
                   )}
                 </div>
+
               </div>
             ) : (
               <p className="text-sm text-gray-400">No details available.</p>
@@ -234,16 +243,26 @@ const BookingRow = forwardRef(function BookingRow(
       {showPhoto &&
         fullPhotoUrl &&
         createPortal(
-          <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+          <div
+            className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Booking Confirmation Photo"
+            onClick={() => setShowPhoto(false)}
+          >
             <button
               className="absolute top-4 right-4 text-white"
-              onClick={() => setShowPhoto(false)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPhoto(false);
+              }}
+              aria-label="Close"
             >
               <X size={24} />
             </button>
             <img
               src={fullPhotoUrl}
-              alt="Full Booking Confirmation"
+              alt={`Full Booking Confirmation for ${booking.registration}`}
               className="max-h-[90%] max-w-[90%] rounded-lg shadow-lg"
             />
           </div>,
