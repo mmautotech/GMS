@@ -21,7 +21,7 @@ const Register = React.lazy(() => import("./pages/Auth/Register.jsx"));
 const Services = React.lazy(() => import("./pages/Services/index.jsx"));
 const Suppliers = React.lazy(() => import("./pages/Suppliers/supplier.jsx"));
 const PartsPurchase = React.lazy(() => import("./pages/PartsPurchase/index.jsx"));
-const Invoices = React.lazy(() => import("./pages/Invoice/invoice.jsx"));
+const Invoices = React.lazy(() => import("./pages/Invoice/index.jsx"));
 const InternalInvoicesPage = React.lazy(() => import("./pages/Invoice/InternalInvoicesPage/index.jsx"));
 
 export default function App() {

@@ -2,9 +2,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
-// Simple in-memory cache for each fetcher + params combination
 const MEMO_CACHE = {};
-const TTL_MS = 30 * 1000; // 1 minute
+const TTL_MS = 60 * 1000; // 30 seconds
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
@@ -35,9 +34,10 @@ function useBookingsList(fetcher, initialParams = {}) {
 
             const mergedParams = { ...initialParams, ...params, page };
             const cacheKey = JSON.stringify({ fetcher: fetcher.name, ...mergedParams });
-            const cached = MEMO_CACHE[cacheKey];
 
-            if (cached && Date.now() - cached.at < TTL_MS) {
+            // ✅ Skip cache if force requested
+            const cached = MEMO_CACHE[cacheKey];
+            if (!params.force && cached && Date.now() - cached.at < TTL_MS) {
                 setItems(cached.items || []);
                 setTotalPages(cached.totalPages || 1);
                 setTotalItems(cached.totalItems || 0);
@@ -48,6 +48,9 @@ function useBookingsList(fetcher, initialParams = {}) {
                 setLoadingList(false);
                 return;
             }
+
+            // ✅ Delete old cache if force refresh
+            if (params.force) delete MEMO_CACHE[cacheKey];
 
             try {
                 const res = await fetcher(mergedParams);
@@ -92,17 +95,17 @@ function useBookingsList(fetcher, initialParams = {}) {
         [fetcher, initialParams, page]
     );
 
-    // auto-run when dependencies change
+    // Auto-run when dependencies change
     useEffect(() => {
         fetchBookings(initialParams);
     }, [fetchBookings, initialParams]);
 
-    // manual refresh
+    // ✅ Manual refresh (force backend call)
     const refresh = useCallback(() => {
-        fetchBookings(initialParams);
+        fetchBookings({ ...initialParams, force: true });
     }, [fetchBookings, initialParams]);
 
-    // auto-refresh every 1 minute
+    // Auto-refresh every 30 sec
     useEffect(() => {
         const interval = setInterval(() => {
             fetchBookings(initialParams);
@@ -111,17 +114,12 @@ function useBookingsList(fetcher, initialParams = {}) {
     }, [fetchBookings, initialParams]);
 
     return {
-        // data
         items,
         list: useMemo(() => items, [items]),
         setList: setItems,
-
-        // status
         loadingList,
         error,
         setError,
-
-        // pagination
         page,
         setPage,
         totalPages,
@@ -129,27 +127,17 @@ function useBookingsList(fetcher, initialParams = {}) {
         hasNextPage,
         hasPrevPage,
         pageSize: initialParams.limit || 25,
-
-        // backend params/meta
         params: activeParams,
         meta,
-
-        // actions
         fetchBookings,
         refresh,
     };
 }
 
-/**
- * ✅ Hook for pre-bookings (pending only).
- */
+// Export wrappers
 export function usePreBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getPendingBookings, initialParams);
 }
-
-/**
- * ✅ Hook for arrived bookings.
- */
 export function useArrivedBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getArrivedBookings, initialParams);
 }

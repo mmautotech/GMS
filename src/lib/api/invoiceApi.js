@@ -1,58 +1,138 @@
 // src/lib/api/invoiceApi.js
 import axios from "./axiosInstance.js";
 
-// Ensure baseURL has no trailing slash
-const API_URL = axios.defaults.baseURL.replace(/\/$/, "");
+// ✅ Ensure baseURL has no trailing slash
+const API_URL = axios.defaults.baseURL?.replace(/\/$/, "") || "";
 
+/**
+ * 🧾 Invoice API — Fully aligned with backend structure
+ * Consistent normalization, error handling, and route matching.
+ */
 export const InvoiceApi = {
     API_URL,
 
-    // 📌 Get invoice by booking ID (fetch only, will auto-generate if missing inside controller)
+    /**
+     * 📌 Get Invoice by Booking ID (fetch only)
+     * - GET /api/invoices/booking/:bookingId
+     * - Returns: { success, exists, invoice }
+     */
     getInvoiceByBookingId: async (bookingId) => {
-        const res = await axios.get(`/invoices/booking/${bookingId}`);
-        return res.data;
+        try {
+            const res = await axios.get(`/invoices/booking/${bookingId}`);
+            const { success, exists, invoice } = res.data;
+
+            if (!success || !exists) return null;
+            return invoice;
+        } catch (err) {
+            console.error("❌ getInvoiceByBookingId error:", err);
+            throw new Error(
+                err?.response?.data?.message || "Failed to fetch invoice"
+            );
+        }
     },
 
-    // 📌 Explicitly generate (or regenerate) invoice for booking
-    generateInvoiceByBookingId: async (bookingId, payload = {}) => {
-        const res = await axios.post(`/invoices/booking/${bookingId}/generate`, payload);
-        return res.data;
+    /**
+     * 🧾 Generate or Regenerate Invoice for Booking
+     * - POST /api/invoices/booking/:bookingId/generate
+     * - Always creates or updates the invoice for that booking
+     */
+    generateInvoiceByBookingId: async (bookingId) => {
+        try {
+            const res = await axios.post(`/invoices/booking/${bookingId}/generate`);
+            const { success, invoice } = res.data;
+
+            if (!success) throw new Error("Invoice generation failed");
+            return invoice;
+        } catch (err) {
+            console.error("❌ generateInvoiceByBookingId error:", err);
+            throw new Error(
+                err?.response?.data?.message || "Failed to generate invoice"
+            );
+        }
     },
 
-    // 📌 Update invoice
-    updateInvoice: async (id, payload) => {
-        const res = await axios.put(`/invoices/${id}`, payload);
-        return res.data;
+    /**
+     * ✏️ Update Invoice (items, discount, VAT, status)
+     * - PUT /api/invoices/:invoiceId
+     * - Returns updated invoice object
+     */
+    updateInvoice: async (invoiceId, payload) => {
+        try {
+            const res = await axios.put(`/invoices/${invoiceId}`, payload);
+            const { success, invoice } = res.data;
+
+            if (!success) throw new Error("Invoice update failed");
+            return invoice;
+        } catch (err) {
+            console.error("❌ updateInvoice error:", err);
+            throw new Error(
+                err?.response?.data?.message || "Failed to update invoice"
+            );
+        }
     },
 
-    // 📌 View invoice in default browser (inline, supports proforma)
-    viewInvoicePdf: (id, isProforma = false) => {
-        let url = `${API_URL}/invoices/${id}/pdf/view`;
+    /**
+     * 🧾 View Invoice PDF (inline browser or Electron)
+     * - GET /api/invoices/:invoiceId/pdf/view
+     * - Optional ?proforma=true
+     */
+    viewInvoicePdf: (invoiceId, isProforma = false) => {
+        let url = `${API_URL}/invoices/${invoiceId}/pdf/view`;
         if (isProforma) url += "?proforma=true";
 
         try {
             if (window.electronAPI?.openExternal) {
-                // ✅ Electron → open in system browser
                 window.electronAPI.openExternal(url);
             } else {
-                // ✅ Browser fallback
                 window.open(url, "_blank");
             }
         } catch (err) {
-            console.error("Error opening PDF:", err);
-            window.open(url, "_blank"); // last fallback
+            console.error("⚠️ Error opening invoice PDF:", err);
+            window.open(url, "_blank"); // safe fallback
         }
     },
 
-    // 📌 Get all invoices (with filters & pagination)
+    /**
+     * 📊 Get All Invoices (with filters, pagination, and totals)
+     * - GET /api/invoices
+     * - Returns { success, message, params, appliedFilters, pagination, totals, data }
+     */
     getAllInvoices: async (params = {}) => {
-        const res = await axios.get("/invoices", { params });
-        return res.data;
+        try {
+            const res = await axios.get("/invoices", { params });
+            const { success, data, totals, pagination, message } = res.data;
+
+            if (!success) throw new Error(message || "Failed to fetch invoices");
+            return {
+                invoices: data || [],
+                totals,
+                pagination,
+                message,
+            };
+        } catch (err) {
+            console.error("❌ getAllInvoices error:", err);
+            throw new Error(
+                err?.response?.data?.message || "Failed to fetch invoices"
+            );
+        }
     },
 
-    // 📌 Get invoice stats
+    /**
+     * 📈 Get Invoice Stats (summary by status)
+     * - GET /api/invoices/stats
+     */
     getInvoiceStats: async () => {
-        const res = await axios.get("/invoices/stats");
-        return res.data;
+        try {
+            const res = await axios.get("/invoices/stats");
+            const { success, data } = res.data;
+
+            if (!success) throw new Error("Failed to fetch invoice stats");
+            return data;
+        } catch (err) {
+            console.error("❌ getInvoiceStats error:", err);
+            throw new Error(
+                err?.response?.data?.message || "Failed to fetch invoice stats"
+            );
+        }
     },
 };

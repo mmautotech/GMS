@@ -1,74 +1,47 @@
-// src/components/InvoiceModal.jsx
-import React, { useEffect, useMemo, useState } from "react";
-import { InvoiceApi } from "../../lib/api/invoiceApi.js";
+import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { toast } from "react-toastify";
-import { X } from "lucide-react";
+import { X, Loader2, Minus } from "lucide-react";
+import { InvoiceApi } from "../../lib/api/invoiceApi.js";
+import { useInvoiceByBookingId } from "../../hooks/useInvoiceByBookingId.js";
 
 const deepEqual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export default function InvoiceModal({ bookingId, isOpen, onClose }) {
     const [invoiceData, setInvoiceData] = useState(null);
     const [originalData, setOriginalData] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [showSaveConfirm, setShowSaveConfirm] = useState(false);
-    const [showRegenConfirm, setShowRegenConfirm] = useState(false);
+    const [generating, setGenerating] = useState(false);
 
-    // ─────────────────────────────── Load invoice on open
+    const { invoice, loading, refreshInvoice } = useInvoiceByBookingId(bookingId, isOpen);
+
     useEffect(() => {
-        if (!isOpen || !bookingId) return;
+        if (invoice) {
+            setInvoiceData(invoice);
+            setOriginalData(invoice);
+        } else {
+            setInvoiceData(null);
+            setOriginalData(null);
+        }
+    }, [invoice]);
 
-        const fetchInvoice = async () => {
-            setLoading(true);
-            try {
-                const data = await InvoiceApi.getInvoiceByBookingId(bookingId);
-                if (data?._id) {
-                    setInvoiceData(data);
-                    setOriginalData(data);
-                } else {
-                    toast.info("No invoice found for this booking.");
-                    setInvoiceData(null);
-                    setOriginalData(null);
-                }
-            } catch (err) {
-                console.error("Failed to fetch invoice", err);
-                toast.error("Failed to fetch invoice");
-                setInvoiceData(null);
-                setOriginalData(null);
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        fetchInvoice();
-    }, [isOpen, bookingId]);
-
-    // ─────────────────────────────── Derived state
     const isDirty = useMemo(() => {
         if (!invoiceData || !originalData) return false;
         return !deepEqual(invoiceData, originalData);
     }, [invoiceData, originalData]);
 
     const hasInvoice = Boolean(invoiceData?._id);
-    const isBusy = loading || saving;
-    const isStable = hasInvoice && !isDirty && !isBusy;
-
-    // ─────────────────────────────── Buttons state
-    const canReset = isDirty && !isBusy && hasInvoice;
+    const isBusy = loading || saving || generating;
     const canSave = isDirty && !isBusy && hasInvoice;
-    const canView = isStable;
-    const canRegenerate = !isBusy && Boolean(bookingId);
+    const canReset = isDirty && !isBusy && hasInvoice;
+    const canView = hasInvoice && !isBusy && !isDirty;
 
-    // ─────────────────────────────── Helpers
+    // ─────────── Field Handlers ───────────
     const handleFieldChange = (field, value) =>
         setInvoiceData((prev) => ({ ...prev, [field]: value }));
 
     const handleItemChange = (index, field, value) => {
         const updated = [...(invoiceData?.items || [])];
-        updated[index] = {
-            ...updated[index],
-            [field]: field === "amount" ? Number(value) : value,
-        };
+        updated[index] = { ...updated[index], [field]: field === "amount" ? Number(value) : value };
         setInvoiceData((prev) => ({ ...prev, items: updated }));
     };
 
@@ -78,34 +51,30 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
             items: [...(prev.items || []), { description: "", amount: 0 }],
         }));
 
-    const calculateSubtotal = () =>
-        (invoiceData?.items || []).reduce((sum, it) => sum + Number(it?.amount || 0), 0);
-
-    const calculateDiscount = () => Number(invoiceData?.discountAmount || 0);
-
-    const calculateVAT = () => {
-        const afterDiscount = calculateSubtotal() - calculateDiscount();
-        return invoiceData?.vatIncluded ? afterDiscount * 0.2 : 0;
+    const handleRemoveItem = (index) => {
+        const updated = [...(invoiceData?.items || [])];
+        updated.splice(index, 1);
+        setInvoiceData((prev) => ({ ...prev, items: updated }));
+        toast.info("🗑️ Item removed");
     };
 
-    const calculateTotal = () => {
-        const afterDiscount = calculateSubtotal() - calculateDiscount();
-        return afterDiscount + calculateVAT();
-    };
+    // ─────────── Totals ───────────
+    const subtotal = (invoiceData?.items || []).reduce(
+        (sum, it) => sum + Number(it?.amount || 0),
+        0
+    );
+    const discount = Number(invoiceData?.discountAmount || 0);
+    const vat = invoiceData?.vatIncluded ? (subtotal - discount) * 0.2 : 0;
+    const total = subtotal - discount + vat;
 
-    // ─────────────────────────────── Reset
     const handleReset = () => {
         if (!originalData) return;
         setInvoiceData(originalData);
-        toast.info("Changes reset to last saved state");
+        toast.info("🔄 Changes reverted to last saved state");
     };
 
-    // ─────────────────────────────── Save
-    const confirmSave = async () => {
-        if (!invoiceData?._id) {
-            toast.error("Invoice ID missing, cannot update.");
-            return;
-        }
+    const handleSave = async () => {
+        if (!invoiceData?._id) return toast.error("Invoice ID missing.");
         try {
             setSaving(true);
             const payload = {
@@ -117,136 +86,123 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
             const updated = await InvoiceApi.updateInvoice(invoiceData._id, payload);
             setInvoiceData(updated);
             setOriginalData(updated);
-            toast.success("Invoice updated successfully");
-            setShowSaveConfirm(false);
-            onClose(); // ✅ auto-close after save
+            toast.success("✅ Invoice updated successfully");
+            await refreshInvoice({ silent: true });
         } catch (err) {
-            console.error(err);
-            toast.error(err?.message || "Failed to update invoice");
+            console.error("Save failed:", err);
+            toast.error(err.message || "Failed to update invoice");
         } finally {
             setSaving(false);
         }
     };
 
-    // ─────────────────────────────── View PDF
-    const handleViewPdf = () => {
-        if (!invoiceData?._id) {
-            toast.error("Invoice ID missing, cannot open PDF.");
-            return;
+    const handleGenerate = async () => {
+        try {
+            setGenerating(true);
+            const newInvoice = await InvoiceApi.generateInvoiceByBookingId(bookingId);
+            setInvoiceData(newInvoice);
+            setOriginalData(newInvoice);
+            toast.success(hasInvoice ? "🔄 Invoice regenerated" : "🧾 Invoice generated");
+            await refreshInvoice({ silent: true });
+        } catch (err) {
+            console.error("Generation error:", err);
+            toast.error(err.message || "Failed to generate invoice");
+        } finally {
+            setGenerating(false);
         }
+    };
+
+    const handleViewPdf = () => {
+        if (!invoiceData?._id) return toast.error("Invoice ID missing.");
         InvoiceApi.viewInvoicePdf(invoiceData._id);
     };
 
-    // ─────────────────────────────── Regenerate
-    const doRegenerate = async () => {
-        try {
-            setLoading(true);
-            const regenerated = await InvoiceApi.generateInvoiceByBookingId(bookingId);
-            setInvoiceData(regenerated);
-            setOriginalData(regenerated);
-            toast.success("Invoice regenerated successfully");
-            setShowRegenConfirm(false);
-            onClose(); // ✅ auto-close after regenerate
-        } catch (err) {
-            console.error("Failed to regenerate invoice", err);
-            toast.error(err?.message || "Failed to regenerate invoice");
-        } finally {
-            setLoading(false);
-        }
-    };
+    // ─────────── Close Logic ───────────
+    const handleClose = useCallback(() => {
+        toast.dismiss(); // close all toasts cleanly
+        onClose?.(); // trigger modal close
+    }, [onClose]);
 
-    const handleRegenerate = () => {
-        if (isDirty) {
-            setShowRegenConfirm(true);
-            return;
-        }
-        doRegenerate();
-    };
-
-    // ─────────────────────────────── Esc close
     useEffect(() => {
         if (!isOpen) return;
-        const onKeyDown = (e) => {
-            if (e.key === "Escape") onClose?.();
-        };
-        document.addEventListener("keydown", onKeyDown);
-        return () => document.removeEventListener("keydown", onKeyDown);
-    }, [isOpen, onClose]);
+        const listener = (e) => e.key === "Escape" && handleClose();
+        document.addEventListener("keydown", listener);
+        return () => document.removeEventListener("keydown", listener);
+    }, [isOpen, handleClose]);
 
     if (!isOpen) return null;
 
     return (
         <div
             className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50"
-            onClick={onClose}
+            onClick={handleClose}
         >
             <div
                 className="bg-white rounded-lg shadow-lg w-full max-w-3xl max-h-[90vh] flex flex-col relative mx-4"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Close X */}
-                <button
-                    className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
-                    onClick={onClose}
-                >
-                    <X size={22} />
-                </button>
 
-                {/* Scrollable content */}
-                <div className="p-6 overflow-y-auto">
+                {/* Loading Overlay */}
+                {isBusy && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
+                        <Loader2 size={32} className="animate-spin text-blue-600" />
+                    </div>
+                )}
+
+                {/* Scrollable Content */}
+                <div className="p-6 overflow-y-auto relative">
                     <h2 className="text-2xl font-bold mb-6 text-center">
-                        Invoice {invoiceData?.invoiceNo || ""}
+                        {hasInvoice ? `Invoice ${invoiceData?.invoiceNo || ""}` : "No Invoice Found"}
                     </h2>
 
                     {loading ? (
-                        <p className="text-center py-4">Loading invoice...</p>
-                    ) : invoiceData ? (
+                        <p className="text-center text-gray-500 py-6">Loading invoice details...</p>
+                    ) : hasInvoice ? (
                         <>
-                            {/* Invoice details */}
+                            {/* Header Info */}
                             <div className="grid grid-cols-2 gap-6 mb-6 text-sm">
                                 <div>
                                     <p>
                                         <strong>Date:</strong>{" "}
-                                        {invoiceData?.invoiceDate
-                                            ? new Date(invoiceData.invoiceDate).toLocaleDateString()
+                                        {invoiceData?.createdAt
+                                            ? new Date(invoiceData.createdAt).toLocaleDateString()
                                             : "-"}
+                                    </p>
+                                    <p className="mt-1">
+                                        <strong>Generated By:</strong>{" "}
+                                        {invoiceData?.createdBy ||
+                                            invoiceData?.createdBy?.username ||
+                                            "System"}
                                     </p>
                                     <label className="block mt-2">
                                         <strong>Status:</strong>
                                         <select
                                             className="ml-2 border rounded p-1"
-                                            value={invoiceData.status || "Unpaid"}
-                                            onChange={(e) =>
-                                                handleFieldChange("status", e.target.value)
-                                            }
+                                            value={invoiceData.status || "Receivable"}
+                                            onChange={(e) => handleFieldChange("status", e.target.value)}
                                             disabled={isBusy}
                                         >
-                                            <option value="Unpaid">Unpaid</option>
-                                            <option value="Paid">Paid</option>
+                                            <option value="Receivable">Receivable</option>
+                                            <option value="Received">Received</option>
                                             <option value="Partial">Partial</option>
                                         </select>
                                     </label>
                                 </div>
                                 <div>
                                     <p>
-                                        <strong>Customer:</strong>{" "}
-                                        {invoiceData.customerName || "-"}
+                                        <strong>Customer:</strong> {invoiceData.customerName || "-"}
                                     </p>
                                     <p>
-                                        <strong>Contact:</strong>{" "}
-                                        {invoiceData.contactNo || "-"}
+                                        <strong>Contact:</strong> {invoiceData.contactNo || "-"}
                                     </p>
                                     <p>
-                                        <strong>Vehicle:</strong>{" "}
-                                        {invoiceData.vehicleRegNo || "-"}{" "}
-                                        {invoiceData.makeModel
-                                            ? `(${invoiceData.makeModel})`
-                                            : ""}
+                                        <strong>Vehicle:</strong> {invoiceData.vehicleRegNo || "-"}{" "}
+                                        {invoiceData.makeModel ? `(${invoiceData.makeModel})` : ""}
                                     </p>
                                 </div>
                             </div>
 
-                            {/* Items table */}
+                            {/* Items Table */}
                             <button
                                 type="button"
                                 className="px-2 py-1 bg-green-600 text-white rounded text-sm mb-2 disabled:opacity-50"
@@ -259,6 +215,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             <table className="w-full mb-6 border text-sm">
                                 <thead>
                                     <tr className="bg-gray-100">
+                                        <th className="border p-2 text-center w-10">–</th>
                                         <th className="border p-2 text-left">Description</th>
                                         <th className="border p-2 text-right">Amount (£)</th>
                                     </tr>
@@ -266,17 +223,24 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                 <tbody>
                                     {(invoiceData.items || []).map((item, index) => (
                                         <tr key={index}>
+                                            <td className="border p-2 text-center">
+                                                <button
+                                                    type="button"
+                                                    className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                                                    onClick={() => handleRemoveItem(index)}
+                                                    disabled={isBusy}
+                                                    title="Remove item"
+                                                >
+                                                    <Minus size={16} />
+                                                </button>
+                                            </td>
                                             <td className="border p-2">
                                                 <input
                                                     type="text"
                                                     className="w-full border rounded p-1"
                                                     value={item.description}
                                                     onChange={(e) =>
-                                                        handleItemChange(
-                                                            index,
-                                                            "description",
-                                                            e.target.value
-                                                        )
+                                                        handleItemChange(index, "description", e.target.value)
                                                     }
                                                     disabled={isBusy}
                                                 />
@@ -287,11 +251,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                                     className="w-24 border rounded p-1 text-right"
                                                     value={item.amount}
                                                     onChange={(e) =>
-                                                        handleItemChange(
-                                                            index,
-                                                            "amount",
-                                                            e.target.value
-                                                        )
+                                                        handleItemChange(index, "amount", e.target.value)
                                                     }
                                                     disabled={isBusy}
                                                 />
@@ -306,7 +266,7 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                 <div className="w-1/3">
                                     <div className="flex justify-between py-1">
                                         <span>Subtotal:</span>
-                                        <span>£{calculateSubtotal().toFixed(2)}</span>
+                                        <span>£{subtotal.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between py-1">
                                         <span>Discount:</span>
@@ -315,29 +275,24 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                                             className="w-24 border rounded p-1 text-right"
                                             value={invoiceData.discountAmount || 0}
                                             onChange={(e) =>
-                                                handleFieldChange(
-                                                    "discountAmount",
-                                                    Number(e.target.value || 0)
-                                                )
+                                                handleFieldChange("discountAmount", Number(e.target.value || 0))
                                             }
                                             disabled={isBusy}
                                         />
                                     </div>
                                     <div className="flex justify-between py-1">
                                         <span>VAT (20%):</span>
-                                        <span>£{calculateVAT().toFixed(2)}</span>
+                                        <span>£{vat.toFixed(2)}</span>
                                     </div>
                                     <div className="flex justify-between py-1 font-bold border-t mt-2 pt-2">
                                         <span>Total:</span>
-                                        <span>£{calculateTotal().toFixed(2)}</span>
+                                        <span>£{total.toFixed(2)}</span>
                                     </div>
                                     <label className="flex items-center gap-2 text-xs text-gray-600 mt-2">
                                         <input
                                             type="checkbox"
                                             checked={Boolean(invoiceData.vatIncluded)}
-                                            onChange={(e) =>
-                                                handleFieldChange("vatIncluded", e.target.checked)
-                                            }
+                                            onChange={(e) => handleFieldChange("vatIncluded", e.target.checked)}
                                             disabled={isBusy}
                                         />
                                         VAT Included
@@ -346,100 +301,53 @@ export default function InvoiceModal({ bookingId, isOpen, onClose }) {
                             </div>
                         </>
                     ) : (
-                        <p className="text-center py-4 text-gray-500">
+                        <p className="text-center text-gray-500 py-6">
                             No invoice found for this booking.
                         </p>
                     )}
                 </div>
 
-                {/* Sticky Footer */}
+                {/* Footer Buttons */}
                 <div className="flex flex-wrap justify-end gap-2 p-4 border-t bg-gray-50">
-                    <button
-                        className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded"
-                        onClick={onClose}
-                    >
+                    <button className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded" onClick={handleClose}>
                         Close
                     </button>
+
                     <button
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded disabled:opacity-50"
-                        onClick={handleRegenerate}
-                        disabled={!canRegenerate}
-                        title={isDirty ? "Regenerating will discard unsaved changes" : ""}
+                        className={`px-4 py-2 ${hasInvoice ? "bg-purple-600" : "bg-indigo-600"
+                            } hover:opacity-90 text-white rounded disabled:opacity-50`}
+                        onClick={handleGenerate}
+                        disabled={isBusy}
                     >
-                        Regenerate
+                        {generating ? "Processing..." : hasInvoice ? "Regenerate" : "Generate"}
                     </button>
-                    <button
-                        className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
-                        onClick={handleReset}
-                        disabled={!canReset}
-                    >
-                        Reset
-                    </button>
-                    <button
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
-                        onClick={() => setShowSaveConfirm(true)}
-                        disabled={!canSave}
-                    >
-                        {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
-                        onClick={handleViewPdf}
-                        disabled={!canView}
-                    >
-                        View PDF
-                    </button>
+
+                    {hasInvoice && (
+                        <>
+                            <button
+                                className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded disabled:opacity-50"
+                                onClick={handleReset}
+                                disabled={!canReset}
+                            >
+                                Reset
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                                onClick={handleSave}
+                                disabled={!canSave}
+                            >
+                                {saving ? "Saving..." : "Save"}
+                            </button>
+                            <button
+                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50"
+                                onClick={handleViewPdf}
+                                disabled={!canView}
+                            >
+                                View PDF
+                            </button>
+                        </>
+                    )}
                 </div>
-
-                {/* Save confirm */}
-                {showSaveConfirm && (
-                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-                        <div className="bg-white p-6 rounded shadow-lg max-w-sm">
-                            <p className="mb-4 text-center">
-                                Are you sure you want to save changes to this invoice?
-                            </p>
-                            <div className="flex justify-center gap-4">
-                                <button
-                                    className="px-4 py-2 bg-gray-500 text-white rounded"
-                                    onClick={() => setShowSaveConfirm(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    className="px-4 py-2 bg-blue-600 text-white rounded"
-                                    onClick={confirmSave}
-                                >
-                                    Confirm Save
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Regenerate confirm */}
-                {showRegenConfirm && (
-                    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-                        <div className="bg-white p-6 rounded shadow-lg max-w-sm">
-                            <p className="mb-4 text-center">
-                                Regenerating will discard your unsaved changes. Continue?
-                            </p>
-                            <div className="flex justify-center gap-4">
-                                <button
-                                    className="px-4 py-2 bg-gray-500 text-white rounded"
-                                    onClick={() => setShowRegenConfirm(false)}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    className="px-4 py-2 bg-purple-600 text-white rounded"
-                                    onClick={doRegenerate}
-                                >
-                                    Yes, Regenerate
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
             </div>
         </div>
     );

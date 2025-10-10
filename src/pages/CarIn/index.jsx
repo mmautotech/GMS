@@ -1,4 +1,11 @@
-import React, { useState, useMemo, useCallback, useRef } from "react";
+// src/pages/CarIn/CarInPage.jsx
+import React, {
+    useState,
+    useMemo,
+    useCallback,
+    useRef,
+    useEffect,
+} from "react";
 import { toast } from "react-toastify";
 
 import { useArrivedBookings } from "../../hooks/useBookingsList.js";
@@ -12,7 +19,6 @@ import BookingsTable from "./BookingsTable.jsx";
 import BookingDetailModal from "./BookingDetailModal.jsx";
 import UpsellModal from "./UpsellModal.jsx";
 
-// dropdown configs
 const SORT_OPTIONS = [
     { label: "Booking Date", value: "createdDate" },
     { label: "Arrival Date", value: "arrivedDate" },
@@ -21,16 +27,16 @@ const SORT_OPTIONS = [
     { label: "Phone Number", value: "ownerNumber" },
     { label: "Post Code", value: "ownerPostalCode" },
 ];
+
 const LIMIT_OPTIONS = [5, 25, 50, 100];
 
 export default function CarInPage({ currentUser }) {
     const bookingDetailRef = useRef(null);
-
     const [loadingCarOutId, setLoadingCarOutId] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [activeModal, setActiveModal] = useState(null); // "booking" | "upsell" | null
 
-    // filters
+    // Filters
     const [draft, setDraft] = useState({
         search: "",
         fromDate: "",
@@ -45,11 +51,10 @@ export default function CarInPage({ currentUser }) {
 
     const arrivedParams = useMemo(() => applied, [applied]);
 
-    // bookings (arrived only)
+    // Bookings (arrived)
     const {
         items: bookings,
         loadingList,
-        error,
         page,
         setPage,
         totalPages,
@@ -57,51 +62,39 @@ export default function CarInPage({ currentUser }) {
         hasNextPage,
         hasPrevPage,
         refresh,
-        setList: setBookings,
         params: backendParams,
     } = useArrivedBookings(arrivedParams);
 
-    // status update hook
     const { setError, updateStatus } = useBookings();
+    const { list: serviceOptions, loading: loadingServices, error: servicesError } =
+        useServiceOptions({ useSessionCache: true });
+    const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
+        useUsers({ useSessionCache: true });
 
-    // ✅ services (options only)
-    const {
-        list: serviceOptions,
-        loading: loadingServices,
-        error: servicesError,
-    } = useServiceOptions({ useSessionCache: true });
-
-    // users
-    const {
-        list: userOptions,
-        map: userMap,
-        loading: loadingUsers,
-        error: usersError,
-    } = useUsers({ useSessionCache: true });
-
-    // --- Actions ---
+    // ──────────────────────── Handlers ────────────────────────
 
     const handleCarOut = useCallback(
         async (booking) => {
-            if (!window.confirm("Are you sure you want to mark this car as COMPLETED (Car Out)?")) {
+            if (
+                !window.confirm(
+                    "Are you sure you want to mark this car as COMPLETED (Car Out)?"
+                )
+            )
                 return;
-            }
 
             setLoadingCarOutId(booking._id);
             try {
                 const res = await updateStatus(booking._id, "completed");
-
                 if (res.ok) {
-                    toast.success(res.message || "Car checked out successfully!");
+                    toast.success("✅ Car checked out successfully!");
                     await refresh();
                 } else {
                     toast.error(res.error || "Failed to check out car");
                 }
             } catch (err) {
-                const backendMessage =
-                    err?.response?.data?.message || err.message || "Failed to check out car";
-                setError(backendMessage);
-                toast.error(backendMessage);
+                const msg = err?.response?.data?.message || err.message;
+                setError(msg);
+                toast.error(msg || "Failed to check out car");
             } finally {
                 setLoadingCarOutId(null);
             }
@@ -111,24 +104,20 @@ export default function CarInPage({ currentUser }) {
 
     const handleCancelled = useCallback(
         async (id) => {
-            if (!window.confirm("Are you sure you want to CANCEL this booking?")) {
-                return;
-            }
+            if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
 
             try {
                 const res = await updateStatus(id, "cancelled");
-
                 if (res.ok) {
-                    toast.success(res.message || "Booking cancelled successfully!");
+                    toast.success("❌ Booking cancelled successfully!");
                     await refresh();
                 } else {
                     toast.error(res.error || "Failed to cancel booking");
                 }
             } catch (err) {
-                const backendMessage =
-                    err?.response?.data?.message || err.message || "Failed to cancel booking";
-                setError(backendMessage);
-                toast.error(backendMessage);
+                const msg = err?.response?.data?.message || err.message;
+                setError(msg);
+                toast.error(msg || "Failed to cancel booking");
             }
         },
         [updateStatus, refresh, setError]
@@ -139,22 +128,15 @@ export default function CarInPage({ currentUser }) {
         setActiveModal("booking");
     };
 
-    const handleAddUpsell = () => {
-        setActiveModal("upsell");
-    };
+    const handleAddUpsell = () => setActiveModal("upsell");
 
-    const handleUpsellClose = async () => {
-        setActiveModal("booking");
-        if (bookingDetailRef.current?.refreshUpsells) {
-            bookingDetailRef.current.refreshUpsells();
-        }
-    };
+    // ──────────────────────── Filters ────────────────────────
 
-    // filters apply & reset
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
     };
+
     const resetFilters = () => {
         const fresh = {
             search: "",
@@ -171,12 +153,52 @@ export default function CarInPage({ currentUser }) {
         setPage(1);
     };
 
-    const params = useMemo(() => {
-        return backendParams
-            ? { ...backendParams, perPage: backendParams.perPage ?? backendParams.limit, page }
-            : { ...arrivedParams, perPage: arrivedParams.limit, page };
-    }, [backendParams, arrivedParams, page]);
+    const params = useMemo(
+        () =>
+            backendParams
+                ? {
+                    ...backendParams,
+                    perPage: backendParams.perPage ?? backendParams.limit,
+                    page,
+                }
+                : { ...arrivedParams, perPage: arrivedParams.limit, page },
+        [backendParams, arrivedParams, page]
+    );
 
+    // ──────────────────────── Smart Focus & Visibility Refresh ────────────────────────
+    useEffect(() => {
+        let timeout;
+        const handleFocus = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                if (process.env.NODE_ENV === "development") {
+                    console.log("🔄 Refetch triggered on window focus");
+                }
+                refresh();
+            }, 250);
+        };
+
+        const handleVisibility = () => {
+            if (!document.hidden) {
+                console.log("🔁 Refetch triggered on page visible");
+                refresh();
+            }
+        };
+
+        // ✅ Trigger once when page mounts (handles sidebar navigation)
+        refresh();
+
+        window.addEventListener("focus", handleFocus);
+        document.addEventListener("visibilitychange", handleVisibility);
+
+        return () => {
+            clearTimeout(timeout);
+            window.removeEventListener("focus", handleFocus);
+            document.removeEventListener("visibilitychange", handleVisibility);
+        };
+    }, [refresh]);
+
+    // ──────────────────────── UI ────────────────────────
     return (
         <div className="p-6 relative min-h-screen bg-gray-50">
             <h1 className="text-3xl font-bold text-blue-900 mb-6">Car-In (Arrived)</h1>
@@ -270,7 +292,9 @@ export default function CarInPage({ currentUser }) {
                         </select>
                         <select
                             value={draft.limit}
-                            onChange={(e) => setDraft((d) => ({ ...d, limit: Number(e.target.value) }))}
+                            onChange={(e) =>
+                                setDraft((d) => ({ ...d, limit: Number(e.target.value) }))
+                            }
                             className="border rounded px-3 py-2 w-full"
                         >
                             {LIMIT_OPTIONS.map((opt) => (
@@ -280,6 +304,7 @@ export default function CarInPage({ currentUser }) {
                             ))}
                         </select>
                     </div>
+
                     <div className="flex gap-2 md:ml-4">
                         <button
                             onClick={applyFilters}
@@ -329,8 +354,9 @@ export default function CarInPage({ currentUser }) {
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Prev
                     </button>
@@ -341,8 +367,9 @@ export default function CarInPage({ currentUser }) {
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Next
                     </button>
@@ -355,7 +382,10 @@ export default function CarInPage({ currentUser }) {
                     ref={bookingDetailRef}
                     booking={selectedBooking}
                     isOpen={true}
-                    onClose={() => setActiveModal(null)}
+                    onClose={async () => {
+                        setActiveModal(null);
+                        await refresh();
+                    }}
                     onAddUpsell={handleAddUpsell}
                 />
             )}
@@ -364,7 +394,10 @@ export default function CarInPage({ currentUser }) {
                 <UpsellModal
                     booking={selectedBooking}
                     isOpen={true}
-                    onClose={handleUpsellClose}
+                    onClose={async () => {
+                        await refresh();
+                        setActiveModal("booking");
+                    }}
                     onSaved={async () => {
                         if (bookingDetailRef.current?.refreshUpsells) {
                             await bookingDetailRef.current.refreshUpsells();
