@@ -10,7 +10,7 @@ module.exports = {
     // ✅ Inject environment variable
     new webpack.DefinePlugin({
       "process.env.API_BASE": JSON.stringify(
-        process.env.API_BASE || "http://192.168.18.84:5000/api"
+        process.env.API_BASE || "http://192.168.18.89:5000/api"
       ),
     }),
 

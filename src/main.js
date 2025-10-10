@@ -18,7 +18,7 @@ let splashWindow;
 let splashShownAt = null;
 
 // ✅ Environment variable for API
-const API_URL = process.env.REACT_APP_API_URL || "http://192.168.18.84:5000/api";
+const API_URL = process.env.REACT_APP_API_URL || "http://192.168.18.89:5000/api";
 
 // ✅ CSP for development (loosened for APIs on localhost + LAN)
 const DEV_CSP = [

@@ -1,28 +1,18 @@
-// src/components/InvoiceTable.jsx
 import React from "react";
 import { Eye, FileText, FilePlus } from "lucide-react";
 import StatusBadge from "./StatusBadge.jsx";
 
-/**
- * ✅ Reusable Invoice Table Component
- * Supports both Main and Internal Invoice layouts.
- *
- * Props:
- * - mode: "main" | "internal"
- * - invoices, filters, pagination
- * - formatDate, formatAmount
- * - onViewPdf, onCreateInternalInvoice, onPageChange
- */
 export default function InvoiceTable({
     mode = "main",
     invoices = [],
-    filters,
-    pagination,
+    filters = {},
+    pagination = {},
     formatDate,
     formatAmount,
     onViewPdf,
     onCreateInternalInvoice,
-    onExportPdf,
+    onExportPdf, // For internal invoice PDF (view in browser)
+    onViewDetail, // For internal invoice detail modal
     onPageChange,
     creatingInternalInvoice = false,
 }) {
@@ -30,7 +20,6 @@ export default function InvoiceTable({
 
     return (
         <div className="relative border rounded shadow bg-white">
-            {/* ✅ Scrollable table */}
             <div className="overflow-auto max-h-[70vh]">
                 <table className="min-w-full text-sm border-collapse">
                     <thead className="bg-gray-800 text-white sticky top-0 z-10">
@@ -112,23 +101,46 @@ export default function InvoiceTable({
                                             </td>
                                             <td
                                                 className={`py-2 px-3 font-bold ${inv.calculatedProfit >= 0
-                                                    ? "text-green-600"
-                                                    : "text-red-600"
+                                                        ? "text-green-600"
+                                                        : "text-red-600"
                                                     }`}
                                             >
                                                 £{(inv.calculatedProfit || 0).toFixed(2)}
                                             </td>
+
+                                            {/* ✅ FIXED: Internal Invoice Actions */}
                                             <td className="py-2 px-3 text-center">
-                                                <button
-                                                    className="px-2 py-1 border rounded hover:bg-blue-50 text-sm flex items-center justify-center gap-1"
-                                                    onClick={() => onExportPdf && onExportPdf(inv._id)}
-                                                >
-                                                    <FileText size={14} /> PDF
-                                                </button>
+                                                <div className="flex items-center justify-center gap-2">
+                                                    {/* 🔹 View Details Modal */}
+                                                    <button
+                                                        className="px-2 py-1 border rounded text-blue-600 hover:bg-blue-50 flex items-center gap-1"
+                                                        onClick={() =>
+                                                            onViewDetail && onViewDetail(inv._id)
+                                                        }
+                                                    >
+                                                        <Eye size={14} /> View
+                                                    </button>
+
+                                                    {/* 🔹 Open PDF in browser */}
+                                                    <button
+                                                        className="px-2 py-1 border rounded text-green-600 hover:bg-green-50 flex items-center gap-1"
+                                                        onClick={() => {
+                                                            if (onExportPdf) onExportPdf(inv._id);
+                                                            else
+                                                                window.open(
+                                                                    `${window.location.origin}/api/internal-invoices/${inv._id}/pdf/view`,
+                                                                    "_blank"
+                                                                );
+                                                        }}
+                                                    >
+                                                        <FileText size={14} /> PDF
+                                                    </button>
+                                                </div>
                                             </td>
                                         </>
                                     ) : (
                                         <>
+                                            {/* 🔹 Main Invoices – UNCHANGED */}
                                             <td className="py-2 px-3">
                                                 {(filters.page - 1) * filters.limit + idx + 1}
                                             </td>
@@ -137,10 +149,10 @@ export default function InvoiceTable({
                                                 {inv.invoiceNo}
                                             </td>
                                             <td className="py-2 px-3">
-                                                {inv.makeModel} <br />
-                                                <span className="text-xs text-gray-500">
+                                                {inv.makeModel}
+                                                <div className="text-xs text-gray-500">
                                                     ({inv.vehicleRegNo})
-                                                </span>
+                                                </div>
                                             </td>
                                             <td className="py-2 px-3">
                                                 {inv.customerName}
@@ -191,7 +203,7 @@ export default function InvoiceTable({
                 </table>
             </div>
 
-            {/* ✅ Fixed Footer */}
+            {/* ✅ Footer */}
             <div className="flex justify-between items-center bg-gray-100 border-t px-4 py-3">
                 <span className="text-gray-700 font-medium">
                     Total Invoices: {pagination?.total ?? invoices.length ?? 0}
@@ -200,8 +212,8 @@ export default function InvoiceTable({
                 <div className="flex items-center gap-2">
                     <button
                         className={`px-3 py-1 rounded ${(filters?.page ?? 1) === 1
-                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                            : "bg-blue-600 text-white hover:bg-blue-700"
+                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                : "bg-blue-600 text-white hover:bg-blue-700"
                             }`}
                         disabled={(filters?.page ?? 1) === 1}
                         onClick={() => onPageChange?.((filters?.page ?? 1) - 1)}
@@ -215,8 +227,8 @@ export default function InvoiceTable({
 
                     <button
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
-                            ? "bg-blue-600 text-white hover:bg-blue-700"
-                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                                ? "bg-blue-600 text-white hover:bg-blue-700"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                         disabled={!pagination?.hasNextPage}
                         onClick={() => onPageChange?.((filters?.page ?? 1) + 1)}

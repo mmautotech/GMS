@@ -28,7 +28,7 @@ module.exports = {
     new webpack.DefinePlugin({
       // ✅ Inject API_BASE into renderer bundle
       "process.env.API_BASE": JSON.stringify(
-        process.env.API_BASE || "http://192.168.18.84:5000/api"
+        process.env.API_BASE || "http://192.168.18.89:5000/api"
       ),
     }),
     // ✅ Copy static assets if needed in renderer (e.g., logos)
@@ -44,7 +44,7 @@ module.exports = {
         "style-src 'self' 'unsafe-inline'",
         "img-src 'self' data: blob:",
         "font-src 'self' data:",
-        "connect-src 'self' http://127.0.0.1:5000 http://192.168.18.84:5000 ws: http: https:",
+        "connect-src 'self' http://127.0.0.1:5000 http://192.168.18.89:5000 ws: http: https:",
         "worker-src 'self' blob:",
       ].join("; "),
     },

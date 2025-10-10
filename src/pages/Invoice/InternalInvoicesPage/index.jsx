@@ -4,12 +4,16 @@ import { toast } from "react-toastify";
 import { useLocation } from "react-router-dom";
 
 import { useInternalInvoices } from "../../../hooks/useInternalInvoices.js";
-import { exportInternalInvoiceById } from "../../../lib/api/internalinvoiceApi.js";
+import {
+    exportInternalInvoiceById,
+    getInternalInvoiceById,
+} from "../../../lib/api/internalinvoiceApi.js";
 
+import InvoiceTable from "../../../components/InvoiceTable.jsx";
 import ParamsSummary from "../../../components/ParamsSummary.jsx";
 import InlineSpinner from "../../../components/InlineSpinner.jsx";
 import StatCard from "../../../components/StatCard.jsx";
-import InvoiceTable from "../../../components/InvoiceTable.jsx";
+import DetailModal from "./DetailModal.jsx"; // ✅ You already have this
 
 export default function InternalInvoicePage() {
     const location = useLocation();
@@ -47,18 +51,23 @@ export default function InternalInvoicePage() {
     } = useInternalInvoices({ refreshKey }); // ✅ pass refreshKey to trigger re-fetch
 
     const [localFilters, setLocalFilters] = useState(filters);
+    const [selectedInvoice, setSelectedInvoice] = useState(null);
+    const [detailModalOpen, setDetailModalOpen] = useState(false);
+    const [loadingDetail, setLoadingDetail] = useState(false);
 
     // initial fetch
     useEffect(() => {
         fetchInvoices();
     }, [fetchInvoices, refreshKey]);
 
+    /** 🔹 Apply filters manually */
     const handleApply = () => {
         setFilters(localFilters);
         setPage(1);
         fetchInvoices();
     };
 
+    /** 🔹 Reset filters */
     const handleReset = () => {
         const defaultFilters = {
             search: "",
@@ -74,17 +83,37 @@ export default function InternalInvoicePage() {
         fetchInvoices();
     };
 
+    /** 🔹 View PDF (open in new tab) */
     const handleExportPDF = async (id) => {
         try {
-            toast.info("Generating PDF...");
+            toast.info("Opening PDF...");
             await exportInternalInvoiceById(id);
-            toast.success("PDF downloaded successfully!");
         } catch (error) {
-            console.error("❌ Export failed:", error);
-            toast.error("Failed to export PDF");
+            console.error("❌ PDF export failed:", error);
+            toast.error("Failed to open PDF");
         }
     };
 
+    /** 🔹 View invoice details (modal) */
+    const handleViewDetail = async (id) => {
+        try {
+            setLoadingDetail(true);
+            const res = await getInternalInvoiceById(id);
+            if (res?.success && res?.data) {
+                setSelectedInvoice(res.data);
+                setDetailModalOpen(true);
+            } else {
+                toast.error("No details found for this invoice");
+            }
+        } catch (err) {
+            console.error("❌ Failed to fetch internal invoice:", err);
+            toast.error("Failed to load invoice details");
+        } finally {
+            setLoadingDetail(false);
+        }
+    };
+
+    /** 🔹 Pagination */
     const handlePageChange = (newPage) => {
         setPage(newPage);
         fetchInvoices();
@@ -142,9 +171,9 @@ export default function InternalInvoicePage() {
                         className="border rounded-md p-2 text-sm w-full"
                     >
                         <option value="">All Statuses</option>
-                        <option value="Paid">Paid</option>
-                        <option value="Unpaid">Unpaid</option>
                         <option value="Partial">Partial</option>
+                        <option value="Receivable">Receivable</option>
+                        <option value="Received">Received</option>
                         <option value="Cancelled">Cancelled</option>
                     </select>
                     <select
@@ -155,7 +184,7 @@ export default function InternalInvoicePage() {
                         className="border rounded-md p-2 text-sm w-full"
                     >
                         <option value="landingDate">Landing Date</option>
-                        <option value="createDate">Created Date</option>
+                        <option value="createdAt">Created Date</option>
                     </select>
                     <select
                         value={localFilters.sortOrder}
@@ -195,12 +224,28 @@ export default function InternalInvoicePage() {
                     filters={filters}
                     pagination={pagination}
                     onExportPdf={handleExportPDF}
+                    onViewDetail={handleViewDetail}
                     onPageChange={handlePageChange}
                 />
             )}
 
-            {/* Params Summary */}
+            {/* 📋 Params Summary */}
             <ParamsSummary params={backendParams} />
+
+            {/* 🪟 Details Modal */}
+            {detailModalOpen && (
+                <DetailModal
+                    isOpen={detailModalOpen}
+                    onClose={() => setDetailModalOpen(false)}
+                    loading={loadingDetail}
+                    title={
+                        selectedInvoice?.invoiceNo
+                            ? `Invoice Details – ${selectedInvoice.invoiceNo}`
+                            : "Invoice Details"
+                    }
+                    data={selectedInvoice}
+                />
+            )}
         </div>
     );
 }
