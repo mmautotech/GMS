@@ -47,6 +47,7 @@ const BookingRow = forwardRef(function BookingRow(
     fetchDetails,
     fetchBookingPhoto,
     bookingPhotoUrl,
+    fetchOriginalBookingPhoto, // ✅ added
   } = useBookingDetails();
 
   const servicesText = useMemo(() => {
@@ -69,15 +70,17 @@ const BookingRow = forwardRef(function BookingRow(
   }, [expanded, bookingId, details, loading, fetchDetails]);
 
   const handleThumbnailClick = async () => {
-    if (bookingPhotoUrl) {
+    if (!details) return;
+
+    // Fetch original photo from backend
+    const originalUrl = await fetchOriginalBookingPhoto();
+    if (originalUrl) {
+      setFullPhotoUrl(originalUrl);
+      setShowPhoto(true);
+    } else if (bookingPhotoUrl) {
+      // fallback if original not available
       setFullPhotoUrl(bookingPhotoUrl);
       setShowPhoto(true);
-    } else {
-      const url = await fetchBookingPhoto(bookingId);
-      if (url) {
-        setFullPhotoUrl(url);
-        setShowPhoto(true);
-      }
     }
   };
 
@@ -93,9 +96,7 @@ const BookingRow = forwardRef(function BookingRow(
         role="row"
         tabIndex={-1}
         aria-selected={!!isSelected}
-        className={`cursor-pointer outline-none ${isSelected
-          ? "bg-blue-50 ring-2 ring-blue-300"
-          : "hover:bg-gray-50"
+        className={`cursor-pointer outline-none ${isSelected ? "bg-blue-50 ring-2 ring-blue-300" : "hover:bg-gray-50"
           }`}
         onClick={onSelect}
         onDoubleClick={handleRowDoubleClick}
@@ -155,8 +156,8 @@ const BookingRow = forwardRef(function BookingRow(
 
             <button
               className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${expanded && details
-                ? "bg-gray-600 hover:bg-gray-700 text-white"
-                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                  ? "bg-gray-600 hover:bg-gray-700 text-white"
+                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               onClick={(e) => {
                 e.stopPropagation();
@@ -220,7 +221,7 @@ const BookingRow = forwardRef(function BookingRow(
                         Confirmation Photo
                       </p>
                       <img
-                        src={details.compressedPhoto}
+                        src={details.compressedPhoto || bookingPhotoUrl}
                         alt={`Confirmation Photo for ${booking.registration}`}
                         className="h-40 w-auto object-contain rounded border cursor-pointer hover:opacity-80"
                         onClick={handleThumbnailClick}

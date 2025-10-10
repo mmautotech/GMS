@@ -53,6 +53,7 @@ const BookingRow = forwardRef(function BookingRow(
         bookingPhotoUrl,
         upsellPhotoUrls,
         fetchBookingPhoto,
+        fetchOriginalBookingPhoto, // fetch original
         fetchUpsellPhoto,
     } = useBookingDetails();
 
@@ -68,15 +69,14 @@ const BookingRow = forwardRef(function BookingRow(
     }, [expanded, bookingId, details, loading, fetchDetails]);
 
     const handleBookingThumbnailClick = async () => {
-        if (bookingPhotoUrl) {
+        // fetch original photo
+        const originalUrl = await fetchOriginalBookingPhoto();
+        if (originalUrl) {
+            setFullPhotoUrl(originalUrl);
+            setShowPhoto(true);
+        } else if (bookingPhotoUrl) {
             setFullPhotoUrl(bookingPhotoUrl);
             setShowPhoto(true);
-        } else {
-            const url = await fetchBookingPhoto(bookingId);
-            if (url) {
-                setFullPhotoUrl(url);
-                setShowPhoto(true);
-            }
         }
     };
 
@@ -92,7 +92,7 @@ const BookingRow = forwardRef(function BookingRow(
         }
     };
 
-    // Role-based button permissions
+    // Role-based permissions
     const canCarOut = currentUser && ["admin", "accounts"].includes(currentUser.userType);
     const canViewInvoice = currentUser && ["admin", "accounts", "customer_service"].includes(currentUser.userType);
     const canViewDetails = currentUser && ["admin", "accounts", "customer_service"].includes(currentUser.userType);
@@ -141,7 +141,6 @@ const BookingRow = forwardRef(function BookingRow(
                 <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
                 <td className="p-2 border">
                     <div className="flex gap-2">
-                        {/* View Details Button - restricted */}
                         {canViewDetails && (
                             <button
                                 className="bg-gray-600 hover:bg-gray-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
@@ -153,8 +152,6 @@ const BookingRow = forwardRef(function BookingRow(
                                 <Eye size={14} />
                             </button>
                         )}
-
-                        {/* Invoice Button */}
                         {canViewInvoice && (
                             <button
                                 className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
@@ -166,8 +163,6 @@ const BookingRow = forwardRef(function BookingRow(
                                 <FileText size={14} />
                             </button>
                         )}
-
-                        {/* Car Out Button */}
                         {canCarOut && (
                             <button
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1 disabled:opacity-50"
@@ -180,8 +175,6 @@ const BookingRow = forwardRef(function BookingRow(
                                 {loadingCarOutId === booking._id ? "Processing..." : <Car size={14} />}
                             </button>
                         )}
-
-                        {/* Cancel Button */}
                         {canCancel && (
                             <button
                                 className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center gap-1"
@@ -226,7 +219,7 @@ const BookingRow = forwardRef(function BookingRow(
                                         <p className="text-gray-500 text-xs font-bold uppercase">Services</p>
                                         <p>{servicesText}</p>
                                         <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Remarks</p>
-                                        <p>{safe(details.remarks)}</p>
+                                        <p className="whitespace-pre-wrap break-words">{safe(details.remarks)}</p>
                                         <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Source</p>
                                         <p>{safe(details.source)}</p>
                                     </div>

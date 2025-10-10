@@ -1,3 +1,4 @@
+// src/hooks/useBookingDetails.js
 import { useState, useCallback, useRef, useEffect } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 import { UpsellApi } from "../lib/api/UpsellApi.js";
@@ -17,7 +18,7 @@ export default function useBookingDetails() {
     useEffect(() => {
         return () => {
             mounted.current = false;
-            // Cleanup object URLs
+            // Cleanup all object URLs on unmount
             objectUrls.current.forEach((url) => URL.revokeObjectURL(url));
             objectUrls.current = [];
         };
@@ -29,9 +30,12 @@ export default function useBookingDetails() {
         return url;
     };
 
-    const fetchBookingPhoto = useCallback(async (bookingId) => {
+    // --------------------------
+    // Booking confirmation photo
+    // --------------------------
+    const fetchBookingPhoto = useCallback(async (bookingId, type = "original") => {
         try {
-            const res = await BookingApi.getBookingPhoto(bookingId, "original");
+            const res = await BookingApi.getBookingPhoto(bookingId, type);
             if (res.ok && res.blob && mounted.current) {
                 const url = makeBlobUrl(res.blob);
                 setBookingPhotoUrl(url);
@@ -43,12 +47,26 @@ export default function useBookingDetails() {
         return null;
     }, []);
 
+    // Fetch original photo on-demand (for click/open)
+    const fetchOriginalBookingPhoto = useCallback(async () => {
+        if (!currentBookingId.current) return null;
+        try {
+            const url = await fetchBookingPhoto(currentBookingId.current, "original");
+            return url;
+        } catch (err) {
+            console.error("Failed to fetch original booking photo", err);
+            return null;
+        }
+    }, [fetchBookingPhoto]);
+
+    // --------------------------
+    // Upsell photos
+    // --------------------------
     const fetchUpsellPhoto = useCallback(async (bookingId, upsellId) => {
         try {
             const res = await UpsellApi.getUpsellPhoto(bookingId, upsellId, "original");
-            if (res && mounted.current) {
-                const blob = res instanceof Blob ? res : new Blob([res], { type: "image/png" });
-                const url = makeBlobUrl(blob);
+            if (res.ok && res.blob && mounted.current) {
+                const url = makeBlobUrl(res.blob);
                 setUpsellPhotoUrls((prev) => ({ ...prev, [upsellId]: url }));
                 return url;
             }
@@ -58,14 +76,20 @@ export default function useBookingDetails() {
         return null;
     }, []);
 
+    // --------------------------
+    // Fetch booking details
+    // --------------------------
     const fetchDetails = useCallback(async (bookingId) => {
         currentBookingId.current = bookingId;
         setLoading(true);
         setError("");
+
         try {
+            // Fetch booking
             const bookingRes = await BookingApi.getBookingById(bookingId);
             const bookingData = bookingRes.ok ? bookingRes.booking : null;
 
+            // Fetch upsells / prebooking data
             const upsellRes = await UpsellApi.getUpsellsByBooking(bookingId);
             const prebooking = upsellRes && upsellRes.success ? upsellRes : {};
             const bookingPrice = prebooking.prebookingBookingPrice || 0;
@@ -93,15 +117,24 @@ export default function useBookingDetails() {
 
             setDetails(bookingDetails);
 
+            // --------------------------
+            // Set booking photo
+            // --------------------------
             if (bookingDetails.compressedPhoto) {
-                setBookingPhotoUrl(bookingDetails.compressedPhoto);
+                const url =
+                    typeof bookingDetails.compressedPhoto === "string"
+                        ? bookingDetails.compressedPhoto
+                        : makeBlobUrl(bookingDetails.compressedPhoto);
+                setBookingPhotoUrl(url);
             } else {
-                await fetchBookingPhoto(bookingId);
+                // fallback: fetch original from API
+                await fetchBookingPhoto(bookingId, "original");
             }
 
-            for (let upsell of bookingDetails.upsells) {
-                await fetchUpsellPhoto(bookingId, upsell._id);
-            }
+            // Fetch upsell photos in parallel
+            await Promise.all(
+                bookingDetails.upsells.map((upsell) => fetchUpsellPhoto(bookingId, upsell._id))
+            );
 
             return bookingDetails;
         } catch (err) {
@@ -112,14 +145,15 @@ export default function useBookingDetails() {
         }
     }, [fetchBookingPhoto, fetchUpsellPhoto]);
 
+    // --------------------------
+    // Add a new upsell
+    // --------------------------
     const addUpsell = useCallback(
         async (bookingId, upsellData) => {
             try {
                 const res = await UpsellApi.addUpsell(bookingId, upsellData);
-                if (res && res.success) {
+                if (res && res.success && mounted.current) {
                     const newUpsell = res.upsell;
-                    if (!mounted.current) return null;
-
                     setDetails((prev) => ({
                         ...prev,
                         upsells: [...prev.upsells, newUpsell],
@@ -136,9 +170,9 @@ export default function useBookingDetails() {
         [fetchUpsellPhoto]
     );
 
-    // ===============================
+    // --------------------------
     // Auto-refresh every 1 minute
-    // ===============================
+    // --------------------------
     const refresh = useCallback(async () => {
         if (currentBookingId.current) {
             await fetchDetails(currentBookingId.current);
@@ -146,7 +180,7 @@ export default function useBookingDetails() {
     }, [fetchDetails]);
 
     useEffect(() => {
-        const interval = setInterval(refresh, 60000); // 1 minute
+        const interval = setInterval(refresh, 60000);
         return () => clearInterval(interval);
     }, [refresh]);
 
@@ -159,7 +193,8 @@ export default function useBookingDetails() {
         upsellPhotoUrls,
         fetchBookingPhoto,
         fetchUpsellPhoto,
+        fetchOriginalBookingPhoto, // ✅ click-to-original
         addUpsell,
-        refresh, // expose manual refresh
+        refresh,
     };
 }
