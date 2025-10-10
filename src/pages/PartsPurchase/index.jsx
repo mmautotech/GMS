@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Plus } from "lucide-react";
+import { useLocation } from "react-router-dom";
 
 import { Button } from "../../ui/button";
 import { Input } from "../../ui/input";
@@ -17,7 +18,7 @@ import PartsInvoicesTable from "./PartsInvoicesTable.jsx";
 // --- Dropdown constants ---
 const LIMIT_OPTIONS = [5, 25, 50, 100];
 
-// --- Default filter state (VAT removed) ---
+// --- Default filter state ---
 const DEFAULT_FILTERS = {
     search: "",
     supplier: "",
@@ -32,6 +33,21 @@ const DEFAULT_FILTERS = {
 };
 
 export default function PartsPurchase({ isAdmin = false }) {
+    const location = useLocation();
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    // 🔁 Refresh when user navigates back to this page
+    useEffect(() => {
+        setRefreshKey((k) => k + 1);
+    }, [location.key]);
+
+    // 🔁 Refresh when browser/tab regains focus
+    useEffect(() => {
+        const handleFocus = () => setRefreshKey((k) => k + 1);
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, []);
+
     const [isInvoiceModalOpen, setIsInvoiceModalOpen] = useState(false);
     const [selectedInvoiceId, setSelectedInvoiceId] = useState(null);
 
@@ -58,13 +74,14 @@ export default function PartsPurchase({ isAdmin = false }) {
     } = usePurchaseInvoices({
         isAdmin,
         initialParams: { page: 1, ...DEFAULT_FILTERS },
+        refreshKey, // ✅ add refresh trigger
     });
 
     // local filters
     const [draft, setDraft] = useState(DEFAULT_FILTERS);
     const [applied, setApplied] = useState(DEFAULT_FILTERS);
 
-    // 🟢 Clean empty values before sending to backend
+    // 🧹 Clean empty values before sending to backend
     const cleanParams = (obj) =>
         Object.fromEntries(
             Object.entries(obj).filter(
@@ -104,11 +121,12 @@ export default function PartsPurchase({ isAdmin = false }) {
         };
     }, [params, applied, pagination]);
 
-    // build supplier/part maps for ParamsSummary
+    // build supplier/part maps
     const supplierMap = useMemo(
         () => Object.fromEntries(suppliers.map((s) => [s._id, s.name])),
         [suppliers]
     );
+
     const partMap = useMemo(
         () =>
             Object.fromEntries(
@@ -119,6 +137,11 @@ export default function PartsPurchase({ isAdmin = false }) {
             ),
         [parts]
     );
+
+    // 🔁 Fetch invoices again when refreshKey changes
+    useEffect(() => {
+        refetch();
+    }, [refreshKey]);
 
     return (
         <div className="p-6 relative min-h-screen bg-gray-50">
@@ -172,7 +195,9 @@ export default function PartsPurchase({ isAdmin = false }) {
                     {/* Payment Status */}
                     <select
                         value={draft.paymentStatus}
-                        onChange={(e) => setDraft({ ...draft, paymentStatus: e.target.value })}
+                        onChange={(e) =>
+                            setDraft({ ...draft, paymentStatus: e.target.value })
+                        }
                         className="border rounded px-3 py-2 w-full"
                     >
                         <option value="">All Status</option>
@@ -269,7 +294,7 @@ export default function PartsPurchase({ isAdmin = false }) {
                     </select>
                 </div>
 
-                {/* Action Buttons (Centered) */}
+                {/* Action Buttons */}
                 <div className="flex justify-center gap-3 mt-4">
                     <button
                         onClick={applyFilters}
@@ -294,7 +319,7 @@ export default function PartsPurchase({ isAdmin = false }) {
                 partMap={partMap}
             />
 
-            {/* Table with spinner */}
+            {/* Table */}
             {loading ? (
                 <div className="bg-white p-6 rounded-lg shadow flex justify-center">
                     <InlineSpinner label="Loading purchase invoices…" />

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../../../ui/button.js";
 import { toast } from "react-toastify";
+import { useLocation } from "react-router-dom";
+
 import { useInternalInvoices } from "../../../hooks/useInternalInvoices.js";
 import { exportInternalInvoiceById } from "../../../lib/api/internalinvoiceApi.js";
 
@@ -10,6 +12,21 @@ import StatCard from "../../../components/StatCard.jsx";
 import InvoiceTable from "../../../components/InvoiceTable.jsx";
 
 export default function InternalInvoicePage() {
+    const location = useLocation();
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    // 👇 Refresh when user navigates back to this page
+    useEffect(() => {
+        setRefreshKey((k) => k + 1);
+    }, [location.key]);
+
+    // 👇 Also refresh on browser/tab focus (covers tab switches)
+    useEffect(() => {
+        const handleFocus = () => setRefreshKey((k) => k + 1);
+        window.addEventListener("focus", handleFocus);
+        return () => window.removeEventListener("focus", handleFocus);
+    }, []);
+
     const {
         invoices,
         loading,
@@ -27,13 +44,14 @@ export default function InternalInvoicePage() {
         resetFilters,
         fetchInvoices,
         pagination,
-    } = useInternalInvoices();
+    } = useInternalInvoices({ refreshKey }); // ✅ pass refreshKey to trigger re-fetch
 
     const [localFilters, setLocalFilters] = useState(filters);
 
+    // initial fetch
     useEffect(() => {
         fetchInvoices();
-    }, [fetchInvoices]);
+    }, [fetchInvoices, refreshKey]);
 
     const handleApply = () => {
         setFilters(localFilters);
@@ -82,10 +100,10 @@ export default function InternalInvoicePage() {
             {/* 📊 Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
                 <StatCard title="Total Invoices" value={totalCount || invoices.length} />
-                <StatCard title="Total Sales (£)" value={totalSales.toFixed(2)} />
-                <StatCard title="Total Purchases (£)" value={totalPurchases.toFixed(2)} />
-                <StatCard title="Total Net VAT (£)" value={totalNetVat.toFixed(2)} />
-                <StatCard title="Total Profit (£)" value={totalProfit.toFixed(2)} />
+                <StatCard title="Total Sales (£)" value={totalSales?.toFixed(2)} />
+                <StatCard title="Total Purchases (£)" value={totalPurchases?.toFixed(2)} />
+                <StatCard title="Total Net VAT (£)" value={totalNetVat?.toFixed(2)} />
+                <StatCard title="Total Profit (£)" value={totalProfit?.toFixed(2)} />
             </div>
 
             {/* 🔍 Filters Section */}

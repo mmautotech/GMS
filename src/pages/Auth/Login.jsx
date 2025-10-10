@@ -85,14 +85,7 @@ export default function Login({ onLogin }) {
                     </button>
                 </form>
 
-                {/* Footer */}
-                <div className="mt-6 text-center text-sm text-gray-600 space-y-2">
-                    <p>
-                        <a href="/forgot-password" className="text-blue-600 hover:underline">
-                            Forgot Password?
-                        </a>
-                    </p>
-                </div>
+
 
                 <p className="text-xs text-gray-500 mt-6 text-center">
                     Demo login: <b>admin</b> / <b>admin123</b>

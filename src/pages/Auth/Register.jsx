@@ -1,6 +1,6 @@
 // src/pages/Auth/Register.jsx
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Eye, EyeOff } from "lucide-react"; // 👁️ import icons
 
@@ -11,7 +11,36 @@ export default function Register({ onRegister }) {
     const [busy, setBusy] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
 
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const roles = ["admin", "sales", "customer_service", "parts", "accounts"];
+
+    // ✅ Refresh on focus or when user comes back from another page
+    useEffect(() => {
+        const handleFocus = () => {
+            // Reset form and state on focus (fresh start)
+            setUsername("");
+            setPassword("");
+            setUserType("sales");
+            setShowPassword(false);
+        };
+
+        window.addEventListener("focus", handleFocus);
+
+        // Cleanup listener when component unmounts
+        return () => {
+            window.removeEventListener("focus", handleFocus);
+        };
+    }, []);
+
+    // ✅ Also refresh when user navigates to this route
+    useEffect(() => {
+        setUsername("");
+        setPassword("");
+        setUserType("sales");
+        setShowPassword(false);
+    }, [location.pathname]);
 
     // ✅ Validation Function
     const validateInputs = () => {
@@ -54,11 +83,12 @@ export default function Register({ onRegister }) {
         try {
             const res = await onRegister(username.trim(), password.trim(), userType);
             if (res.ok) {
+                toast.success("User created successfully");
                 setUsername("");
                 setPassword("");
                 setUserType("sales");
-            }
-            else {
+                navigate("/login"); // ✅ optionally navigate after successful register
+            } else {
                 toast.error(res.error || "Failed to create user");
             }
         } catch (err) {

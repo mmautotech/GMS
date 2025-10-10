@@ -1,6 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { RotateCcw, Filter } from "lucide-react";
 import { toast } from "react-toastify";
+import { useNavigate, useLocation } from "react-router-dom";
 
 import { InvoiceApi } from "../../lib/api/invoiceApi.js";
 import { createInternalInvoice } from "../../lib/api/internalinvoiceApi.js";
@@ -13,9 +14,12 @@ import InvoiceTable from "../../components/InvoiceTable.jsx";
 
 /**
  * 🧾 Main Invoices Page
- * Uses reusable <InvoiceTable /> for clean layout and scrollable table.
+ * Auto-refreshes when user comes back from another page or refocuses the tab.
  */
 export default function Invoices() {
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const {
         invoices,
         totals,
@@ -90,9 +94,48 @@ export default function Invoices() {
         return `£${total.toFixed(2)}`;
     };
 
+    // ---------------- Auto Refresh Logic ----------------
+    useEffect(() => {
+        let timeout;
+        const handleFocus = () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+                console.log("🔄 Refetch invoices on window focus");
+                refresh();
+            }, 300);
+        };
+
+        const handleVisibility = () => {
+            if (!document.hidden) {
+                console.log("🔁 Refetch invoices on tab visible");
+                refresh();
+            }
+        };
+
+        // 🔹 Initial fetch
+        refresh();
+
+        // 🔹 Handle window focus + tab visibility
+        window.addEventListener("focus", handleFocus);
+        document.addEventListener("visibilitychange", handleVisibility);
+
+        // 🔹 Detect navigation back (user returns to this page)
+        const unlisten = navigate((loc) => {
+            console.log("📄 Navigation detected:", loc.pathname);
+            refresh();
+        });
+
+        return () => {
+            clearTimeout(timeout);
+            window.removeEventListener("focus", handleFocus);
+            document.removeEventListener("visibilitychange", handleVisibility);
+            if (unlisten) unlisten();
+        };
+    }, [refresh, navigate]);
+
     // ---------------- UI ----------------
     return (
-        <div className="p-6">
+        <div className="p-6 min-h-screen bg-gray-50">
             <h1 className="text-2xl font-bold mb-4">Invoices</h1>
 
             {/* ✅ Stat Cards */}
