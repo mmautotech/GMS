@@ -30,7 +30,7 @@ const normalizeParams = (params) => {
 
 // simple in-memory cache: { [key]: { data, pagination, params, at } }
 const MEMO_CACHE = {};
-const TTL_MS = 30 * 1000; // 1 minute
+const TTL_MS = 60 * 1000; // 1 minute
 
 export function usePurchaseInvoices({ initialParams = {} } = {}) {
     const [invoices, setInvoices] = useState([]);

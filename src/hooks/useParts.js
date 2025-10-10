@@ -6,7 +6,7 @@ import ServiceApi from "../lib/api/serviceApi.js";
 
 // In-memory cache
 const MEMO_CACHE = {};
-const TTL_MS = 30 * 1000; // 1 min TTL
+const TTL_MS = 60 * 1000; // 1 min TTL
 
 export function useParts({ initialParams = {}, bookingId = null, serviceId = null } = {}) {
     const [parts, setParts] = useState([]);

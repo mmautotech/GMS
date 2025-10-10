@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 const MEMO_CACHE = {}; // { [key]: { items, totalPages, totalItems, hasNextPage, hasPrevPage, at } }
-const TTL_MS = 30 * 1000; // 1 minute TTL
+const TTL_MS = 60 * 1000; // 1 minute TTL
 
 export default function useBookings({
     status,
