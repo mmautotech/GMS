@@ -1,28 +1,22 @@
-// src/lib/api/invoiceApi.js
 import axios from "./axiosInstance.js";
 
 // ✅ Ensure baseURL has no trailing slash
 const API_URL = axios.defaults.baseURL?.replace(/\/$/, "") || "";
 
 /**
- * 🧾 Invoice API — Fully aligned with backend structure
- * Consistent normalization, error handling, and route matching.
+ * 🧾 Invoice API — Fully aligned with backend (no /stats route)
  */
 export const InvoiceApi = {
     API_URL,
 
-    /**
-     * 📌 Get Invoice by Booking ID (fetch only)
-     * - GET /api/invoices/booking/:bookingId
-     * - Returns: { success, exists, invoice }
-     */
+    // ----------------------------------------
+    // 📄 GET /api/invoices/booking/:bookingId
+    // ----------------------------------------
     getInvoiceByBookingId: async (bookingId) => {
         try {
             const res = await axios.get(`/invoices/booking/${bookingId}`);
             const { success, exists, invoice } = res.data;
-
-            if (!success || !exists) return null;
-            return invoice;
+            return success && exists ? invoice : null;
         } catch (err) {
             console.error("❌ getInvoiceByBookingId error:", err);
             throw new Error(
@@ -31,16 +25,13 @@ export const InvoiceApi = {
         }
     },
 
-    /**
-     * 🧾 Generate or Regenerate Invoice for Booking
-     * - POST /api/invoices/booking/:bookingId/generate
-     * - Always creates or updates the invoice for that booking
-     */
+    // ----------------------------------------
+    // 🧾 POST /api/invoices/booking/:bookingId/generate
+    // ----------------------------------------
     generateInvoiceByBookingId: async (bookingId) => {
         try {
             const res = await axios.post(`/invoices/booking/${bookingId}/generate`);
             const { success, invoice } = res.data;
-
             if (!success) throw new Error("Invoice generation failed");
             return invoice;
         } catch (err) {
@@ -51,16 +42,13 @@ export const InvoiceApi = {
         }
     },
 
-    /**
-     * ✏️ Update Invoice (items, discount, VAT, status)
-     * - PUT /api/invoices/:invoiceId
-     * - Returns updated invoice object
-     */
+    // ----------------------------------------
+    // ✏️ PUT /api/invoices/:invoiceId
+    // ----------------------------------------
     updateInvoice: async (invoiceId, payload) => {
         try {
             const res = await axios.put(`/invoices/${invoiceId}`, payload);
             const { success, invoice } = res.data;
-
             if (!success) throw new Error("Invoice update failed");
             return invoice;
         } catch (err) {
@@ -71,11 +59,9 @@ export const InvoiceApi = {
         }
     },
 
-    /**
-     * 🧾 View Invoice PDF (inline browser or Electron)
-     * - GET /api/invoices/:invoiceId/pdf/view
-     * - Optional ?proforma=true
-     */
+    // ----------------------------------------
+    // 🧾 GET /api/invoices/:invoiceId/pdf/view
+    // ----------------------------------------
     viewInvoicePdf: (invoiceId, isProforma = false) => {
         let url = `${API_URL}/invoices/${invoiceId}/pdf/view`;
         if (isProforma) url += "?proforma=true";
@@ -88,50 +74,52 @@ export const InvoiceApi = {
             }
         } catch (err) {
             console.error("⚠️ Error opening invoice PDF:", err);
-            window.open(url, "_blank"); // safe fallback
+            window.open(url, "_blank");
         }
     },
 
-    /**
-     * 📊 Get All Invoices (with filters, pagination, and totals)
-     * - GET /api/invoices
-     * - Returns { success, message, params, appliedFilters, pagination, totals, data }
-     */
+    // ----------------------------------------
+    // 📊 GET /api/invoices
+    // ----------------------------------------
     getAllInvoices: async (params = {}) => {
         try {
-            const res = await axios.get("/invoices", { params });
-            const { success, data, totals, pagination, message } = res.data;
+            // ✅ Apply safe defaults consistent with backend + validator
+            const queryParams = {
+                page: params.page || 1,
+                limit: params.limit || 10,
+                search: params.search || "",
+                status: params.status || "",
+                fromDate: params.fromDate || "",
+                toDate: params.toDate || "",
+                sortOn: params.sortOn || "createdAt",
+                sortOrder: params.sortOrder || "desc",
+            };
 
-            if (!success) throw new Error(message || "Failed to fetch invoices");
-            return {
-                invoices: data || [],
+            const res = await axios.get("/invoices", { params: queryParams });
+            const {
+                success,
+                message,
+                data,
                 totals,
                 pagination,
+                params: backendParams,
+                appliedFilters,
+            } = res.data;
+
+            if (!success) throw new Error(message || "Failed to fetch invoices");
+
+            return {
+                invoices: data || [],
+                totals: totals || {},
+                pagination: pagination || {},
+                params: backendParams || queryParams,
+                filters: appliedFilters || {},
                 message,
             };
         } catch (err) {
             console.error("❌ getAllInvoices error:", err);
             throw new Error(
                 err?.response?.data?.message || "Failed to fetch invoices"
-            );
-        }
-    },
-
-    /**
-     * 📈 Get Invoice Stats (summary by status)
-     * - GET /api/invoices/stats
-     */
-    getInvoiceStats: async () => {
-        try {
-            const res = await axios.get("/invoices/stats");
-            const { success, data } = res.data;
-
-            if (!success) throw new Error("Failed to fetch invoice stats");
-            return data;
-        } catch (err) {
-            console.error("❌ getInvoiceStats error:", err);
-            throw new Error(
-                err?.response?.data?.message || "Failed to fetch invoice stats"
             );
         }
     },
