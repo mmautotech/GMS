@@ -13,18 +13,18 @@ import InvoiceTable from "../../../components/InvoiceTable.jsx";
 import ParamsSummary from "../../../components/ParamsSummary.jsx";
 import InlineSpinner from "../../../components/InlineSpinner.jsx";
 import StatCard from "../../../components/StatCard.jsx";
-import DetailModal from "./DetailModal.jsx"; // ✅ You already have this
+import DetailModal from "./DetailModal.jsx";
 
 export default function InternalInvoicePage() {
     const location = useLocation();
     const [refreshKey, setRefreshKey] = useState(0);
 
-    // 👇 Refresh when user navigates back to this page
+    // 🔄 Refresh when navigating back to this page
     useEffect(() => {
         setRefreshKey((k) => k + 1);
     }, [location.key]);
 
-    // 👇 Also refresh on browser/tab focus (covers tab switches)
+    // 🔄 Refresh when browser/tab regains focus
     useEffect(() => {
         const handleFocus = () => setRefreshKey((k) => k + 1);
         window.addEventListener("focus", handleFocus);
@@ -34,8 +34,6 @@ export default function InternalInvoicePage() {
     const {
         invoices,
         loading,
-        page,
-        totalPages,
         totalCount,
         totalSales,
         totalPurchases,
@@ -45,29 +43,27 @@ export default function InternalInvoicePage() {
         backendParams,
         setFilters,
         setPage,
-        resetFilters,
         fetchInvoices,
-        pagination,
-    } = useInternalInvoices({ refreshKey }); // ✅ pass refreshKey to trigger re-fetch
+    } = useInternalInvoices({ refreshKey });
 
     const [localFilters, setLocalFilters] = useState(filters);
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [loadingDetail, setLoadingDetail] = useState(false);
 
-    // initial fetch
+    // 🧾 Initial Fetch
     useEffect(() => {
         fetchInvoices();
     }, [fetchInvoices, refreshKey]);
 
-    /** 🔹 Apply filters manually */
+    // 🔹 Apply filters manually
     const handleApply = () => {
         setFilters(localFilters);
         setPage(1);
         fetchInvoices();
     };
 
-    /** 🔹 Reset filters */
+    // 🔹 Reset filters to defaults
     const handleReset = () => {
         const defaultFilters = {
             search: "",
@@ -83,22 +79,23 @@ export default function InternalInvoicePage() {
         fetchInvoices();
     };
 
-    /** 🔹 View PDF (open in new tab) */
-    const handleExportPDF = async (id) => {
+    // 🔹 Open PDF inline in browser
+    const handleExportPDF = (id) => {
         try {
-            toast.info("Opening PDF...");
-            await exportInternalInvoiceById(id);
+            toast.info("Opening PDF in new tab...");
+            exportInternalInvoiceById(id); // ✅ opens inline, not downloaded
         } catch (error) {
-            console.error("❌ PDF export failed:", error);
+            console.error("❌ PDF open failed:", error);
             toast.error("Failed to open PDF");
         }
     };
 
-    /** 🔹 View invoice details (modal) */
+    // 🔹 View invoice details in modal
     const handleViewDetail = async (id) => {
         try {
             setLoadingDetail(true);
             const res = await getInternalInvoiceById(id);
+
             if (res?.success && res?.data) {
                 setSelectedInvoice(res.data);
                 setDetailModalOpen(true);
@@ -113,7 +110,7 @@ export default function InternalInvoicePage() {
         }
     };
 
-    /** 🔹 Pagination */
+    // 🔹 Handle pagination
     const handlePageChange = (newPage) => {
         setPage(newPage);
         fetchInvoices();
@@ -222,7 +219,6 @@ export default function InternalInvoicePage() {
                     mode="internal"
                     invoices={invoices}
                     filters={filters}
-                    pagination={pagination}
                     onExportPdf={handleExportPDF}
                     onViewDetail={handleViewDetail}
                     onPageChange={handlePageChange}
@@ -238,11 +234,6 @@ export default function InternalInvoicePage() {
                     isOpen={detailModalOpen}
                     onClose={() => setDetailModalOpen(false)}
                     loading={loadingDetail}
-                    title={
-                        selectedInvoice?.invoiceNo
-                            ? `Invoice Details – ${selectedInvoice.invoiceNo}`
-                            : "Invoice Details"
-                    }
                     data={selectedInvoice}
                 />
             )}

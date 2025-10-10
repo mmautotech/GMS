@@ -106,55 +106,32 @@ export const createInternalInvoice = async ({ invoiceId, purchaseInvoiceIds = []
 
 /**
  * ======================================================
- * 🧾 View Internal Invoice PDF (Inline View in Browser)
+ * 🧾 View Internal Invoice PDF (Inline in Browser)
+ * Opens PDF in new browser tab (no download)
  * @route GET /api/internal-invoices/:id/pdf/view
- * ✅ Opens in new browser tab (NOT downloaded)
  * ======================================================
  */
-export const viewInternalInvoicePdf = (id) => {
+export const exportInternalInvoiceById = (id) => {
     if (!id) throw new Error("Internal invoice ID is required");
 
-    const token = localStorage.getItem("token");
-    if (!token) {
-        console.warn("⚠️ No auth token found in localStorage");
-    }
-
-    // ✅ Construct inline-view URL with auth token
     const baseURL = axiosInstance.defaults.baseURL.replace(/\/$/, "");
-    const url = `${baseURL}/internal-invoices/${id}/pdf/view?auth=${token}`;
+    const token = localStorage.getItem("token");
 
-    console.log("🪟 Opening Internal Invoice PDF:", url);
-    window.open(url, "_blank");
-};
+    // ✅ Construct inline-view URL with optional auth token
+    const url = `${baseURL}/internal-invoices/${id}/pdf/view${token ? `?auth=${token}` : ""}`;
 
-/**
- * ======================================================
- * 📥 Export Internal Invoice PDF (Download version)
- * @route GET /api/internal-invoices/:id/pdf/view
- * ⚙️ This is optional — in case you still want a file download
- * ======================================================
- */
-export const exportInternalInvoiceById = async (id) => {
-    if (!id) throw new Error("Internal invoice ID is required");
+    console.log("🪟 Opening Internal Invoice PDF inline:", url);
+
     try {
-        const response = await axiosInstance.get(`/internal-invoices/${id}/pdf/view`, {
-            responseType: "blob",
-        });
-
-        const blob = new Blob([response.data], { type: "application/pdf" });
-        const url = URL.createObjectURL(blob);
-
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `internal_invoice_${id}.pdf`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        console.log(`✅ PDF downloaded: internal_invoice_${id}.pdf`);
-    } catch (error) {
-        console.error("❌ Failed to download internal invoice PDF:", error);
-        throw error.response?.data || error;
+        // For Electron builds
+        if (window.electronAPI?.openExternal) {
+            window.electronAPI.openExternal(url);
+        } else {
+            // For normal browsers
+            window.open(url, "_blank");
+        }
+    } catch (err) {
+        console.error("⚠️ Error opening internal invoice PDF:", err);
+        window.open(url, "_blank");
     }
 };

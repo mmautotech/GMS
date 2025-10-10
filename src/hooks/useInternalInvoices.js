@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "react-toastify";
 import { getAllInternalInvoices } from "../lib/api/internalinvoiceApi";
 
@@ -44,6 +44,8 @@ export function useInternalInvoices(initialFilters = {}) {
         ...initialFilters,
     });
 
+    const debounceRef = useRef(null);
+
     // -------------------------------
     // 🚀 Fetch Internal Invoices
     // -------------------------------
@@ -76,24 +78,39 @@ export function useInternalInvoices(initialFilters = {}) {
                 setBackendParams(res.params || {});
             } else {
                 // ❌ Reset if backend response failed
-                setInvoices([]);
-                setTotalPages(1);
-                setTotalCount(0);
-                setTotalSales(0);
-                setTotalPurchases(0);
-                setTotalNetVat(0);
-                setTotalProfit(0);
-                setBackendParams({});
+                resetState();
             }
         } catch (error) {
             console.error("❌ Error fetching internal invoices:", error);
             toast.error("Failed to load internal invoices");
-            setInvoices([]);
-            setBackendParams({});
+            resetState();
         } finally {
             setLoading(false);
         }
     }, [page, limit, filters]);
+
+    // -------------------------------
+    // 🧹 Helper to reset state
+    // -------------------------------
+    const resetState = () => {
+        setInvoices([]);
+        setTotalPages(1);
+        setTotalCount(0);
+        setTotalSales(0);
+        setTotalPurchases(0);
+        setTotalNetVat(0);
+        setTotalProfit(0);
+        setBackendParams({});
+    };
+
+    // -------------------------------
+    // 🕐 Debounced Auto-fetch
+    // -------------------------------
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        debounceRef.current = setTimeout(fetchInvoices, 400);
+        return () => clearTimeout(debounceRef.current);
+    }, [fetchInvoices]);
 
     // -------------------------------
     // ♻️ Reset Filters and State
@@ -110,14 +127,7 @@ export function useInternalInvoices(initialFilters = {}) {
         setFilters(defaultFilters);
         setPage(1);
         setLimit(25);
-        setInvoices([]);
-        setTotalPages(1);
-        setTotalCount(0);
-        setTotalSales(0);
-        setTotalPurchases(0);
-        setTotalNetVat(0);
-        setTotalProfit(0);
-        setBackendParams({});
+        resetState();
     }, []);
 
     // -------------------------------
