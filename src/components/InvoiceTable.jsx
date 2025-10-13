@@ -95,14 +95,16 @@ export default function InvoiceTable({
                                             </td>
                                             <td className="py-2 px-3 text-red-600">
                                                 £{(inv.purchases || 0).toFixed(2)}
+
                                             </td>
+
                                             <td className="py-2 px-3 italic text-gray-600">
                                                 VAT £{(inv.netVat || 0).toFixed(2)}
                                             </td>
                                             <td
                                                 className={`py-2 px-3 font-bold ${inv.calculatedProfit >= 0
-                                                        ? "text-green-600"
-                                                        : "text-red-600"
+                                                    ? "text-green-600"
+                                                    : "text-red-600"
                                                     }`}
                                             >
                                                 £{(inv.calculatedProfit || 0).toFixed(2)}
@@ -212,8 +214,8 @@ export default function InvoiceTable({
                 <div className="flex items-center gap-2">
                     <button
                         className={`px-3 py-1 rounded ${(filters?.page ?? 1) === 1
-                                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                                : "bg-blue-600 text-white hover:bg-blue-700"
+                            ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            : "bg-blue-600 text-white hover:bg-blue-700"
                             }`}
                         disabled={(filters?.page ?? 1) === 1}
                         onClick={() => onPageChange?.((filters?.page ?? 1) - 1)}
@@ -227,8 +229,8 @@ export default function InvoiceTable({
 
                     <button
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
-                                ? "bg-blue-600 text-white hover:bg-blue-700"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white hover:bg-blue-700"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                         disabled={!pagination?.hasNextPage}
                         onClick={() => onPageChange?.((filters?.page ?? 1) + 1)}

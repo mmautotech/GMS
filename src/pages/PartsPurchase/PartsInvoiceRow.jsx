@@ -11,6 +11,9 @@ const fmtGBP = (val) =>
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString() : "—");
 
+// 🧮 VAT rate
+const VAT_RATE = 0.2;
+
 export default function PartsInvoiceRow({ invoice, onViewEdit }) {
     const items = Array.isArray(invoice.items) ? invoice.items : [];
 
@@ -25,7 +28,14 @@ export default function PartsInvoiceRow({ invoice, onViewEdit }) {
         (sum, item) => sum + (item.rate || 0) * (item.quantity || 0),
         0
     );
-    const total = invoice.totalAmount ?? fallbackTotal;
+
+    let total = invoice.totalAmount ?? fallbackTotal;
+
+    // ✅ If VAT is included, add 20% VAT on top of total
+    if (invoice.vatIncluded) {
+        total = total + total * VAT_RATE;
+    }
+
     const invoiceDate = invoice.invoiceDate || invoice.createdAt;
 
     // 🟢 Handler for export
@@ -63,7 +73,9 @@ export default function PartsInvoiceRow({ invoice, onViewEdit }) {
             <td className="p-2 border">{fmtDate(invoiceDate)}</td>
             <td className="p-2 border">{fmtDate(invoice.paymentDate)}</td>
             <td className="p-2 border">{invoice.paymentStatus || "—"}</td>
-            <td className="p-2 border font-semibold text-right">{fmtGBP(total)}</td>
+            <td className="p-2 border font-semibold text-right">
+                {fmtGBP(total)}
+            </td>
             <td className="p-2 border text-center flex gap-2 justify-center">
                 {/* View/Edit */}
                 <Button

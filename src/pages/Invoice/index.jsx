@@ -89,10 +89,9 @@ export default function Invoices() {
         d ? new Date(d).toLocaleDateString("en-GB") : "—";
 
     const formatAmount = (inv) => {
-        const subtotal = inv.totalAmount - (inv.discountAmount || 0);
-        const total = inv.vatIncluded ? subtotal * 1.2 : subtotal;
-        return `£${total.toFixed(2)}`;
+        return `£${(inv.totalAmount || 0).toFixed(2)}`;
     };
+
 
     // ---------------- Auto Refresh Logic ----------------
     useEffect(() => {
