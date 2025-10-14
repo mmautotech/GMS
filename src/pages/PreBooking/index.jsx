@@ -206,17 +206,14 @@ export default function PreBookingPage({ user }) {
       const { status, booking, updatedBy } = payload;
       if (!booking) return;
 
-      // ✅ Ignore if this user triggered it (so no double-refresh)
+      // Ignore if this user triggered it
       if (updatedBy === user?.username) return;
 
-      // ✅ When a booking becomes ARRIVED, remove it locally + refresh
       if (status === "arrived") {
         toast.info(`🚗 ${booking.vehicleRegNo} moved to Car-In by ${updatedBy}`);
-        setItems((prev) => prev.filter((b) => b._id !== booking._id));
-        refresh();
+        refresh(); // ✅ only refresh, don't use setItems
       }
 
-      // ✅ When cancelled, also refresh
       if (status === "cancelled") {
         toast.info(`❌ ${booking.vehicleRegNo} cancelled by ${updatedBy}`);
         refresh();
@@ -232,7 +229,7 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:statusChanged", handleStatusChanged);
     };
-  }, [socket, refresh, setItems, user]);
+  }, [socket, refresh, user]);
 
 
   // ------------------ UI ------------------
