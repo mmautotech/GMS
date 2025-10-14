@@ -7,7 +7,8 @@ import React, {
     useEffect,
 } from "react";
 import { toast } from "react-toastify";
-import { socket } from "../../context/socket.js"; // ✅ Added for real-time updates
+import { useSocket } from "../../context/SocketProvider.js";
+// ✅ fixed import
 
 import { useArrivedBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
@@ -32,10 +33,11 @@ const SORT_OPTIONS = [
 const LIMIT_OPTIONS = [5, 25, 50, 100];
 
 export default function CarInPage({ currentUser }) {
+    const socket = useSocket(); // ✅ use socket context
     const bookingDetailRef = useRef(null);
     const [loadingCarOutId, setLoadingCarOutId] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
-    const [activeModal, setActiveModal] = useState(null); // "booking" | "upsell" | null
+    const [activeModal, setActiveModal] = useState(null);
 
     // Filters
     const [draft, setDraft] = useState({
@@ -72,15 +74,10 @@ export default function CarInPage({ currentUser }) {
     const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
         useUsers({ useSessionCache: true });
 
-    // ──────────────────────── Handlers ────────────────────────
-
+    // ────────────────────────────── Handlers ──────────────────────────────
     const handleCarOut = useCallback(
         async (booking) => {
-            if (
-                !window.confirm(
-                    "Are you sure you want to mark this car as COMPLETED (Car Out)?"
-                )
-            )
+            if (!window.confirm("Are you sure you want to mark this car as COMPLETED (Car Out)?"))
                 return;
 
             setLoadingCarOutId(booking._id);
@@ -131,8 +128,7 @@ export default function CarInPage({ currentUser }) {
 
     const handleAddUpsell = () => setActiveModal("upsell");
 
-    // ──────────────────────── Filters ────────────────────────
-
+    // ────────────────────────────── Filters ──────────────────────────────
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -166,22 +162,22 @@ export default function CarInPage({ currentUser }) {
         [backendParams, arrivedParams, page]
     );
 
-    // ──────────────────────── Real-time Socket Updates ────────────────────────
+    // ────────────────────────────── 🔁 Real-time Socket Updates ──────────────────────────────
     useEffect(() => {
         if (!socket) return;
 
         const handleStatusChanged = (payload) => {
-            console.log("📡 CarInPage received:", payload);
+            console.log("📡 CarInPage got socket event:", payload);
 
-            // When new car arrives → should appear here
+            // ✅ When car just arrived -> should appear here
             if (payload.status === "arrived") {
-                toast.success(`🚗 ${payload.vehicleRegNo} just arrived!`);
+                toast.success(`🚗 ${payload.booking?.vehicleRegNo || "New car"} just arrived!`);
                 refresh();
             }
 
-            // When completed/cancelled → should disappear
+            // ✅ When car completed or cancelled -> remove from list
             if (["completed", "cancelled"].includes(payload.status)) {
-                toast.info(`ℹ️ ${payload.vehicleRegNo} marked as ${payload.status.toUpperCase()}`);
+                toast.info(`ℹ️ ${payload.booking?.vehicleRegNo || "A car"} marked as ${payload.status.toUpperCase()}`);
                 refresh();
             }
         };
@@ -202,27 +198,21 @@ export default function CarInPage({ currentUser }) {
         };
     }, [socket, refresh]);
 
-    // ──────────────────────── Smart Focus & Visibility Refresh ────────────────────────
+    // ────────────────────────────── Focus/Visibility Refresh ──────────────────────────────
     useEffect(() => {
         let timeout;
         const handleFocus = () => {
             clearTimeout(timeout);
             timeout = setTimeout(() => {
-                if (process.env.NODE_ENV === "development") {
-                    console.log("🔄 Refetch triggered on window focus");
-                }
                 refresh();
             }, 250);
         };
 
         const handleVisibility = () => {
-            if (!document.hidden) {
-                console.log("🔁 Refetch triggered on page visible");
-                refresh();
-            }
+            if (!document.hidden) refresh();
         };
 
-        refresh(); // ✅ Trigger once on mount
+        refresh(); // initial
 
         window.addEventListener("focus", handleFocus);
         document.addEventListener("visibilitychange", handleVisibility);
@@ -234,7 +224,7 @@ export default function CarInPage({ currentUser }) {
         };
     }, [refresh]);
 
-    // ──────────────────────── UI ────────────────────────
+    // ────────────────────────────── UI (unchanged) ──────────────────────────────
     return (
         <div className="p-6 relative min-h-screen bg-gray-50">
             <h1 className="text-3xl font-bold text-blue-900 mb-6">Car-In (Arrived)</h1>

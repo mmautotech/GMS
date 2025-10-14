@@ -12,7 +12,7 @@ import InlineSpinner from "../../components/InlineSpinner.jsx";
 import BookingsTable from "./BookingsTable.jsx";
 import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
-import { useSocket } from "../../context/SocketProvider.js"; // ✅ useSocket hook
+import { useSocket } from "../../context/SocketProvider.js";
 
 // Dropdown configs
 const SORT_OPTIONS = [
@@ -28,7 +28,7 @@ const LIMIT_OPTIONS = [5, 25, 50, 100];
 export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const socket = useSocket(); // ✅ Access socket instance
+  const socket = useSocket();
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
 
@@ -80,8 +80,7 @@ export default function PreBookingPage({ user }) {
         const res = await updateStatus(id, "arrived");
         if (res.ok) {
           toast.success(res.message || "Car marked as arrived!");
-          await refresh();
-          navigate("/car-in");
+          navigate("/car-in"); // ✅ real-time socket will update lists
         } else {
           toast.error(res.error || "Failed to mark as arrived");
         }
@@ -91,7 +90,7 @@ export default function PreBookingPage({ user }) {
         toast.error(backendMessage);
       }
     },
-    [updateStatus, refresh, navigate, setError]
+    [updateStatus, navigate, setError]
   );
 
   const handleCancelled = useCallback(
@@ -101,7 +100,7 @@ export default function PreBookingPage({ user }) {
         const res = await updateStatus(id, "cancelled");
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
-          await refresh();
+          // no manual refresh — socket handles it
         } else {
           toast.error(res.error || "Failed to cancel booking");
         }
@@ -111,7 +110,7 @@ export default function PreBookingPage({ user }) {
         toast.error(backendMessage);
       }
     },
-    [updateStatus, refresh, setError]
+    [updateStatus, setError]
   );
 
   const handleEdit = (booking) => {
@@ -121,7 +120,6 @@ export default function PreBookingPage({ user }) {
 
   const handleFormSubmit = async ({ payload, reset }) => {
     if (editingBooking) {
-      // Update existing booking
       const res = await update(editingBooking._id, payload);
       if (res.ok) {
         toast.success("Updated!");
@@ -133,7 +131,6 @@ export default function PreBookingPage({ user }) {
         toast.error(res.error || "Failed");
       }
     } else {
-      // Create new booking
       const res = await create(payload);
       if (res.ok) {
         toast.success("Created!");
@@ -191,52 +188,42 @@ export default function PreBookingPage({ user }) {
   }, [location.pathname, refresh]);
 
   // ------------------ ✅ Real-time Socket.IO Updates ------------------
-  // ------------------ ✅ Real-time Socket.IO Updates ------------------
   useEffect(() => {
     if (!socket) return;
 
-    // New booking added
     const handleBookingCreated = (newBooking) => {
       toast.info(`📦 New booking: ${newBooking.vehicleRegNo}`);
       refresh();
     };
 
-    // General booking updates
     const handleBookingUpdated = (updatedBooking) => {
       toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
       refresh();
     };
 
-    // Cancelled booking removed from pre-booking
-    const handleBookingCancelled = (cancelledBooking) => {
-      toast.warn(`❌ Booking cancelled: ${cancelledBooking.vehicleRegNo}`);
-      refresh();
-    };
-
-    // ✅ Real-time: Booking moved to Car In or cancelled
     const handleStatusChanged = (payload) => {
-      console.log("📡 Real-time status change:", payload);
+      const { status, booking, updatedBy } = payload;
+      if (!booking) return;
 
-      if (["arrived", "cancelled"].includes(payload.status)) {
-        // remove from current pre-booking list instantly
-        toast.info(`🚗 Booking moved to ${payload.status.toUpperCase()} by ${payload.updatedBy}`);
+      // Skip toasts for current user's own updates
+      if (updatedBy === user?.username) return;
+
+      if (["arrived", "cancelled"].includes(status)) {
+        toast.info(`🚗 ${booking.vehicleRegNo} marked as ${status.toUpperCase()} by ${updatedBy}`);
         refresh();
       }
     };
 
     socket.on("booking:created", handleBookingCreated);
     socket.on("booking:updated", handleBookingUpdated);
-    socket.on("booking:cancelled", handleBookingCancelled);
     socket.on("booking:statusChanged", handleStatusChanged);
 
     return () => {
       socket.off("booking:created", handleBookingCreated);
       socket.off("booking:updated", handleBookingUpdated);
-      socket.off("booking:cancelled", handleBookingCancelled);
       socket.off("booking:statusChanged", handleStatusChanged);
     };
-  }, [socket, refresh]);
-
+  }, [socket, refresh, user]);
 
   // ------------------ UI ------------------
   return (
@@ -379,7 +366,8 @@ export default function PreBookingPage({ user }) {
           <button
             disabled={!hasPrevPage}
             onClick={() => hasPrevPage && setPage(page - 1)}
-            className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+            className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
           >
             Prev
           </button>
@@ -389,7 +377,8 @@ export default function PreBookingPage({ user }) {
           <button
             disabled={!hasNextPage}
             onClick={() => hasNextPage && setPage(page + 1)}
-            className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+            className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+              }`}
           >
             Next
           </button>
