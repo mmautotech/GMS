@@ -188,6 +188,7 @@ export default function PreBookingPage({ user }) {
   }, [location.pathname, refresh]);
 
   // ------------------ ✅ Real-time Socket.IO Updates ------------------
+  // ------------------ ✅ Real-time Socket.IO Updates ------------------
   useEffect(() => {
     if (!socket) return;
 
@@ -205,32 +206,34 @@ export default function PreBookingPage({ user }) {
       const { status, booking, updatedBy } = payload;
       if (!booking) return;
 
+      // ✅ Ignore if this user triggered it (so no double-refresh)
       if (updatedBy === user?.username) return;
 
-      if (["arrived", "cancelled"].includes(status)) {
-        toast.info(`🚗 ${booking.vehicleRegNo} marked as ${status.toUpperCase()} by ${updatedBy}`);
+      // ✅ When a booking becomes ARRIVED, remove it locally + refresh
+      if (status === "arrived") {
+        toast.info(`🚗 ${booking.vehicleRegNo} moved to Car-In by ${updatedBy}`);
+        setItems((prev) => prev.filter((b) => b._id !== booking._id));
         refresh();
       }
-    };
 
-    // 🆕 When a booking moves to Car-In (ARRIVED)
-    const handleRemovedFromPreBooking = ({ _id }) => {
-      toast.info(`🚗 Booking moved to Car-In`);
-      setBookings((prev) => prev.filter((b) => b._id !== _id)); // 🧩 remove instantly
+      // ✅ When cancelled, also refresh
+      if (status === "cancelled") {
+        toast.info(`❌ ${booking.vehicleRegNo} cancelled by ${updatedBy}`);
+        refresh();
+      }
     };
 
     socket.on("booking:created", handleBookingCreated);
     socket.on("booking:updated", handleBookingUpdated);
     socket.on("booking:statusChanged", handleStatusChanged);
-    socket.on("booking:removedFromPreBooking", handleRemovedFromPreBooking);
 
     return () => {
       socket.off("booking:created", handleBookingCreated);
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:statusChanged", handleStatusChanged);
-      socket.off("booking:removedFromPreBooking", handleRemovedFromPreBooking);
     };
-  }, [socket, refresh, user]);
+  }, [socket, refresh, setItems, user]);
+
 
   // ------------------ UI ------------------
   return (

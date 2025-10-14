@@ -1,8 +1,10 @@
+// src/hooks/useBookingsList.js
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
+import { socket } from "../context/socket.js"; // ✅ add this
 
 const MEMO_CACHE = {};
-const TTL_MS = 30 * 1000; // 30 seconds cache
+const TTL_MS = 60 * 1000; // 60 seconds
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
@@ -19,7 +21,12 @@ function useBookingsList(fetcher, initialParams = {}) {
     const [meta, setMeta] = useState(null);
 
     const mounted = useRef(true);
-    useEffect(() => () => (mounted.current = false), []);
+
+    useEffect(() => {
+        return () => {
+            mounted.current = false;
+        };
+    }, []);
 
     const fetchBookings = useCallback(
         async (params = {}) => {
@@ -29,7 +36,6 @@ function useBookingsList(fetcher, initialParams = {}) {
             const mergedParams = { ...initialParams, ...params, page };
             const cacheKey = JSON.stringify({ fetcher: fetcher.name, ...mergedParams });
 
-            // ✅ Cache check
             const cached = MEMO_CACHE[cacheKey];
             if (!params.force && cached && Date.now() - cached.at < TTL_MS) {
                 setItems(cached.items || []);
@@ -43,7 +49,6 @@ function useBookingsList(fetcher, initialParams = {}) {
                 return;
             }
 
-            // ✅ Force refresh
             if (params.force) delete MEMO_CACHE[cacheKey];
 
             try {
@@ -88,7 +93,7 @@ function useBookingsList(fetcher, initialParams = {}) {
         [fetcher, initialParams, page]
     );
 
-    // Auto-run
+    // Auto-run when dependencies change
     useEffect(() => {
         fetchBookings(initialParams);
     }, [fetchBookings, initialParams]);
@@ -98,17 +103,36 @@ function useBookingsList(fetcher, initialParams = {}) {
         fetchBookings({ ...initialParams, force: true });
     }, [fetchBookings, initialParams]);
 
-    // Auto-refresh every 30 sec
+    // Auto-refresh every 60 sec
     useEffect(() => {
-        const interval = setInterval(() => fetchBookings(initialParams), TTL_MS);
+        const interval = setInterval(() => {
+            fetchBookings(initialParams);
+        }, TTL_MS);
         return () => clearInterval(interval);
     }, [fetchBookings, initialParams]);
+
+    // ✅ Listen for real-time status changes
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleStatusChange = (data) => {
+            if (data?.status === "arrived") {
+                console.log("🔄 Refreshing due to arrived status", data);
+                refresh(); // 🔁 reload the list for all users
+            }
+        };
+
+        socket.on("booking:statusChanged", handleStatusChange);
+
+        return () => {
+            socket.off("booking:statusChanged", handleStatusChange);
+        };
+    }, [refresh]);
 
     return {
         items,
         list: useMemo(() => items, [items]),
-        setItems, // ✅ important for live removal
-
+        setList: setItems,
         loadingList,
         error,
         setError,
@@ -130,9 +154,6 @@ function useBookingsList(fetcher, initialParams = {}) {
 export function usePreBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getPendingBookings, initialParams);
 }
-
 export function useArrivedBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getArrivedBookings, initialParams);
 }
-
-export default useBookingsList;
