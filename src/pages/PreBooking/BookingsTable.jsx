@@ -1,6 +1,6 @@
-// src/pages/PreBooking/BookingsTable.jsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import BookingRow from "./BookingRow.jsx";
+import InlineSpinner from "../../components/InlineSpinner.jsx";
 
 export default function BookingsTable({
   bookings,
@@ -11,6 +11,7 @@ export default function BookingsTable({
   onCancelled,
   onEdit,
   currentUser,
+  rowLoadingIds = new Set(), // NEW: row-level loading set
 }) {
   const rows = useMemo(() => bookings || [], [bookings]);
 
@@ -40,8 +41,7 @@ export default function BookingsTable({
       setSelectedIndex(0);
       setSelectedId(rows[0].id || rows[0]._id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length]);
+  }, [rows.length, selectedId, rows]);
 
   // Scroll + focus when selection changes
   useEffect(() => {
@@ -66,14 +66,10 @@ export default function BookingsTable({
     if (!rows.length) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      selectRow(
-        selectedIndex == null ? 0 : Math.min(selectedIndex + 1, rows.length - 1)
-      );
+      selectRow(selectedIndex == null ? 0 : Math.min(selectedIndex + 1, rows.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      selectRow(
-        selectedIndex == null ? rows.length - 1 : Math.max(selectedIndex - 1, 0)
-      );
+      selectRow(selectedIndex == null ? rows.length - 1 : Math.max(selectedIndex - 1, 0));
     }
   };
 
@@ -95,9 +91,9 @@ export default function BookingsTable({
               <th className="p-2 border text-[13px]">Landing Date</th>
               <th className="p-2 border text-[13px]">Reg No.</th>
               <th className="p-2 border text-[13px]">Make &amp; Model</th>
-              <th className="p-2 border text-[13px] ">Client</th>
-              <th className="p-2 border text-[13px] ">Phone</th>
-              <th className="p-2 border text-[13px] ">Post Code</th>
+              <th className="p-2 border text-[13px]">Client</th>
+              <th className="p-2 border text-[13px]">Phone</th>
+              <th className="p-2 border text-[13px]">Post Code</th>
               <th className="p-2 border text-[13px]">Booking Price</th>
               <th className="p-2 border text-[13px]">Actions</th>
             </tr>
@@ -106,8 +102,8 @@ export default function BookingsTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={13} className="p-4 text-center text-gray-500">
-                  Loading pre-bookings...
+                <td colSpan={13} className="p-4 text-center text-gray-500 flex justify-center">
+                  <InlineSpinner /> Loading pre-bookings...
                 </td>
               </tr>
             ) : error ? (
@@ -135,10 +131,10 @@ export default function BookingsTable({
                   onCarIn={onCarIn}
                   onCancelled={onCancelled}
                   onEdit={onEdit}
-                  currentUser={currentUser} // ← pass it here
+                  currentUser={currentUser}
+                  loading={rowLoadingIds.has(booking.id || booking._id)} // pass row loading
                 />
               ))
-
             )}
           </tbody>
         </table>

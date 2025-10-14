@@ -31,6 +31,7 @@ export default function PreBookingPage({ user }) {
   const socket = useSocket();
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
+  const [rowLoadingIds, setRowLoadingIds] = useState(new Set()); // Track row-level loading
 
   // Filters
   const [draft, setDraft] = useState({
@@ -76,11 +77,16 @@ export default function PreBookingPage({ user }) {
   const handleCarIn = useCallback(
     async (id) => {
       if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
+
+      setRowLoadingIds((prev) => new Set(prev).add(id));
+
       try {
         const res = await updateStatus(id, "arrived");
         if (res.ok) {
           toast.success(res.message || "Car marked as arrived!");
-          navigate("/car-in"); // ✅ real-time socket will update lists
+
+          // Navigate to Car In page
+          navigate(`/car-in/${id}`, { state: { bookingId: id } });
         } else {
           toast.error(res.error || "Failed to mark as arrived");
         }
@@ -88,19 +94,27 @@ export default function PreBookingPage({ user }) {
         const backendMessage = err?.response?.data?.message || err.message || "Failed to mark as arrived";
         setError(backendMessage);
         toast.error(backendMessage);
+      } finally {
+        setRowLoadingIds((prev) => {
+          const updated = new Set(prev);
+          updated.delete(id);
+          return updated;
+        });
       }
     },
-    [updateStatus, navigate, setError]
+    [updateStatus, setError, navigate]
   );
+
 
   const handleCancelled = useCallback(
     async (id) => {
       if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
+
+      setRowLoadingIds((prev) => new Set(prev).add(id));
       try {
         const res = await updateStatus(id, "cancelled");
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
-          // no manual refresh — socket handles it
         } else {
           toast.error(res.error || "Failed to cancel booking");
         }
@@ -108,6 +122,12 @@ export default function PreBookingPage({ user }) {
         const backendMessage = err?.response?.data?.message || err.message || "Failed to cancel booking";
         setError(backendMessage);
         toast.error(backendMessage);
+      } finally {
+        setRowLoadingIds((prev) => {
+          const updated = new Set(prev);
+          updated.delete(id);
+          return updated;
+        });
       }
     },
     [updateStatus, setError]
@@ -187,8 +207,7 @@ export default function PreBookingPage({ user }) {
     refresh();
   }, [location.pathname, refresh]);
 
-  // ------------------ ✅ Real-time Socket.IO Updates ------------------
-  // ------------------ ✅ Real-time Socket.IO Updates ------------------
+  // ------------------ Real-time Socket.IO Updates ------------------
   useEffect(() => {
     if (!socket) return;
 
@@ -202,16 +221,13 @@ export default function PreBookingPage({ user }) {
       refresh();
     };
 
-    const handleStatusChanged = (payload) => {
-      const { status, booking, updatedBy } = payload;
+    const handleStatusChanged = ({ status, booking, updatedBy }) => {
       if (!booking) return;
-
-      // Ignore if this user triggered it
       if (updatedBy === user?.username) return;
 
       if (status === "arrived") {
         toast.info(`🚗 ${booking.vehicleRegNo} moved to Car-In by ${updatedBy}`);
-        refresh(); // ✅ only refresh, don't use setItems
+        refresh();
       }
 
       if (status === "cancelled") {
@@ -230,7 +246,6 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:statusChanged", handleStatusChanged);
     };
   }, [socket, refresh, user]);
-
 
   // ------------------ UI ------------------
   return (
@@ -266,17 +281,13 @@ export default function PreBookingPage({ user }) {
             disabled={loadingServices}
           >
             <option value="">{loadingServices ? "Loading..." : "All Services"}</option>
-            {servicesError ? (
-              <option disabled value="">
-                Failed to load services
-              </option>
-            ) : (
-              serviceOptions.map((s) => (
+            {servicesError
+              ? <option disabled value="">Failed to load services</option>
+              : serviceOptions.map((s) => (
                 <option key={s.value} value={s.value}>
                   {s.label}
                 </option>
-              ))
-            )}
+              ))}
           </select>
           <select
             value={draft.user}
@@ -285,17 +296,13 @@ export default function PreBookingPage({ user }) {
             disabled={loadingUsers}
           >
             <option value="">{loadingUsers ? "Loading..." : "All Users"}</option>
-            {usersError ? (
-              <option disabled value="">
-                Failed to load users
-              </option>
-            ) : (
-              userOptions.map((u) => (
+            {usersError
+              ? <option disabled value="">Failed to load users</option>
+              : userOptions.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.username}
                 </option>
-              ))
-            )}
+              ))}
           </select>
         </div>
 
@@ -333,10 +340,16 @@ export default function PreBookingPage({ user }) {
             </select>
           </div>
           <div className="flex gap-2 md:ml-4">
-            <button onClick={applyFilters} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+            <button
+              onClick={applyFilters}
+              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+            >
               Apply
             </button>
-            <button onClick={resetFilters} className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300">
+            <button
+              onClick={resetFilters}
+              className="px-4 py-2 rounded bg-gray-200 text-gray-800 hover:bg-gray-300"
+            >
               Reset
             </button>
           </div>
@@ -354,17 +367,15 @@ export default function PreBookingPage({ user }) {
       />
 
       {/* Table */}
-      {loadingList ? (
-        <InlineSpinner label="Loading bookings…" />
-      ) : (
-        <BookingsTable
-          bookings={bookings}
-          onCarIn={handleCarIn}
-          onCancelled={handleCancelled}
-          onEdit={handleEdit}
-          currentUser={user}
-        />
-      )}
+      <BookingsTable
+        bookings={bookings}
+        onCarIn={handleCarIn}
+        onCancelled={handleCancelled}
+        onEdit={handleEdit}
+        currentUser={user}
+        rowLoadingIds={rowLoadingIds} // pass loading set
+        loadingList={loadingList}    // still show table-level spinner
+      />
 
       {/* Pagination */}
       <div className="flex items-center justify-between mt-6">
