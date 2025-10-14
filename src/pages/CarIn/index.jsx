@@ -169,13 +169,11 @@ export default function CarInPage({ currentUser }) {
         const handleStatusChanged = (payload) => {
             console.log("📡 CarInPage got socket event:", payload);
 
-            // ✅ When car just arrived -> should appear here
             if (payload.status === "arrived") {
                 toast.success(`🚗 ${payload.booking?.vehicleRegNo || "New car"} just arrived!`);
                 refresh();
             }
 
-            // ✅ When car completed or cancelled -> remove from list
             if (["completed", "cancelled"].includes(payload.status)) {
                 toast.info(`ℹ️ ${payload.booking?.vehicleRegNo || "A car"} marked as ${payload.status.toUpperCase()}`);
                 refresh();
@@ -189,14 +187,31 @@ export default function CarInPage({ currentUser }) {
             }
         };
 
+        // 🆕 Explicit real-time transitions
+        const handleAddedToCarIn = (booking) => {
+            toast.success(`🚗 ${booking.vehicleRegNo} moved to Car-In`);
+            refresh();
+        };
+
+        const handleRemovedFromCarIn = ({ _id }) => {
+            toast.info(`✅ Car-Out completed and removed from Car-In`);
+            refresh();
+        };
+
         socket.on("booking:statusChanged", handleStatusChanged);
         socket.on("booking:created", handleBookingCreated);
+        socket.on("booking:addedToCarIn", handleAddedToCarIn);
+        socket.on("booking:removedFromCarIn", handleRemovedFromCarIn);
 
         return () => {
             socket.off("booking:statusChanged", handleStatusChanged);
             socket.off("booking:created", handleBookingCreated);
+            socket.off("booking:addedToCarIn", handleAddedToCarIn);
+            socket.off("booking:removedFromCarIn", handleRemovedFromCarIn);
         };
     }, [socket, refresh]);
+
+
 
     // ────────────────────────────── Focus/Visibility Refresh ──────────────────────────────
     useEffect(() => {

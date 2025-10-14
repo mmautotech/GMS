@@ -205,7 +205,6 @@ export default function PreBookingPage({ user }) {
       const { status, booking, updatedBy } = payload;
       if (!booking) return;
 
-      // Skip toasts for current user's own updates
       if (updatedBy === user?.username) return;
 
       if (["arrived", "cancelled"].includes(status)) {
@@ -214,14 +213,22 @@ export default function PreBookingPage({ user }) {
       }
     };
 
+    // 🆕 When a booking moves to Car-In (ARRIVED)
+    const handleRemovedFromPreBooking = ({ _id }) => {
+      toast.info(`🚗 Booking moved to Car-In`);
+      refresh();
+    };
+
     socket.on("booking:created", handleBookingCreated);
     socket.on("booking:updated", handleBookingUpdated);
     socket.on("booking:statusChanged", handleStatusChanged);
+    socket.on("booking:removedFromPreBooking", handleRemovedFromPreBooking);
 
     return () => {
       socket.off("booking:created", handleBookingCreated);
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:statusChanged", handleStatusChanged);
+      socket.off("booking:removedFromPreBooking", handleRemovedFromPreBooking);
     };
   }, [socket, refresh, user]);
 
