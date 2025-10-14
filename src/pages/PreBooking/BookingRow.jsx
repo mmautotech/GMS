@@ -1,4 +1,4 @@
-// src/components/BookingRow.jsx
+// src/BookingRow.jsx
 import React, { useState, useMemo, forwardRef, useEffect } from "react";
 import { Trash2, Edit2, CarFront, X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -47,7 +47,7 @@ const BookingRow = forwardRef(function BookingRow(
     fetchDetails,
     fetchBookingPhoto,
     bookingPhotoUrl,
-    fetchOriginalBookingPhoto, // ✅ added
+    fetchOriginalBookingPhoto,
   } = useBookingDetails();
 
   const servicesText = useMemo(() => {
@@ -63,22 +63,21 @@ const BookingRow = forwardRef(function BookingRow(
     if (e.key === "ArrowLeft") setExpanded(false);
   };
 
+  // ✅ Always refresh details when expanded
   useEffect(() => {
-    if (expanded && !details && !loading) {
+    if (expanded) {
       fetchDetails(bookingId);
     }
-  }, [expanded, bookingId, details, loading, fetchDetails]);
+  }, [expanded, bookingId, fetchDetails]);
 
   const handleThumbnailClick = async () => {
     if (!details) return;
 
-    // Fetch original photo from backend
     const originalUrl = await fetchOriginalBookingPhoto();
     if (originalUrl) {
       setFullPhotoUrl(originalUrl);
       setShowPhoto(true);
     } else if (bookingPhotoUrl) {
-      // fallback if original not available
       setFullPhotoUrl(bookingPhotoUrl);
       setShowPhoto(true);
     }
@@ -156,8 +155,8 @@ const BookingRow = forwardRef(function BookingRow(
 
             <button
               className={`px-2 py-1 rounded text-xs flex items-center gap-1 ${expanded && details
-                  ? "bg-gray-600 hover:bg-gray-700 text-white"
-                  : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                ? "bg-gray-600 hover:bg-gray-700 text-white"
+                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               onClick={(e) => {
                 e.stopPropagation();

@@ -1,4 +1,3 @@
-// src/pages/PreBooking/PreBookingPage.jsx
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -15,7 +14,7 @@ import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
 import { useSocket } from "../../context/SocketProvider.js"; // ✅ useSocket hook
 
-// dropdown configs
+// Dropdown configs
 const SORT_OPTIONS = [
   { label: "Booking Date", value: "createdDate" },
   { label: "Landing Date", value: "scheduledDate" },
@@ -29,7 +28,7 @@ const LIMIT_OPTIONS = [5, 25, 50, 100];
 export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const socket = useSocket(); // ✅ get socket instance
+  const socket = useSocket(); // ✅ Access socket instance
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
 
@@ -73,7 +72,7 @@ export default function PreBookingPage({ user }) {
     useSessionCache: true,
   });
 
-  // Actions
+  // ------------------ Actions ------------------
   const handleCarIn = useCallback(
     async (id) => {
       if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
@@ -130,9 +129,6 @@ export default function PreBookingPage({ user }) {
         setShowModal(false);
         setEditingBooking(null);
         refresh();
-
-        // Emit socket event for updated booking
-        socket?.emit("booking:update", res.data);
       } else {
         toast.error(res.error || "Failed");
       }
@@ -143,10 +139,6 @@ export default function PreBookingPage({ user }) {
         toast.success("Created!");
         reset?.();
         setShowModal(false);
-
-        // Emit socket event for new booking
-        socket?.emit("booking:create", res.data);
-
         refresh();
       } else {
         toast.error(res.error || "Failed");
@@ -159,7 +151,7 @@ export default function PreBookingPage({ user }) {
     setShowModal(true);
   };
 
-  // Apply / Reset filters
+  // ------------------ Filters ------------------
   const applyFilters = () => {
     setApplied(draft);
     setPage(1);
@@ -187,11 +179,9 @@ export default function PreBookingPage({ user }) {
       : { ...preBookingParams, perPage: preBookingParams.limit, page };
   }, [backendParams, preBookingParams, page]);
 
-  // ------------------ Refresh on window focus and route ------------------
+  // ------------------ Refresh on focus / route ------------------
   useEffect(() => {
-    const handleWindowFocus = () => {
-      refresh();
-    };
+    const handleWindowFocus = () => refresh();
     window.addEventListener("focus", handleWindowFocus);
     return () => window.removeEventListener("focus", handleWindowFocus);
   }, [refresh]);
@@ -200,29 +190,37 @@ export default function PreBookingPage({ user }) {
     refresh();
   }, [location.pathname, refresh]);
 
-  // ------------------ Socket.IO real-time updates ------------------
+  // ------------------ ✅ Real-time Socket.IO Updates ------------------
   useEffect(() => {
     if (!socket) return;
 
     const handleBookingCreated = (newBooking) => {
-      toast.info(`New booking added: ${newBooking.vehicleRegNo}`);
+      toast.info(`📦 New booking: ${newBooking.vehicleRegNo}`);
       refresh();
     };
 
     const handleBookingUpdated = (updatedBooking) => {
-      toast.info(`Booking updated: ${updatedBooking.vehicleRegNo}`);
+      toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
       refresh();
     };
 
-    socket.on("booking:create", handleBookingCreated);
-    socket.on("booking:update", handleBookingUpdated);
+    const handleBookingCancelled = (cancelledBooking) => {
+      toast.warn(`❌ Booking cancelled: ${cancelledBooking.vehicleRegNo}`);
+      refresh();
+    };
+
+    socket.on("booking:created", handleBookingCreated);
+    socket.on("booking:updated", handleBookingUpdated);
+    socket.on("booking:cancelled", handleBookingCancelled);
 
     return () => {
-      socket.off("booking:create", handleBookingCreated);
-      socket.off("booking:update", handleBookingUpdated);
+      socket.off("booking:created", handleBookingCreated);
+      socket.off("booking:updated", handleBookingUpdated);
+      socket.off("booking:cancelled", handleBookingCancelled);
     };
   }, [socket, refresh]);
 
+  // ------------------ UI ------------------
   return (
     <div className="p-6 relative min-h-screen bg-gray-50">
       <h1 className="text-3xl font-bold text-blue-900 mb-6">Pre-Booking</h1>
