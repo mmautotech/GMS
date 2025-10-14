@@ -1,9 +1,9 @@
-// src/App.jsx
 import React, { Suspense } from "react";
 import { Routes, Route, Navigate, Outlet, useNavigate, useLocation } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { motion, AnimatePresence } from "framer-motion";
+import { SocketProvider } from "./context/SocketProvider";
 
 // ✅ Components
 import Sidebar from "./components/Sidebar.jsx";
@@ -36,7 +36,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <SocketProvider>
       <Suspense
         fallback={
           <div className="flex items-center justify-center h-screen text-gray-500">
@@ -144,7 +144,7 @@ export default function App() {
       </Suspense>
 
       <ToastContainer position="top-right" autoClose={3000} theme="light" />
-    </>
+    </SocketProvider>
   );
 }
 
@@ -153,12 +153,14 @@ function RequireAuth({ user }) {
   if (!user) return <Navigate to="/login" replace />;
   return <Outlet />;
 }
+
 function RequireAdmin({ user }) {
   if (!user || user.userType !== "admin") {
     return <Navigate to={getDefaultRoute(user)} replace />;
   }
   return <Outlet />;
 }
+
 function RequireRole({ user, allowed, children }) {
   if (!user || !allowed.includes(user.userType)) {
     toast.error("Access denied");
@@ -201,9 +203,7 @@ function Shell({ user, onLogout }) {
   const isAuthPage =
     location.pathname === "/login" || location.pathname === "/forgot-password";
 
-  if (isAuthPage) {
-    return <Outlet />;
-  }
+  if (isAuthPage) return <Outlet />;
 
   return (
     <div className="flex min-h-screen bg-gray-100 overflow-hidden relative">

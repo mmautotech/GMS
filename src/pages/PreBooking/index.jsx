@@ -13,6 +13,7 @@ import InlineSpinner from "../../components/InlineSpinner.jsx";
 import BookingsTable from "./BookingsTable.jsx";
 import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
+import { useSocket } from "../../context/SocketProvider.js"; // ✅ useSocket hook
 
 // dropdown configs
 const SORT_OPTIONS = [
@@ -28,6 +29,7 @@ const LIMIT_OPTIONS = [5, 25, 50, 100];
 export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const socket = useSocket(); // ✅ get socket instance
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
 
@@ -44,7 +46,6 @@ export default function PreBookingPage({ user }) {
   });
   const [applied, setApplied] = useState(draft);
 
-  // Use applied filters to fetch bookings
   const preBookingParams = useMemo(() => applied, [applied]);
 
   const {
@@ -121,6 +122,7 @@ export default function PreBookingPage({ user }) {
 
   const handleFormSubmit = async ({ payload, reset }) => {
     if (editingBooking) {
+      // Update existing booking
       const res = await update(editingBooking._id, payload);
       if (res.ok) {
         toast.success("Updated!");
@@ -128,15 +130,27 @@ export default function PreBookingPage({ user }) {
         setShowModal(false);
         setEditingBooking(null);
         refresh();
-      } else toast.error(res.error || "Failed");
+
+        // Emit socket event for updated booking
+        socket?.emit("booking:update", res.data);
+      } else {
+        toast.error(res.error || "Failed");
+      }
     } else {
+      // Create new booking
       const res = await create(payload);
       if (res.ok) {
         toast.success("Created!");
         reset?.();
         setShowModal(false);
+
+        // Emit socket event for new booking
+        socket?.emit("booking:create", res.data);
+
         refresh();
-      } else toast.error(res.error || "Failed");
+      } else {
+        toast.error(res.error || "Failed");
+      }
     }
   };
 
@@ -183,9 +197,31 @@ export default function PreBookingPage({ user }) {
   }, [refresh]);
 
   useEffect(() => {
-    // Refresh when navigating to this page
     refresh();
   }, [location.pathname, refresh]);
+
+  // ------------------ Socket.IO real-time updates ------------------
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleBookingCreated = (newBooking) => {
+      toast.info(`New booking added: ${newBooking.vehicleRegNo}`);
+      refresh();
+    };
+
+    const handleBookingUpdated = (updatedBooking) => {
+      toast.info(`Booking updated: ${updatedBooking.vehicleRegNo}`);
+      refresh();
+    };
+
+    socket.on("booking:create", handleBookingCreated);
+    socket.on("booking:update", handleBookingUpdated);
+
+    return () => {
+      socket.off("booking:create", handleBookingCreated);
+      socket.off("booking:update", handleBookingUpdated);
+    };
+  }, [socket, refresh]);
 
   return (
     <div className="p-6 relative min-h-screen bg-gray-50">
