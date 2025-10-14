@@ -1,9 +1,8 @@
-// src/hooks/useBookingsList.js
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 30 seconds
+const TTL_MS = 30 * 1000; // 30 seconds cache
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
@@ -20,12 +19,7 @@ function useBookingsList(fetcher, initialParams = {}) {
     const [meta, setMeta] = useState(null);
 
     const mounted = useRef(true);
-
-    useEffect(() => {
-        return () => {
-            mounted.current = false;
-        };
-    }, []);
+    useEffect(() => () => (mounted.current = false), []);
 
     const fetchBookings = useCallback(
         async (params = {}) => {
@@ -35,7 +29,7 @@ function useBookingsList(fetcher, initialParams = {}) {
             const mergedParams = { ...initialParams, ...params, page };
             const cacheKey = JSON.stringify({ fetcher: fetcher.name, ...mergedParams });
 
-            // ✅ Skip cache if force requested
+            // ✅ Cache check
             const cached = MEMO_CACHE[cacheKey];
             if (!params.force && cached && Date.now() - cached.at < TTL_MS) {
                 setItems(cached.items || []);
@@ -49,12 +43,11 @@ function useBookingsList(fetcher, initialParams = {}) {
                 return;
             }
 
-            // ✅ Delete old cache if force refresh
+            // ✅ Force refresh
             if (params.force) delete MEMO_CACHE[cacheKey];
 
             try {
                 const res = await fetcher(mergedParams);
-
                 if (!mounted.current) return;
 
                 if (res?.ok) {
@@ -95,28 +88,27 @@ function useBookingsList(fetcher, initialParams = {}) {
         [fetcher, initialParams, page]
     );
 
-    // Auto-run when dependencies change
+    // Auto-run
     useEffect(() => {
         fetchBookings(initialParams);
     }, [fetchBookings, initialParams]);
 
-    // ✅ Manual refresh (force backend call)
+    // ✅ Manual refresh
     const refresh = useCallback(() => {
         fetchBookings({ ...initialParams, force: true });
     }, [fetchBookings, initialParams]);
 
     // Auto-refresh every 30 sec
     useEffect(() => {
-        const interval = setInterval(() => {
-            fetchBookings(initialParams);
-        }, TTL_MS);
+        const interval = setInterval(() => fetchBookings(initialParams), TTL_MS);
         return () => clearInterval(interval);
     }, [fetchBookings, initialParams]);
 
     return {
         items,
         list: useMemo(() => items, [items]),
-        setList: setItems,
+        setItems, // ✅ important for live removal
+
         loadingList,
         error,
         setError,
@@ -134,10 +126,13 @@ function useBookingsList(fetcher, initialParams = {}) {
     };
 }
 
-// Export wrappers
+// Wrappers
 export function usePreBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getPendingBookings, initialParams);
 }
+
 export function useArrivedBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getArrivedBookings, initialParams);
 }
+
+export default useBookingsList;

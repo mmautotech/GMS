@@ -216,7 +216,7 @@ export default function PreBookingPage({ user }) {
     // 🆕 When a booking moves to Car-In (ARRIVED)
     const handleRemovedFromPreBooking = ({ _id }) => {
       toast.info(`🚗 Booking moved to Car-In`);
-      refresh();
+      setBookings((prev) => prev.filter((b) => b._id !== _id)); // 🧩 remove instantly
     };
 
     socket.on("booking:created", handleBookingCreated);
