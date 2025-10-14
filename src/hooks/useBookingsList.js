@@ -1,10 +1,9 @@
 // src/hooks/useBookingsList.js
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
-import { socket } from "../context/socket.js"; // ✅ add this
 
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 60 seconds
+const TTL_MS = 60 * 1000; // 30 seconds
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);
@@ -36,6 +35,7 @@ function useBookingsList(fetcher, initialParams = {}) {
             const mergedParams = { ...initialParams, ...params, page };
             const cacheKey = JSON.stringify({ fetcher: fetcher.name, ...mergedParams });
 
+            // ✅ Skip cache if force requested
             const cached = MEMO_CACHE[cacheKey];
             if (!params.force && cached && Date.now() - cached.at < TTL_MS) {
                 setItems(cached.items || []);
@@ -49,10 +49,12 @@ function useBookingsList(fetcher, initialParams = {}) {
                 return;
             }
 
+            // ✅ Delete old cache if force refresh
             if (params.force) delete MEMO_CACHE[cacheKey];
 
             try {
                 const res = await fetcher(mergedParams);
+
                 if (!mounted.current) return;
 
                 if (res?.ok) {
@@ -98,36 +100,18 @@ function useBookingsList(fetcher, initialParams = {}) {
         fetchBookings(initialParams);
     }, [fetchBookings, initialParams]);
 
-    // ✅ Manual refresh
+    // ✅ Manual refresh (force backend call)
     const refresh = useCallback(() => {
         fetchBookings({ ...initialParams, force: true });
     }, [fetchBookings, initialParams]);
 
-    // Auto-refresh every 60 sec
+    // Auto-refresh every 30 sec
     useEffect(() => {
         const interval = setInterval(() => {
             fetchBookings(initialParams);
         }, TTL_MS);
         return () => clearInterval(interval);
     }, [fetchBookings, initialParams]);
-
-    // ✅ Listen for real-time status changes
-    useEffect(() => {
-        if (!socket) return;
-
-        const handleStatusChange = (data) => {
-            if (data?.status === "arrived") {
-                console.log("🔄 Refreshing due to arrived status", data);
-                refresh(); // 🔁 reload the list for all users
-            }
-        };
-
-        socket.on("booking:statusChanged", handleStatusChange);
-
-        return () => {
-            socket.off("booking:statusChanged", handleStatusChange);
-        };
-    }, [refresh]);
 
     return {
         items,
@@ -150,7 +134,7 @@ function useBookingsList(fetcher, initialParams = {}) {
     };
 }
 
-// Wrappers
+// Export wrappers
 export function usePreBookings(initialParams = {}) {
     return useBookingsList(BookingApi.getPendingBookings, initialParams);
 }
