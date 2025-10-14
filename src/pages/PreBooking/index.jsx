@@ -191,34 +191,52 @@ export default function PreBookingPage({ user }) {
   }, [location.pathname, refresh]);
 
   // ------------------ ✅ Real-time Socket.IO Updates ------------------
+  // ------------------ ✅ Real-time Socket.IO Updates ------------------
   useEffect(() => {
     if (!socket) return;
 
+    // New booking added
     const handleBookingCreated = (newBooking) => {
       toast.info(`📦 New booking: ${newBooking.vehicleRegNo}`);
       refresh();
     };
 
+    // General booking updates
     const handleBookingUpdated = (updatedBooking) => {
       toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
       refresh();
     };
 
+    // Cancelled booking removed from pre-booking
     const handleBookingCancelled = (cancelledBooking) => {
       toast.warn(`❌ Booking cancelled: ${cancelledBooking.vehicleRegNo}`);
       refresh();
     };
 
+    // ✅ Real-time: Booking moved to Car In or cancelled
+    const handleStatusChanged = (payload) => {
+      console.log("📡 Real-time status change:", payload);
+
+      if (["arrived", "cancelled"].includes(payload.status)) {
+        // remove from current pre-booking list instantly
+        toast.info(`🚗 Booking moved to ${payload.status.toUpperCase()} by ${payload.updatedBy}`);
+        refresh();
+      }
+    };
+
     socket.on("booking:created", handleBookingCreated);
     socket.on("booking:updated", handleBookingUpdated);
     socket.on("booking:cancelled", handleBookingCancelled);
+    socket.on("booking:statusChanged", handleStatusChanged);
 
     return () => {
       socket.off("booking:created", handleBookingCreated);
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:cancelled", handleBookingCancelled);
+      socket.off("booking:statusChanged", handleStatusChanged);
     };
   }, [socket, refresh]);
+
 
   // ------------------ UI ------------------
   return (

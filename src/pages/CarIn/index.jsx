@@ -7,6 +7,7 @@ import React, {
     useEffect,
 } from "react";
 import { toast } from "react-toastify";
+import { socket } from "../../context/socket.js"; // ✅ Added for real-time updates
 
 import { useArrivedBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
@@ -165,6 +166,42 @@ export default function CarInPage({ currentUser }) {
         [backendParams, arrivedParams, page]
     );
 
+    // ──────────────────────── Real-time Socket Updates ────────────────────────
+    useEffect(() => {
+        if (!socket) return;
+
+        const handleStatusChanged = (payload) => {
+            console.log("📡 CarInPage received:", payload);
+
+            // When new car arrives → should appear here
+            if (payload.status === "arrived") {
+                toast.success(`🚗 ${payload.vehicleRegNo} just arrived!`);
+                refresh();
+            }
+
+            // When completed/cancelled → should disappear
+            if (["completed", "cancelled"].includes(payload.status)) {
+                toast.info(`ℹ️ ${payload.vehicleRegNo} marked as ${payload.status.toUpperCase()}`);
+                refresh();
+            }
+        };
+
+        const handleBookingCreated = (newBooking) => {
+            if (newBooking.status === "arrived") {
+                toast.info(`🆕 New arrived booking: ${newBooking.vehicleRegNo}`);
+                refresh();
+            }
+        };
+
+        socket.on("booking:statusChanged", handleStatusChanged);
+        socket.on("booking:created", handleBookingCreated);
+
+        return () => {
+            socket.off("booking:statusChanged", handleStatusChanged);
+            socket.off("booking:created", handleBookingCreated);
+        };
+    }, [socket, refresh]);
+
     // ──────────────────────── Smart Focus & Visibility Refresh ────────────────────────
     useEffect(() => {
         let timeout;
@@ -185,8 +222,7 @@ export default function CarInPage({ currentUser }) {
             }
         };
 
-        // ✅ Trigger once when page mounts (handles sidebar navigation)
-        refresh();
+        refresh(); // ✅ Trigger once on mount
 
         window.addEventListener("focus", handleFocus);
         document.addEventListener("visibilitychange", handleVisibility);
@@ -354,8 +390,8 @@ export default function CarInPage({ currentUser }) {
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -367,8 +403,8 @@ export default function CarInPage({ currentUser }) {
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
