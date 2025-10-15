@@ -246,7 +246,17 @@ export default function useBookings({
     };
 
     // --- Manual refresh ---
-    const refresh = () => fetchBookings();
+    // --- Manual refresh (force bypass cache) ---
+    const refresh = () => {
+        // 🧹 Invalidate all cached pages
+        for (const key in MEMO_CACHE) {
+            delete MEMO_CACHE[key];
+        }
+
+        // 🔄 Force a fresh fetch from API
+        fetchBookings();
+    };
+
 
     return {
         items,
