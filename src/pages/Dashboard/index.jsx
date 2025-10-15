@@ -1,11 +1,14 @@
 // src/pages/dashboard/Dashboard.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { toast } from "react-toastify";
+import _ from "lodash";
+
 import useBookings from "../../hooks/useBookings.js";
 import useUsers from "../../hooks/useUsers.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useDashboardStats from "../../hooks/useDashboardStats.js";
+import { useSocket } from "../../context/SocketProvider.js";
 
-import { useSocket } from "../../context/SocketProvider.js"; // ✅ Import socket
 import BookingsTable from "./bookingsTable.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
 import StatCard from "../../components/StatCard.jsx";
@@ -35,7 +38,7 @@ const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
 
 export default function Dashboard({ user }) {
-    const socket = useSocket(); // ✅ Get socket instance
+    const socket = useSocket();
 
     const [draft, setDraft] = useState({
         search: "",
@@ -85,7 +88,7 @@ export default function Dashboard({ user }) {
         hasPrevPage,
         params,
         exportCSV,
-        refresh: refreshBookings, // ✅ Assuming your hook supports manual refresh
+        refresh, // ensure refresh method is exposed in useBookings
     } = useBookings({
         pageSize: applied.limit,
         status: applied.status,
@@ -98,45 +101,54 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
-    // ✅ Booking stats
-    const {
-        bookings: bookingStats,
-        loading: loadingStats,
-        error: statsError,
-        refresh: refreshStats,
-    } = useDashboardStats();
+    /** -------------------------------
+     * ✅ Booking Stats (Global Totals)
+     -------------------------------- */
+    const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh: refreshStats } =
+        useDashboardStats();
 
-    // ✅ Listen to socket events
+    /** -------------------------------
+     * 🔁 Real-time Socket.IO Updates
+     -------------------------------- */
+    const refreshDebounced = useCallback(_.debounce(() => {
+        refresh();
+        refreshStats();
+    }, 250), [refresh, refreshStats]);
+
     useEffect(() => {
         if (!socket) return;
 
-        // Listen for booking updates from backend
-        socket.on("bookingUpdated", (data) => {
-            console.log("📦 Booking updated via socket:", data);
-            refreshBookings?.(); // refresh list
-            refreshStats?.(); // refresh stats
-        });
+        const handleBookingCreated = (newBooking) => {
+            toast.info(`🆕 New booking created: ${newBooking.vehicleRegNo}`);
+            refreshDebounced();
+        };
 
-        socket.on("bookingCreated", (data) => {
-            console.log("🆕 Booking created:", data);
-            refreshBookings?.();
-            refreshStats?.();
-        });
+        const handleBookingUpdated = (updatedBooking) => {
+            toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
+            refreshDebounced();
+        };
 
-        socket.on("bookingDeleted", (data) => {
-            console.log("❌ Booking deleted:", data);
-            refreshBookings?.();
-            refreshStats?.();
-        });
+        const handleStatusChanged = ({ status, booking, updatedBy }) => {
+            if (!booking) return;
+            const msg = `🚗 ${booking.vehicleRegNo} marked as ${status.toUpperCase()} by ${updatedBy || "system"}`;
+            toast.info(msg);
+            refreshDebounced();
+        };
+
+        socket.on("booking:created", handleBookingCreated);
+        socket.on("booking:updated", handleBookingUpdated);
+        socket.on("booking:statusChanged", handleStatusChanged);
 
         return () => {
-            socket.off("bookingUpdated");
-            socket.off("bookingCreated");
-            socket.off("bookingDeleted");
+            socket.off("booking:created", handleBookingCreated);
+            socket.off("booking:updated", handleBookingUpdated);
+            socket.off("booking:statusChanged", handleStatusChanged);
         };
-    }, [socket, refreshBookings, refreshStats]);
+    }, [socket, refreshDebounced]);
 
-    // ✅ Filters
+    /** -------------------------------
+     * ✅ Filter Handlers
+     -------------------------------- */
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -159,23 +171,28 @@ export default function Dashboard({ user }) {
         setPage(1);
     };
 
+    /** -------------------------------
+     * ✅ UI Rendering
+     -------------------------------- */
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">
-            {/* Header */}
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold text-blue-900">
                     Welcome Back{user?.username ? `, ${user.username}` : "!"}
                 </h1>
                 <button
-                    onClick={refreshStats}
+                    onClick={() => {
+                        refreshStats();
+                        refresh();
+                    }}
                     disabled={loadingStats}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
-                    {loadingStats ? "Refreshing..." : "Refresh Stats"}
+                    {loadingStats ? "Refreshing..." : "Refresh"}
                 </button>
             </div>
 
-            {/* Stat Cards */}
+            {/* ✅ Stat Cards */}
             {statsError ? (
                 <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
                     Failed to load booking stats: {statsError}
@@ -190,13 +207,13 @@ export default function Dashboard({ user }) {
                 </div>
             )}
 
-            {/* Charts */}
+            {/* ✅ Charts */}
             <div className="mb-6">
                 <DashboardCharts />
             </div>
 
             {/* ✅ Filters */}
-            <div className="mb-3 space-y-3">
+            <div className="mb-3 space-y-3 bg-white p-4 rounded-lg shadow">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <input
                         type="text"
@@ -325,6 +342,7 @@ export default function Dashboard({ user }) {
                     </div>
                 </div>
             </div>
+
             {params && (
                 <ParamsSummary
                     params={params}
@@ -338,7 +356,7 @@ export default function Dashboard({ user }) {
 
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
-            {/* Pagination */}
+            {/* ✅ Pagination */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
