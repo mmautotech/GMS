@@ -8,6 +8,11 @@ import BookingsTable from "./bookingsTable.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
 import StatCard from "../../components/StatCard.jsx";
 import DashboardCharts from "../../components/DashboardCharts.jsx";
+import io from "socket.io-client";
+
+const socket = io(import.meta.env.VITE_API_BASE_URL, {
+    transports: ["websocket"],
+});
 
 const ALLOWED_STATUSES = [
     { label: "PENDING", value: "pending" },
@@ -81,7 +86,7 @@ export default function Dashboard({ user }) {
         hasPrevPage,
         params,
         exportCSV,
-        refetch: refetchBookings, // ✅ make sure your hook exposes this
+        refetch: refetchBookings,
     } = useBookings({
         pageSize: applied.limit,
         status: applied.status,
@@ -98,23 +103,28 @@ export default function Dashboard({ user }) {
     const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
         useDashboardStats();
 
-    // ✅ Real-time refresh every 5 seconds
+    // ✅ REAL-TIME UPDATES (Socket.io)
     useEffect(() => {
-        const interval = setInterval(() => {
+        socket.on("booking:created", () => {
             refetchBookings();
             refresh();
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [refetchBookings, refresh]);
+        });
 
-    // ✅ Listen for global refresh events (from other components)
-    useEffect(() => {
-        const handler = () => {
+        socket.on("booking:updated", () => {
             refetchBookings();
             refresh();
+        });
+
+        socket.on("booking:deleted", () => {
+            refetchBookings();
+            refresh();
+        });
+
+        return () => {
+            socket.off("booking:created");
+            socket.off("booking:updated");
+            socket.off("booking:deleted");
         };
-        window.addEventListener("booking-updated", handler);
-        return () => window.removeEventListener("booking-updated", handler);
     }, [refetchBookings, refresh]);
 
     // Apply & Reset
@@ -169,6 +179,9 @@ export default function Dashboard({ user }) {
                     <StatCard title="Cancelled" value={bookingStats?.cancelled || 0} loading={loadingStats} />
                 </div>
             )}
+
+
+
 
             {/* Charts */}
             <div className="mb-6">
@@ -319,14 +332,15 @@ export default function Dashboard({ user }) {
 
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
-            {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
                     <button
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
-                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        className={`px-3 py-1 rounded ${hasPrevPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -337,7 +351,9 @@ export default function Dashboard({ user }) {
                     <button
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
-                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        className={`px-3 py-1 rounded ${hasNextPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
