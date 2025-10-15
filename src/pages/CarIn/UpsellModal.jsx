@@ -153,17 +153,60 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                     </div>
 
                     {/* Photo upload */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Confirmation Photo</label>
-                        <input type="file" accept="image/*" onChange={handlePhotoUpload} required />
+                    {/* File / Paste Upload */}
+                    <div className="md:col-span-2">
+                        <label className="block mb-1 text-sm font-medium text-gray-700">
+                            Confirmation Photo
+                        </label>
+                        <p className="text-sm text-gray-500 mb-1">
+                            You can upload by file or click <strong>Paste Image</strong> button to paste from clipboard.
+                        </p>
+
+                        <div className="flex space-x-2 mb-2">
+                            {/* File input */}
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handlePhotoUpload}
+                                className="border border-gray-300 rounded p-2 flex-1"
+                                required={!form.upsellPhoto}
+                            />
+
+                            {/* Paste Image button */}
+                            <button
+                                type="button"
+                                onClick={async () => {
+                                    try {
+                                        const clipboardItems = await navigator.clipboard.read();
+                                        for (const item of clipboardItems) {
+                                            if (!item.types.includes("image/png") && !item.types.includes("image/jpeg")) continue;
+                                            const blob = await item.getType(item.types[0]);
+                                            const reader = new FileReader();
+                                            reader.onload = (e) => setForm(prev => ({ ...prev, upsellPhoto: e.target.result }));
+                                            reader.readAsDataURL(blob);
+                                            break;
+                                        }
+                                    } catch (err) {
+                                        console.error("Failed to paste image:", err);
+                                        alert("No image found in clipboard or browser does not support clipboard API.");
+                                    }
+                                }}
+                                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                            >
+                                Paste Image
+                            </button>
+                        </div>
+
+                        {/* Preview */}
                         {form.upsellPhoto && (
                             <img
                                 src={form.upsellPhoto}
                                 alt="Preview"
-                                className="mt-2 w-32 h-32 object-cover border rounded"
+                                className="mt-2 h-32 object-contain border rounded"
                             />
                         )}
                     </div>
+
 
                     {/* Buttons */}
                     <div className="flex justify-end space-x-2">

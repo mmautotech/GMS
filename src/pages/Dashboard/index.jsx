@@ -146,6 +146,23 @@ export default function Dashboard({ user }) {
         };
     }, [socket, refreshDebounced]);
 
+
+    /** -------------------------------
+ * 🔔 Refresh on Window Focus
+ -------------------------------- */
+    useEffect(() => {
+        const handleWindowFocus = () => {
+            refreshDebounced(); // call your debounced refresh
+        };
+
+        window.addEventListener("focus", handleWindowFocus);
+
+        return () => {
+            window.removeEventListener("focus", handleWindowFocus);
+        };
+    }, [refreshDebounced]);
+
+
     /** -------------------------------
      * ✅ Filter Handlers
      -------------------------------- */

@@ -1,4 +1,3 @@
-// src/hooks/useDashboardStats.js
 import { useState, useEffect, useCallback, useRef } from "react";
 import { getDashboardCharts } from "../lib/api/statsApi.js";
 
@@ -7,19 +6,19 @@ const MEMO_CACHE = { data: null, at: 0 };
 const DEFAULT_TTL = 300000; // 5 minutes
 
 export default function useDashboardStats({ enabled = true, refreshInterval = DEFAULT_TTL } = {}) {
-    const [revenue, setRevenue] = useState({});
+    const [revenue, setRevenue] = useState({
+        daily: [],
+        weekly: [],
+        monthly: [],
+        yearly: [],
+    });
     const [serviceTrends, setServiceTrends] = useState({});
     const [bookings, setBookings] = useState({});
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
 
     const mounted = useRef(true);
-
-    useEffect(() => {
-        return () => {
-            mounted.current = false;
-        };
-    }, []);
+    useEffect(() => () => { mounted.current = false }, []);
 
     const fetchStats = useCallback(async () => {
         if (!enabled) return;
@@ -37,20 +36,23 @@ export default function useDashboardStats({ enabled = true, refreshInterval = DE
         setError(null);
         try {
             const res = await getDashboardCharts();
-
             if (!mounted.current) return;
 
-            if (res && (res.revenue || res.serviceTrends || res.bookings)) {
-                setRevenue(res.revenue || {});
+            if (res && res.revenue) {
+                // Transform revenue for ChartJS
+                const chartRevenue = {
+                    daily: res.revenue.daily.map(d => ({ _id: d.time, totalRevenue: d.totalRevenue })),
+                    weekly: res.revenue.weekly.map(d => ({ _id: d._id, totalRevenue: d.totalRevenue })),
+                    monthly: res.revenue.monthly.map(d => ({ _id: d._id, totalRevenue: d.totalRevenue })),
+                    yearly: res.revenue.yearly.map(d => ({ _id: d._id, totalRevenue: d.totalRevenue })),
+                };
+
+                setRevenue(chartRevenue);
                 setServiceTrends(res.serviceTrends || {});
                 setBookings(res.bookings || {});
 
-                // Cache the response
-                MEMO_CACHE.data = {
-                    revenue: res.revenue || {},
-                    serviceTrends: res.serviceTrends || {},
-                    bookings: res.bookings || {},
-                };
+                // Cache response
+                MEMO_CACHE.data = { revenue: chartRevenue, serviceTrends: res.serviceTrends || {}, bookings: res.bookings || {} };
                 MEMO_CACHE.at = Date.now();
             } else {
                 setError("Invalid dashboard response");
@@ -64,30 +66,15 @@ export default function useDashboardStats({ enabled = true, refreshInterval = DE
         }
     }, [enabled]);
 
-    // Auto-fetch on mount + when enabled changes
+    useEffect(() => { fetchStats(); }, [fetchStats]);
     useEffect(() => {
-        fetchStats();
-    }, [fetchStats]);
-
-    // Optional auto-refresh based on refreshInterval
-    useEffect(() => {
-        if (!enabled || !refreshInterval) return;
-        const id = setInterval(fetchStats, refreshInterval);
-        return () => clearInterval(id);
+        if (enabled && refreshInterval) {
+            const id = setInterval(fetchStats, refreshInterval);
+            return () => clearInterval(id);
+        }
     }, [enabled, refreshInterval, fetchStats]);
 
-    // Manual refresh
-    const refresh = useCallback(() => {
-        MEMO_CACHE.at = 0; // invalidate cache
-        fetchStats();
-    }, [fetchStats]);
+    const refresh = useCallback(() => { MEMO_CACHE.at = 0; fetchStats(); }, [fetchStats]);
 
-    return {
-        revenue,
-        serviceTrends,
-        bookings,
-        loading,
-        error,
-        refresh, // manual reload
-    };
+    return { revenue, serviceTrends, bookings, loading, error, refresh };
 }

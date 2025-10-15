@@ -1,78 +1,217 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
-    <title>Splash</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garage Management Loading</title>
     <style>
-        body {
+        /* --- Reset and container styles --- */
+        * {
+            box-sizing: border-box;
             margin: 0;
-            background: #004AAD;
-            color: #fff;
+            padding: 0;
+        }
+
+        body,
+        html {
+            height: 100%;
+            width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            background: linear-gradient(to bottom right, #f8fafc, #e0f2fe);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        /* --- Logo container --- */
+        .logo-container {
+            position: relative;
+            display: flex;
             flex-direction: column;
-            height: 100vh;
-            width: 100vw;
-            font-family: sans-serif;
-            opacity: 1;
-            transition: opacity 1s ease;
-            /* ✅ fade transition */
-        }
-
-        body.fade-out {
+            align-items: center;
+            gap: 3rem;
+            animation: fadeScale 0.6s ease-out forwards;
             opacity: 0;
+            transform: scale(0.8);
         }
 
-        img {
-            width: 200px;
-            height: auto;
-            margin-bottom: 20px;
+        @keyframes fadeScale {
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
         }
 
-        h1 {
-            font-size: 28px;
-            margin-bottom: 20px;
-            text-align: center;
+        /* --- Glow effect --- */
+        .glow {
+            position: absolute;
+            inset: 0;
+            background: rgba(59, 130, 246, 0.2);
+            filter: blur(3rem);
+            z-index: -1;
+            animation: glowAnim 2s ease-in-out infinite;
         }
 
-        .spinner {
-            border: 6px solid rgba(255, 255, 255, 0.3);
-            border-top: 6px solid #fff;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
+        @keyframes glowAnim {
             0% {
-                transform: rotate(0deg);
+                opacity: 0.3;
+            }
+
+            50% {
+                opacity: 0.6;
             }
 
             100% {
-                transform: rotate(360deg);
+                opacity: 0.3;
             }
+        }
+
+        img {
+            width: 20rem;
+            height: auto;
+        }
+
+        /* --- Loading section --- */
+        .loading-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            width: 20rem;
+            animation: fadeUp 0.5s ease forwards;
+            opacity: 0;
+            transform: translateY(20px);
+            animation-delay: 0.3s;
+        }
+
+        @keyframes fadeUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* --- Progress bar --- */
+        .progress-bar {
+            width: 100%;
+            height: 0.375rem;
+            background: #e2e8f0;
+            border-radius: 9999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, #2563eb, #3b82f6);
+            transition: width 0.3s ease;
+        }
+
+        /* --- Loading text --- */
+        .loading-text {
+            color: #475569;
+            margin-top: 0.5rem;
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        /* --- Animated dots --- */
+        .dots {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .dot {
+            width: 0.5rem;
+            height: 0.5rem;
+            background-color: #2563eb;
+            border-radius: 50%;
+            animation: dotAnim 1.5s infinite;
+        }
+
+        .dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+
+        .dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes dotAnim {
+
+            0%,
+            100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+
+            50% {
+                transform: scale(1.5);
+                opacity: 1;
+            }
+        }
+
+        /* --- Tagline --- */
+        .tagline {
+            color: #64748b;
+            position: absolute;
+            bottom: 2rem;
+            opacity: 0;
+            animation: fadeIn 0.5s ease forwards;
+            animation-delay: 0.8s;
         }
     </style>
 </head>
 
 <body>
-    <img src="splash.png" alt="App Logo" />
-    <h1>Garage Management Software</h1>
-    <div class="spinner"></div>
+    <div class="logo-container">
+        <!-- Logo -->
+        <img src="splash.png" alt="MMAUTOTECH" />
+        <div class="glow"></div>
+
+        <!-- Loading section -->
+        <div class="loading-section">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="loading-text">Loading your garage management system...</p>
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tagline -->
+    <p class="tagline">Professional Vehicle Management Solutions</p>
 
     <script>
-        // ✅ Listen for fade-out signal from main.js
-        window.electronAPI = {
-            fadeOut: () => {
-                document.body.classList.add("fade-out");
-                setTimeout(() => {
-                    window.close(); // close after animation
-                }, 1000); // match transition duration
+        // --- Progress bar logic ---
+        const progressFill = document.getElementById('progressFill');
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += 2;
+            if (progress > 100) {
+                progress = 100;
+                clearInterval(interval);
             }
-        };
+            progressFill.style.width = progress + '%';
+        }, 30);
     </script>
 </body>
 

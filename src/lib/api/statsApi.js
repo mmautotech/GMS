@@ -3,16 +3,29 @@ import axiosInstance from "./axiosInstance.js";
 
 /**
  * ✅ Fetch dashboard stats
- * Response shape: { revenue, serviceTrends, bookings }
+ * Response shape: { revenue: { daily: [], weekly: [], monthly: [], yearly: [] }, serviceTrends, bookings }
  */
 export async function getDashboardCharts() {
     try {
-        // ✅ Call the backend route (make sure route is /admin/dashboard/stats)
         const { data } = await axiosInstance.get("/dashboard/stats");
 
-        // 🧠 Normalize and fallback
-        const revenue = data.revenue || {};
-        const serviceTrends = data.serviceTrends || {};
+        // Normalize revenue: make sure each interval exists
+        const revenue = {
+            daily: data.revenue?.daily || [],
+            weekly: data.revenue?.weekly || [],
+            monthly: data.revenue?.monthly || [],
+            yearly: data.revenue?.yearly || [],
+        };
+
+        // Normalize serviceTrends
+        const serviceTrends = {
+            daily: data.serviceTrends?.daily || [],
+            weekly: data.serviceTrends?.weekly || [],
+            monthly: data.serviceTrends?.monthly || [],
+            yearly: data.serviceTrends?.yearly || [],
+        };
+
+        // Normalize bookings
         const bookings = {
             total: data.bookings?.total || 0,
             pending: data.bookings?.pending || 0,
@@ -32,9 +45,9 @@ export async function getDashboardCharts() {
 
         return {
             success: false,
-            revenue: {},
-            serviceTrends: {},
-            bookings: {},
+            revenue: { daily: [], weekly: [], monthly: [], yearly: [] },
+            serviceTrends: { daily: [], weekly: [], monthly: [], yearly: [] },
+            bookings: { total: 0, pending: 0, arrived: 0, completed: 0, cancelled: 0 },
             error: err.response?.data?.message || err.message,
         };
     }
