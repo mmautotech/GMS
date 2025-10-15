@@ -4,7 +4,6 @@ import useBookings from "../../hooks/useBookings.js";
 import useUsers from "../../hooks/useUsers.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useDashboardStats from "../../hooks/useDashboardStats.js";
-
 import BookingsTable from "./bookingsTable.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
 import StatCard from "../../components/StatCard.jsx";
@@ -55,7 +54,7 @@ export default function Dashboard({ user }) {
         }));
     };
 
-    // ✅ Dropdown Data
+    // Dropdown Data
     const {
         list: serviceOptions,
         loading: loadingServices,
@@ -69,7 +68,7 @@ export default function Dashboard({ user }) {
         error: usersError,
     } = useUsers({ useSessionCache: true });
 
-    // ✅ Booking list
+    // Bookings
     const {
         list: bookings,
         loadingList,
@@ -82,6 +81,7 @@ export default function Dashboard({ user }) {
         hasPrevPage,
         params,
         exportCSV,
+        refetch: refetchBookings, // ✅ make sure your hook exposes this
     } = useBookings({
         pageSize: applied.limit,
         status: applied.status,
@@ -94,21 +94,30 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
-    // ✅ Booking Stats
+    // Stats
     const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
         useDashboardStats();
 
-    // ✅ Real-time updates (every 5 seconds)
+    // ✅ Real-time refresh every 5 seconds
     useEffect(() => {
         const interval = setInterval(() => {
-            if (!loadingList) setPage((p) => p); // refetch bookings
-            if (!loadingStats) refresh(); // refetch stats
+            refetchBookings();
+            refresh();
         }, 5000);
-
         return () => clearInterval(interval);
-    }, [loadingList, loadingStats, refresh, setPage]);
+    }, [refetchBookings, refresh]);
 
-    // ✅ Apply & Reset filters
+    // ✅ Listen for global refresh events (from other components)
+    useEffect(() => {
+        const handler = () => {
+            refetchBookings();
+            refresh();
+        };
+        window.addEventListener("booking-updated", handler);
+        return () => window.removeEventListener("booking-updated", handler);
+    }, [refetchBookings, refresh]);
+
+    // Apply & Reset
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -146,7 +155,7 @@ export default function Dashboard({ user }) {
                 </button>
             </div>
 
-            {/* ✅ Stat Cards */}
+            {/* Stat Cards */}
             {statsError ? (
                 <div className="bg-red-100 text-red-700 p-3 rounded mb-4">
                     Failed to load booking stats: {statsError}
@@ -161,10 +170,11 @@ export default function Dashboard({ user }) {
                 </div>
             )}
 
-            {/* ✅ Charts */}
+            {/* Charts */}
             <div className="mb-6">
                 <DashboardCharts />
             </div>
+
 
             {/* ✅ Filters */}
             <div className="mb-3 space-y-3">
@@ -296,7 +306,6 @@ export default function Dashboard({ user }) {
                     </div>
                 </div>
             </div>
-
             {params && (
                 <ParamsSummary
                     params={params}
@@ -310,16 +319,14 @@ export default function Dashboard({ user }) {
 
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
-            {/* ✅ Pagination */}
+            {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
                     <button
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
-                        className={`px-3 py-1 rounded ${hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -330,9 +337,7 @@ export default function Dashboard({ user }) {
                     <button
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
-                        className={`px-3 py-1 rounded ${hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
