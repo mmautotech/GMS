@@ -4,15 +4,12 @@ import useBookings from "../../hooks/useBookings.js";
 import useUsers from "../../hooks/useUsers.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useDashboardStats from "../../hooks/useDashboardStats.js";
+
+import { useSocket } from "../../context/SocketProvider.js"; // ✅ Import socket
 import BookingsTable from "./bookingsTable.jsx";
 import ParamsSummary from "../../components/ParamsSummary.jsx";
 import StatCard from "../../components/StatCard.jsx";
 import DashboardCharts from "../../components/DashboardCharts.jsx";
-import io from "socket.io-client";
-
-const socket = io(import.meta.env.VITE_API_BASE_URL, {
-    transports: ["websocket"],
-});
 
 const ALLOWED_STATUSES = [
     { label: "PENDING", value: "pending" },
@@ -38,6 +35,8 @@ const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
 
 export default function Dashboard({ user }) {
+    const socket = useSocket(); // ✅ Get socket instance
+
     const [draft, setDraft] = useState({
         search: "",
         fromDate: "",
@@ -59,7 +58,7 @@ export default function Dashboard({ user }) {
         }));
     };
 
-    // Dropdown Data
+    // ✅ Dropdown Data
     const {
         list: serviceOptions,
         loading: loadingServices,
@@ -73,7 +72,7 @@ export default function Dashboard({ user }) {
         error: usersError,
     } = useUsers({ useSessionCache: true });
 
-    // Bookings
+    // ✅ Booking list
     const {
         list: bookings,
         loadingList,
@@ -86,7 +85,7 @@ export default function Dashboard({ user }) {
         hasPrevPage,
         params,
         exportCSV,
-        refetch: refetchBookings,
+        refresh: refreshBookings, // ✅ Assuming your hook supports manual refresh
     } = useBookings({
         pageSize: applied.limit,
         status: applied.status,
@@ -99,35 +98,45 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
-    // Stats
-    const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
-        useDashboardStats();
+    // ✅ Booking stats
+    const {
+        bookings: bookingStats,
+        loading: loadingStats,
+        error: statsError,
+        refresh: refreshStats,
+    } = useDashboardStats();
 
-    // ✅ REAL-TIME UPDATES (Socket.io)
+    // ✅ Listen to socket events
     useEffect(() => {
-        socket.on("booking:created", () => {
-            refetchBookings();
-            refresh();
+        if (!socket) return;
+
+        // Listen for booking updates from backend
+        socket.on("bookingUpdated", (data) => {
+            console.log("📦 Booking updated via socket:", data);
+            refreshBookings?.(); // refresh list
+            refreshStats?.(); // refresh stats
         });
 
-        socket.on("booking:updated", () => {
-            refetchBookings();
-            refresh();
+        socket.on("bookingCreated", (data) => {
+            console.log("🆕 Booking created:", data);
+            refreshBookings?.();
+            refreshStats?.();
         });
 
-        socket.on("booking:deleted", () => {
-            refetchBookings();
-            refresh();
+        socket.on("bookingDeleted", (data) => {
+            console.log("❌ Booking deleted:", data);
+            refreshBookings?.();
+            refreshStats?.();
         });
 
         return () => {
-            socket.off("booking:created");
-            socket.off("booking:updated");
-            socket.off("booking:deleted");
+            socket.off("bookingUpdated");
+            socket.off("bookingCreated");
+            socket.off("bookingDeleted");
         };
-    }, [refetchBookings, refresh]);
+    }, [socket, refreshBookings, refreshStats]);
 
-    // Apply & Reset
+    // ✅ Filters
     const applyFilters = () => {
         setApplied(draft);
         setPage(1);
@@ -152,12 +161,13 @@ export default function Dashboard({ user }) {
 
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">
+            {/* Header */}
             <div className="flex justify-between items-center mb-4">
                 <h1 className="text-2xl font-bold text-blue-900">
                     Welcome Back{user?.username ? `, ${user.username}` : "!"}
                 </h1>
                 <button
-                    onClick={refresh}
+                    onClick={refreshStats}
                     disabled={loadingStats}
                     className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
                 >
@@ -180,14 +190,10 @@ export default function Dashboard({ user }) {
                 </div>
             )}
 
-
-
-
             {/* Charts */}
             <div className="mb-6">
                 <DashboardCharts />
             </div>
-
 
             {/* ✅ Filters */}
             <div className="mb-3 space-y-3">
@@ -332,6 +338,7 @@ export default function Dashboard({ user }) {
 
             <BookingsTable bookings={bookings} loading={loadingList} error={error} />
 
+            {/* Pagination */}
             <div className="flex items-center justify-between mt-6">
                 <p className="text-sm text-gray-700">Total Bookings: {totalItems}</p>
                 <div className="flex items-center gap-4">
@@ -339,8 +346,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
                         className={`px-3 py-1 rounded ${hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -352,8 +359,8 @@ export default function Dashboard({ user }) {
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
                         className={`px-3 py-1 rounded ${hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next
