@@ -8,7 +8,7 @@ import axiosInstance from "./axiosInstance.js";
  */
 export const getAllInternalInvoices = async ({
     page = 1,
-    limit = 25,
+    limit = 10,
     search = "",
     status = "",
     fromDate = "",

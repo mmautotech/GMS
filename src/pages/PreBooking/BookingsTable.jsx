@@ -11,7 +11,7 @@ export default function BookingsTable({
   onCancelled,
   onEdit,
   currentUser,
-  rowLoadingIds = new Set(), // NEW: row-level loading set
+  rowLoadingIds = new Set(), // row-level loading
 }) {
   const rows = useMemo(() => bookings || [], [bookings]);
 
@@ -102,19 +102,19 @@ export default function BookingsTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={13} className="p-4 text-center text-gray-500 flex justify-center">
+                <td colSpan={10} className="p-4 text-center text-gray-500 flex justify-center">
                   <InlineSpinner /> Loading pre-bookings...
                 </td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={13} className="p-4 text-center text-red-500">
+                <td colSpan={10} className="p-4 text-center text-red-500">
                   {error}
                 </td>
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={13} className="p-4 text-center text-gray-500">
+                <td colSpan={10} className="p-4 text-center text-gray-500">
                   No pre-bookings found
                 </td>
               </tr>
@@ -132,7 +132,7 @@ export default function BookingsTable({
                   onCancelled={onCancelled}
                   onEdit={onEdit}
                   currentUser={currentUser}
-                  loading={rowLoadingIds.has(booking.id || booking._id)} // pass row loading
+                  loading={rowLoadingIds.has(booking.id || booking._id)} // row-level loading
                 />
               ))
             )}

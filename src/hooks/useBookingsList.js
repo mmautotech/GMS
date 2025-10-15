@@ -126,7 +126,7 @@ function useBookingsList(fetcher, initialParams = {}) {
         totalItems,
         hasNextPage,
         hasPrevPage,
-        pageSize: initialParams.limit || 25,
+        pageSize: initialParams.limit || 10,
         params: activeParams,
         meta,
         fetchBookings,

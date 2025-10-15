@@ -14,7 +14,7 @@ export function useInternalInvoices(initialFilters = {}) {
     const [invoices, setInvoices] = useState([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(1);
-    const [limit, setLimit] = useState(25);
+    const [limit, setLimit] = useState(10);
     const [totalPages, setTotalPages] = useState(1);
     const [totalCount, setTotalCount] = useState(0);
 
@@ -126,7 +126,7 @@ export function useInternalInvoices(initialFilters = {}) {
         };
         setFilters(defaultFilters);
         setPage(1);
-        setLimit(25);
+        setLimit(10);
         resetState();
     }, []);
 

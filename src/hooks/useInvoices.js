@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 /**
  * 🧾 useInvoices — unified data hook for invoice listing
  * Supports: search, date range, status, pagination & sorting.
- * Aligned with backend validator (limit ∈ [10,25,50,100], default 10).
+ * Aligned with backend validator (limit ∈ [10,10,50,100], default 10).
  */
 export default function useInvoices(initialFilters = {}) {
     const [invoices, setInvoices] = useState([]);

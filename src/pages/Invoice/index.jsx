@@ -225,7 +225,7 @@ export default function Invoices() {
                     }
                     className="px-4 py-2 border rounded shadow focus:ring focus:border-blue-300"
                 >
-                    {[10, 25, 50, 100].map((n) => (
+                    {[10, 10, 50, 100].map((n) => (
                         <option key={n} value={n}>
                             {n} / page
                         </option>

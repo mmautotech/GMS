@@ -1,4 +1,4 @@
-// src/BookingRow.jsx
+// src/components/BookingRow.jsx
 import React, { useState, useMemo, forwardRef, useEffect } from "react";
 import { Trash2, Edit2, CarFront, X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -124,8 +124,12 @@ const BookingRow = forwardRef(function BookingRow(
             <div className="text-[11px] text-gray-600">{safe(booking.email)}</div>
           </div>
         </td>
-        <td className="p-2 border hidden md:table-cell">{safe(booking.phoneNumber)}</td>
-        <td className="p-2 border hidden lg:table-cell">{safe(booking.postCode)}</td>
+        <td className="p-2 border hidden md:table-cell">
+          {safe(booking.phoneNumber)}
+        </td>
+        <td className="p-2 border hidden lg:table-cell">
+          {safe(booking.postCode)}
+        </td>
         <td className="p-2 border">{fmtGBP(booking.bookingPrice)}</td>
         <td className="p-2 border">
           <div className="flex gap-2">
@@ -183,7 +187,6 @@ const BookingRow = forwardRef(function BookingRow(
               <p className="text-sm text-red-500">{error}</p>
             ) : details ? (
               <div className="bg-white rounded-lg shadow p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 text-sm">
-
                 <div>
                   <p className="mt-3 text-gray-500 text-xs font-bold uppercase">
                     Complete Address
@@ -192,24 +195,38 @@ const BookingRow = forwardRef(function BookingRow(
                 </div>
 
                 <div>
-                  <p className="text-gray-500 text-xs font-bold uppercase">Labour</p>
+                  <p className="text-gray-500 text-xs font-bold uppercase">
+                    Labour
+                  </p>
                   <p className="text-green-600">{fmtGBP(details.labourCost)}</p>
-                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">Parts</p>
+                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">
+                    Parts
+                  </p>
                   <p className="text-green-600">{fmtGBP(details.partsCost)}</p>
-                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">Profit</p>
+                  <p className="mt-2 text-gray-500 text-xs font-bold uppercase">
+                    Profit
+                  </p>
                   <p className="text-blue-600">
                     {fmtGBP(details.profit)} ({details.profitPercent}%)
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-gray-500 text-xs font-bold uppercase">Services</p>
+                  <p className="text-gray-500 text-xs font-bold uppercase">
+                    Services
+                  </p>
                   <p>{servicesText}</p>
 
-                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Remarks</p>
-                  <p className="whitespace-pre-wrap break-words">{safe(details.remarks)}</p>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">
+                    Remarks
+                  </p>
+                  <p className="whitespace-pre-wrap break-words">
+                    {safe(details.remarks)}
+                  </p>
 
-                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">Source</p>
+                  <p className="mt-3 text-gray-500 text-xs font-bold uppercase">
+                    Source
+                  </p>
                   <p>{safe(details.source)}</p>
                 </div>
 
@@ -230,7 +247,6 @@ const BookingRow = forwardRef(function BookingRow(
                     <p className="text-gray-500 text-xs">No Photo</p>
                   )}
                 </div>
-
               </div>
             ) : (
               <p className="text-sm text-gray-400">No details available.</p>

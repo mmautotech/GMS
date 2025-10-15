@@ -18,7 +18,7 @@ export const BookingApi = {
     services,
     user,               // ✅ added
     page = 1,
-    limit = 25,
+    limit = 10,
     sortBy = "createdDate",
     sortDir,
   } = {}) => {
@@ -157,7 +157,7 @@ export const BookingApi = {
     services,
     user,
     page = 1,
-    limit = 25,
+    limit = 10,
     sortBy = "createdDate",
     sortDir = "desc",
   } = {}) => {
@@ -194,7 +194,7 @@ export const BookingApi = {
     services,
     user,
     page = 1,
-    limit = 25,
+    limit = 10,
     sortBy = "arrivedDate",
     sortDir = "desc",
   } = {}) => {
@@ -245,7 +245,14 @@ export const BookingApi = {
       });
       const blob = res.data;
       const url = URL.createObjectURL(blob);
-      return { ok: true, blob, url };
+
+      // return url + a cleanup function
+      return {
+        ok: true,
+        blob,
+        url,
+        revoke: () => URL.revokeObjectURL(url),
+      };
     } catch (err) {
       return {
         ok: false,

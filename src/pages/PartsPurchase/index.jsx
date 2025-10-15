@@ -16,7 +16,7 @@ import PartsInvoiceModal from "./PartsInvoiceModal.jsx";
 import PartsInvoicesTable from "./PartsInvoicesTable.jsx";
 
 // --- Dropdown constants ---
-const LIMIT_OPTIONS = [5, 25, 50, 100];
+const LIMIT_OPTIONS = [5, 10, 50, 100];
 
 // --- Default filter state ---
 const DEFAULT_FILTERS = {
@@ -27,7 +27,7 @@ const DEFAULT_FILTERS = {
     startDate: "",
     endDate: "",
     purchaser: "",
-    limit: 25,
+    limit: 10,
     sortBy: "createdAt",
     sortOrder: "desc",
 };
@@ -344,8 +344,8 @@ export default function PartsPurchase({ isAdmin = false }) {
                         disabled={!pagination?.hasPrevPage}
                         onClick={() => refetch({ page: (pagination?.page || 1) - 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasPrevPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Prev
@@ -357,8 +357,8 @@ export default function PartsPurchase({ isAdmin = false }) {
                         disabled={!pagination?.hasNextPage}
                         onClick={() => refetch({ page: (pagination?.page || 1) + 1 })}
                         className={`px-3 py-1 rounded ${pagination?.hasNextPage
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            ? "bg-blue-600 text-white"
+                            : "bg-gray-300 text-gray-500 cursor-not-allowed"
                             }`}
                     >
                         Next

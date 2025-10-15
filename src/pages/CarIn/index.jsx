@@ -30,7 +30,7 @@ const SORT_OPTIONS = [
     { label: "Post Code", value: "ownerPostalCode" },
 ];
 
-const LIMIT_OPTIONS = [5, 25, 50, 100];
+const LIMIT_OPTIONS = [5, 10, 50, 100];
 
 export default function CarInPage({ currentUser }) {
     const socket = useSocket(); // ✅ use socket context
@@ -48,7 +48,7 @@ export default function CarInPage({ currentUser }) {
         user: "",
         sortBy: "arrivedDate",
         sortDir: "desc",
-        limit: 25,
+        limit: 10,
     });
     const [applied, setApplied] = useState(draft);
 
@@ -143,7 +143,7 @@ export default function CarInPage({ currentUser }) {
             user: "",
             sortBy: "arrivedDate",
             sortDir: "desc",
-            limit: 25,
+            limit: 10,
         };
         setDraft(fresh);
         setApplied(fresh);

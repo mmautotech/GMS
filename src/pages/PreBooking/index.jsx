@@ -1,6 +1,8 @@
+// src/Pages/PreBooking/index.js
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
+import _ from "lodash";
 
 import { usePreBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
@@ -23,7 +25,7 @@ const SORT_OPTIONS = [
   { label: "Phone Number", value: "ownerNumber" },
   { label: "Post Code", value: "ownerPostalCode" },
 ];
-const LIMIT_OPTIONS = [5, 25, 50, 100];
+const LIMIT_OPTIONS = [5, 10, 50, 100];
 
 export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
@@ -31,7 +33,9 @@ export default function PreBookingPage({ user }) {
   const socket = useSocket();
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
-  const [rowLoadingIds, setRowLoadingIds] = useState(new Set()); // Track row-level loading
+
+  // Use Set for row-level loading
+  const [rowLoadingIds, setRowLoadingIds] = useState(new Set());
 
   // Filters
   const [draft, setDraft] = useState({
@@ -42,7 +46,7 @@ export default function PreBookingPage({ user }) {
     user: "",
     sortBy: "createdDate",
     sortDir: "desc",
-    limit: 25,
+    limit: 10,
   });
   const [applied, setApplied] = useState(draft);
 
@@ -78,15 +82,17 @@ export default function PreBookingPage({ user }) {
     async (id) => {
       if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
 
-      setRowLoadingIds((prev) => new Set(prev).add(id));
+      setRowLoadingIds(prev => new Set(prev).add(id));
 
       try {
         const res = await updateStatus(id, "arrived");
         if (res.ok) {
           toast.success(res.message || "Car marked as arrived!");
 
-          // Navigate to Car In page
-          navigate(`/car-in/${id}`, { state: { bookingId: id } });
+          // Delay navigation slightly to avoid freezing inputs
+          setTimeout(() => {
+            navigate(`/car-in`, { state: { bookingId: id } });
+          }, 50);
         } else {
           toast.error(res.error || "Failed to mark as arrived");
         }
@@ -95,22 +101,22 @@ export default function PreBookingPage({ user }) {
         setError(backendMessage);
         toast.error(backendMessage);
       } finally {
-        setRowLoadingIds((prev) => {
-          const updated = new Set(prev);
-          updated.delete(id);
-          return updated;
+        setRowLoadingIds(prev => {
+          const copy = new Set(prev);
+          copy.delete(id);
+          return copy;
         });
       }
     },
     [updateStatus, setError, navigate]
   );
 
-
   const handleCancelled = useCallback(
     async (id) => {
       if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
 
-      setRowLoadingIds((prev) => new Set(prev).add(id));
+      setRowLoadingIds(prev => new Set(prev).add(id));
+
       try {
         const res = await updateStatus(id, "cancelled");
         if (res.ok) {
@@ -123,10 +129,10 @@ export default function PreBookingPage({ user }) {
         setError(backendMessage);
         toast.error(backendMessage);
       } finally {
-        setRowLoadingIds((prev) => {
-          const updated = new Set(prev);
-          updated.delete(id);
-          return updated;
+        setRowLoadingIds(prev => {
+          const copy = new Set(prev);
+          copy.delete(id);
+          return copy;
         });
       }
     },
@@ -183,7 +189,7 @@ export default function PreBookingPage({ user }) {
       user: "",
       sortBy: "createdDate",
       sortDir: "desc",
-      limit: 25,
+      limit: 10,
     };
     setDraft(fresh);
     setApplied(fresh);
@@ -208,32 +214,25 @@ export default function PreBookingPage({ user }) {
   }, [location.pathname, refresh]);
 
   // ------------------ Real-time Socket.IO Updates ------------------
+  const refreshDebounced = useCallback(_.debounce(() => refresh(), 200), [refresh]);
+
   useEffect(() => {
     if (!socket) return;
 
     const handleBookingCreated = (newBooking) => {
       toast.info(`📦 New booking: ${newBooking.vehicleRegNo}`);
-      refresh();
+      refreshDebounced();
     };
 
     const handleBookingUpdated = (updatedBooking) => {
       toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
-      refresh();
+      refreshDebounced();
     };
 
     const handleStatusChanged = ({ status, booking, updatedBy }) => {
-      if (!booking) return;
-      if (updatedBy === user?.username) return;
-
-      if (status === "arrived") {
-        toast.info(`🚗 ${booking.vehicleRegNo} moved to Car-In by ${updatedBy}`);
-        refresh();
-      }
-
-      if (status === "cancelled") {
-        toast.info(`❌ ${booking.vehicleRegNo} cancelled by ${updatedBy}`);
-        refresh();
-      }
+      if (!booking || updatedBy === user?.username) return;
+      toast.info(`🚗 Booking ${booking.vehicleRegNo} updated by ${updatedBy}`);
+      refreshDebounced();
     };
 
     socket.on("booking:created", handleBookingCreated);
@@ -245,7 +244,7 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:statusChanged", handleStatusChanged);
     };
-  }, [socket, refresh, user]);
+  }, [socket, refreshDebounced, user]);
 
   // ------------------ UI ------------------
   return (
@@ -284,9 +283,7 @@ export default function PreBookingPage({ user }) {
             {servicesError
               ? <option disabled value="">Failed to load services</option>
               : serviceOptions.map((s) => (
-                <option key={s.value} value={s.value}>
-                  {s.label}
-                </option>
+                <option key={s.value} value={s.value}>{s.label}</option>
               ))}
           </select>
           <select
@@ -299,9 +296,7 @@ export default function PreBookingPage({ user }) {
             {usersError
               ? <option disabled value="">Failed to load users</option>
               : userOptions.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.username}
-                </option>
+                <option key={u.id} value={u.id}>{u.username}</option>
               ))}
           </select>
         </div>
@@ -313,10 +308,8 @@ export default function PreBookingPage({ user }) {
               onChange={(e) => setDraft((d) => ({ ...d, sortBy: e.target.value }))}
               className="border rounded px-3 py-2 w-full"
             >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
+              {SORT_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
               ))}
             </select>
             <select
@@ -332,10 +325,8 @@ export default function PreBookingPage({ user }) {
               onChange={(e) => setDraft((d) => ({ ...d, limit: Number(e.target.value) }))}
               className="border rounded px-3 py-2 w-full"
             >
-              {LIMIT_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt} / page
-                </option>
+              {LIMIT_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>{opt} / page</option>
               ))}
             </select>
           </div>
@@ -373,8 +364,8 @@ export default function PreBookingPage({ user }) {
         onCancelled={handleCancelled}
         onEdit={handleEdit}
         currentUser={user}
-        rowLoadingIds={rowLoadingIds} // pass loading set
-        loadingList={loadingList}    // still show table-level spinner
+        rowLoadingIds={rowLoadingIds}
+        loadingList={loadingList}
       />
 
       {/* Pagination */}
@@ -384,19 +375,15 @@ export default function PreBookingPage({ user }) {
           <button
             disabled={!hasPrevPage}
             onClick={() => hasPrevPage && setPage(page - 1)}
-            className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
+            className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
           >
             Prev
           </button>
-          <span className="text-sm">
-            Page {page} of {totalPages}
-          </span>
+          <span className="text-sm">Page {page} of {totalPages}</span>
           <button
             disabled={!hasNextPage}
             onClick={() => hasNextPage && setPage(page + 1)}
-            className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-              }`}
+            className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
           >
             Next
           </button>

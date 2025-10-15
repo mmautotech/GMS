@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/pages/dashboard/Dashboard.jsx
+import React, { useState, useEffect } from "react";
 import useBookings from "../../hooks/useBookings.js";
 import useUsers from "../../hooks/useUsers.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
@@ -28,7 +29,7 @@ const SORT_OPTIONS = [
     { label: "Post Code", value: "ownerPostalCode" },
 ];
 
-const LIMIT_OPTIONS = [5, 25, 50, 100];
+const LIMIT_OPTIONS = [5, 10, 50, 100];
 const isDateField = (f) =>
     ["createdDate", "scheduledDate", "arrivedDate", "cancelledDate", "completedDate"].includes(f);
 
@@ -42,7 +43,7 @@ export default function Dashboard({ user }) {
         user: "",
         sortBy: "createdDate",
         sortDir: "desc",
-        limit: 25,
+        limit: 10,
     });
     const [applied, setApplied] = useState(draft);
 
@@ -93,6 +94,20 @@ export default function Dashboard({ user }) {
         sortDir: applied.sortDir,
     });
 
+    // ✅ Booking Stats
+    const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
+        useDashboardStats();
+
+    // ✅ Real-time updates (every 5 seconds)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (!loadingList) setPage((p) => p); // refetch bookings
+            if (!loadingStats) refresh(); // refetch stats
+        }, 5000);
+
+        return () => clearInterval(interval);
+    }, [loadingList, loadingStats, refresh, setPage]);
+
     // ✅ Apply & Reset filters
     const applyFilters = () => {
         setApplied(draft);
@@ -109,18 +124,12 @@ export default function Dashboard({ user }) {
             user: "",
             sortBy: "createdDate",
             sortDir: "desc",
-            limit: 25,
+            limit: 10,
         };
         setDraft(reset);
         setApplied(reset);
         setPage(1);
     };
-
-    /** -------------------------------
-     * ✅ Booking Stats (Global Totals)
-     -------------------------------- */
-    const { bookings: bookingStats, loading: loadingStats, error: statsError, refresh } =
-        useDashboardStats();
 
     return (
         <div className="p-4 md:p-6 max-w-full overflow-x-hidden">

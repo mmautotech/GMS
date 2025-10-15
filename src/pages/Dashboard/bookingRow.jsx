@@ -1,8 +1,8 @@
+// BookingRow.jsx
 import React, { useMemo, forwardRef, useState } from "react";
 import StatusBadge from "./StatusBadge.jsx";
 import ServicesCell from "./ServicesCell.jsx";
 import BookingDetailsModal from "./BookingDetailsModal.jsx";
-import useBookingDetails from "../../hooks/useBookingDetails.js";
 
 // Format date consistently
 const fmtDate = (d) =>
@@ -25,9 +25,6 @@ const safe = (s) => (s ? String(s) : "—");
 const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalPhotoUrl, setModalPhotoUrl] = useState(null);
-
-    const { details, loading, error, fetchDetails, bookingPhotoUrl, upsellPhotoUrls } =
-        useBookingDetails();
 
     // Profit % for main booking
     const profitPct = useMemo(() => {
@@ -55,24 +52,14 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
         }
     })();
 
-    const handleDoubleClick = async () => {
+    const handleDoubleClick = () => {
         setIsModalOpen(true);
-        if (!details) await fetchDetails(booking._id);
     };
 
     const closeModal = () => setIsModalOpen(false);
 
     const openPhotoModal = (url) => setModalPhotoUrl(url);
     const closePhotoModal = () => setModalPhotoUrl(null);
-
-    const handleBookingThumbnailClick = () => {
-        if (bookingPhotoUrl) openPhotoModal(bookingPhotoUrl);
-    };
-
-    const handleUpsellThumbnailClick = (id) => {
-        const url = upsellPhotoUrls[id];
-        if (url) openPhotoModal(url);
-    };
 
     return (
         <>
@@ -133,13 +120,7 @@ const BookingRow = forwardRef(function BookingRow({ booking }, ref) {
             {/* Modal with booking details */}
             {isModalOpen && (
                 <BookingDetailsModal
-                    details={details || booking}
-                    loading={loading}
-                    error={error}
-                    bookingPhotoUrl={bookingPhotoUrl}
-                    upsellPhotoUrls={upsellPhotoUrls}
-                    handleBookingThumbnailClick={handleBookingThumbnailClick}
-                    handleUpsellThumbnailClick={handleUpsellThumbnailClick}
+                    bookingId={booking._id} // Pass booking ID; modal fetches everything
                     onClose={closeModal}
                 />
             )}

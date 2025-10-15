@@ -13,7 +13,7 @@ export default function useBookings({
     services,
     user,
     initialPage = 1,
-    pageSize = 25,
+    pageSize = 10,
     sortBy = "createdDate",
     sortDir,
 } = {}) {
@@ -214,7 +214,7 @@ export default function useBookings({
     // --- Update booking status ---
     const updateStatus = async (id, newStatus) => {
         setError("");
-        setSaving(true);
+        // ❌ remove setSaving(true/false)
         try {
             const res = await BookingApi.updateBookingStatus(id, newStatus);
             if (res.ok) {
@@ -235,10 +235,9 @@ export default function useBookings({
             const msg = err?.message || "Failed to update booking status";
             setError(msg);
             return { ok: false, error: msg };
-        } finally {
-            setSaving(false);
         }
     };
+
 
     // --- Export bookings CSV ---
     const exportCSV = async () => {
