@@ -1,7 +1,7 @@
 import axios from "axios";
 
 // ✅ Get API URL from preload (injected via contextBridge in preload.js)
-const API_URL = window.env?.API_URL || "http://192.168.18.84:5000/api";
+const API_URL = window.env?.API_URL || "http://192.168.18.69:5001/api";
 console.log("🔗 Using API URL:", API_URL);
 
 // ✅ Create Axios instance

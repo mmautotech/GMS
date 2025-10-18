@@ -14,15 +14,11 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
         userEditedUpsell: false,
     });
 
-    // Load all services
     const { list: services, loading: svcLoading, error: svcError } = useServices({ enabled: true });
 
-    // Exclude already booked services by name
     const availableServices = useMemo(() => {
         if (!booking?.services || !services) return services || [];
-
         const bookedServiceNames = booking.services.map(s => s.name || s.label || s);
-
         return services.filter(s => !bookedServiceNames.includes(s.name || s.label));
     }, [booking?.services, services]);
 
@@ -67,11 +63,7 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                 upsellPrice: Number(form.upsellPrice) || 0,
                 upsellConfirmationPhoto: form.upsellPhoto,
             });
-
-            // Notify parent and refresh car data
             if (onSaved) onSaved(upsell);
-
-            // Close modal
             onClose();
         } catch (err) {
             console.error(err);
@@ -84,17 +76,20 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-            <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-md">
-                <h2 className="text-lg font-bold mb-4">Add Upsell</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-md md:max-w-lg p-6 sm:p-8 relative animate-fadeIn">
+                <h2 className="text-xl font-bold text-gray-800 mb-4 text-center">
+                    Add Upsell
+                </h2>
+
                 <form onSubmit={handleSubmit} className="space-y-4">
-                    {/* Service dropdown */}
+                    {/* Service Dropdown */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">Service</label>
+                        <label className="block text-sm font-medium mb-1 text-gray-700">Service</label>
                         <select
-                            className="w-full border rounded p-2"
+                            className="w-full border rounded-lg p-2 text-gray-700 focus:ring-2 focus:ring-blue-500 outline-none"
                             value={form.serviceId}
-                            onChange={e => setForm(prev => ({ ...prev, serviceId: e.target.value }))}
+                            onChange={(e) => setForm(prev => ({ ...prev, serviceId: e.target.value }))}
                             required
                             disabled={svcLoading}
                         >
@@ -107,72 +102,70 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                                 </option>
                             ))}
                         </select>
-                        {svcError && <p className="text-sm text-red-600 mt-1">Failed to load services</p>}
+                        {svcError && (
+                            <p className="text-sm text-red-600 mt-1">Failed to load services</p>
+                        )}
                         {availableServices.length === 0 && !svcLoading && (
                             <p className="text-sm text-gray-600 mt-1">All services already booked</p>
                         )}
                     </div>
 
-                    {/* Part price */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Part Price</label>
-                        <input
-                            type="number"
-                            name="partPrice"
-                            className="w-full border rounded p-2"
-                            value={form.partPrice}
-                            onChange={handleChange}
-                            min="0"
-                        />
+                    {/* Prices Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">Part Price</label>
+                            <input
+                                type="number"
+                                name="partPrice"
+                                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={form.partPrice}
+                                onChange={handleChange}
+                                min="0"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium mb-1 text-gray-700">Labour Price</label>
+                            <input
+                                type="number"
+                                name="labourPrice"
+                                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={form.labourPrice}
+                                onChange={handleChange}
+                                min="0"
+                            />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                            <label className="block text-sm font-medium mb-1 text-gray-700">Upsell Price</label>
+                            <input
+                                type="number"
+                                name="upsellPrice"
+                                className="w-full border rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                                value={form.upsellPrice}
+                                onChange={handleUpsellChange}
+                                min="0"
+                            />
+                        </div>
                     </div>
 
-                    {/* Labour price */}
+                    {/* Photo Upload */}
                     <div>
-                        <label className="block text-sm font-medium mb-1">Labour Price</label>
-                        <input
-                            type="number"
-                            name="labourPrice"
-                            className="w-full border rounded p-2"
-                            value={form.labourPrice}
-                            onChange={handleChange}
-                            min="0"
-                        />
-                    </div>
-
-                    {/* Upsell price */}
-                    <div>
-                        <label className="block text-sm font-medium mb-1">Upsell Price</label>
-                        <input
-                            type="number"
-                            name="upsellPrice"
-                            className="w-full border rounded p-2"
-                            value={form.upsellPrice}
-                            onChange={handleUpsellChange}
-                            min="0"
-                        />
-                    </div>
-
-                    {/* Photo upload */}
-                    {/* File / Paste Upload */}
-                    <div className="md:col-span-2">
                         <label className="block mb-1 text-sm font-medium text-gray-700">
                             Confirmation Photo
                         </label>
-                        <p className="text-sm text-gray-500 mb-1">
-                            You can upload by file or click <strong>Paste Image</strong> button to paste from clipboard.
+                        <p className="text-xs text-gray-500 mb-1">
+                            Upload a file or click <strong>Paste Image</strong> to paste from clipboard.
                         </p>
 
-                        <div className="flex space-x-2 mb-2">
-                            {/* File input */}
+                        <div className="flex flex-col sm:flex-row sm:space-x-2 gap-2">
                             <input
                                 type="file"
                                 accept="image/*"
                                 onChange={handlePhotoUpload}
-                                className="border border-gray-300 rounded p-2 flex-1"
+                                className="border border-gray-300 rounded-lg p-2 flex-1 text-sm"
                                 required={!form.upsellPhoto}
                             />
-
-                            {/* Paste Image button */}
                             <button
                                 type="button"
                                 onClick={async () => {
@@ -182,7 +175,8 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                                             if (!item.types.includes("image/png") && !item.types.includes("image/jpeg")) continue;
                                             const blob = await item.getType(item.types[0]);
                                             const reader = new FileReader();
-                                            reader.onload = (e) => setForm(prev => ({ ...prev, upsellPhoto: e.target.result }));
+                                            reader.onload = (e) =>
+                                                setForm(prev => ({ ...prev, upsellPhoto: e.target.result }));
                                             reader.readAsDataURL(blob);
                                             break;
                                         }
@@ -191,37 +185,35 @@ export default function UpsellModal({ isOpen, onClose, booking, onSaved }) {
                                         alert("No image found in clipboard or browser does not support clipboard API.");
                                     }
                                 }}
-                                className="px-3 py-2 bg-gray-200 rounded hover:bg-gray-300 text-sm"
+                                className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm text-gray-700 transition"
                             >
                                 Paste Image
                             </button>
                         </div>
 
-                        {/* Preview */}
                         {form.upsellPhoto && (
                             <img
                                 src={form.upsellPhoto}
                                 alt="Preview"
-                                className="mt-2 h-32 object-contain border rounded"
+                                className="mt-3 w-full h-40 sm:h-48 object-contain border rounded-lg"
                             />
                         )}
                     </div>
 
-
                     {/* Buttons */}
-                    <div className="flex justify-end space-x-2">
+                    <div className="flex flex-col sm:flex-row justify-end gap-2 pt-3">
                         <button
                             type="button"
-                            className="px-4 py-2 border rounded"
                             onClick={onClose}
                             disabled={loading}
+                            className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition disabled:opacity-50"
                         >
                             Cancel
                         </button>
                         <button
                             type="submit"
-                            className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
                             disabled={loading}
+                            className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
                         >
                             {loading ? "Saving..." : "Save Upsell"}
                         </button>
