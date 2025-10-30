@@ -14,7 +14,7 @@ export const SocketProvider = ({ children }) => {
 
     useEffect(() => {
         // Initialize socket connection
-        const socketClient = io("http://192.168.18.84:5000", {
+        const socketClient = io("http://192.168.18.69:5001", {
             transports: ["websocket"],
             reconnection: true,
         });

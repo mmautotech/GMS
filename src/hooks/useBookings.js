@@ -1,9 +1,10 @@
 // src/hooks/useBookings.js
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import _ from "lodash";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
-const MEMO_CACHE = {}; // { [key]: { items, totalPages, totalItems, hasNextPage, hasPrevPage, at } }
-const TTL_MS = 60 * 1000; // 1 minute TTL
+const MEMO_CACHE = {}; // { [key]: { items, totalPages, totalItems, hasNextPage, hasPrevPage, params, meta, at } }
+const TTL_MS = 40 * 1000;
 
 export default function useBookings({
     status,
@@ -15,7 +16,7 @@ export default function useBookings({
     initialPage = 1,
     pageSize = 10,
     sortBy = "createdDate",
-    sortDir,
+    sortDir = "desc",
 } = {}) {
     const [items, setItems] = useState([]);
     const [loadingList, setLoadingList] = useState(true);
@@ -32,33 +33,16 @@ export default function useBookings({
     const [meta, setMeta] = useState(null);
 
     const mounted = useRef(true);
+    useEffect(() => () => { mounted.current = false; }, []);
 
-    useEffect(() => {
-        return () => {
-            mounted.current = false;
-        };
-    }, []);
-
-    // --- Fetch bookings ---
+    // ────────────────────────────── Fetch Bookings ──────────────────────────────
     const fetchBookings = useCallback(async () => {
         setLoadingList(true);
         setError("");
 
-        // Generate a cache key based on current filters & pagination
-        const cacheKey = JSON.stringify({
-            page,
-            pageSize,
-            sortBy,
-            sortDir,
-            status,
-            fromDate,
-            toDate,
-            search,
-            services,
-            user,
-        });
-
+        const cacheKey = JSON.stringify({ page, pageSize, sortBy, sortDir, status, fromDate, toDate, search, services, user });
         const cached = MEMO_CACHE[cacheKey];
+
         if (cached && Date.now() - cached.at < TTL_MS) {
             setItems(cached.items || []);
             setTotalPages(cached.totalPages || 1);
@@ -82,16 +66,16 @@ export default function useBookings({
                 toDate,
                 search,
                 services,
-                user,
+                user
             });
 
             if (!mounted.current) return;
 
             if (res.ok) {
-                const normalizedItems = (res.items || []).map((b) => ({
+                const normalizedItems = (res.items || []).map(b => ({
                     ...b,
                     _id: b._id || b.id,
-                    rowNumber: b.rowNumber ?? 0,
+                    rowNumber: b.rowNumber ?? 0
                 }));
 
                 setItems(normalizedItems);
@@ -121,44 +105,31 @@ export default function useBookings({
         } finally {
             if (mounted.current) setLoadingList(false);
         }
-    }, [
-        page,
-        pageSize,
-        sortBy,
-        sortDir,
-        status,
-        fromDate,
-        toDate,
-        search,
-        services,
-        user,
-    ]);
+    }, [page, pageSize, sortBy, sortDir, status, fromDate, toDate, search, services, user]);
 
-    // Auto-fetch when dependencies change
-    useEffect(() => {
-        fetchBookings();
-    }, [fetchBookings]);
+    // Debounce to avoid rapid calls on filter typing
+    const debouncedFetchBookings = useMemo(() => _.debounce(fetchBookings, 250), [fetchBookings]);
+    useEffect(() => { debouncedFetchBookings(); return debouncedFetchBookings.cancel; }, [debouncedFetchBookings]);
 
-    // Auto-refresh every 1 minute
-    useEffect(() => {
-        const interval = setInterval(() => {
-            fetchBookings();
-        }, TTL_MS);
-        return () => clearInterval(interval);
-    }, [fetchBookings]);
-
-    // --- Create booking ---
+    // ────────────────────────────── Create Booking ──────────────────────────────
     const create = async (payload) => {
         setError("");
         setSaving(true);
         try {
             const res = await BookingApi.createBooking(payload);
             if (res.ok) {
-                const newBooking = {
-                    ...res.booking,
-                    _id: res.booking._id || res.booking.id,
-                };
-                setItems((prev) => [newBooking, ...prev]);
+                const newBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
+                setItems(prev => [newBooking, ...prev]);
+
+                // Update cache: add to top of all relevant cached lists
+                Object.keys(MEMO_CACHE).forEach(key => {
+                    const cache = MEMO_CACHE[key];
+                    if (!cache.params || !cache.params.status || cache.params.status === newBooking.status) {
+                        cache.items = [newBooking, ...cache.items];
+                        cache.totalItems += 1;
+                    }
+                });
+
                 return { ok: true, booking: newBooking };
             } else {
                 const msg = res.error || "Failed to create booking";
@@ -169,32 +140,35 @@ export default function useBookings({
             const msg = err?.message || "Failed to create booking";
             setError(msg);
             return { ok: false, error: msg };
-        } finally {
-            setSaving(false);
-        }
+        } finally { setSaving(false); }
     };
 
-    // --- Update booking ---
+    // ────────────────────────────── Update Booking ──────────────────────────────
     const update = async (id, patch) => {
         setError("");
         setSaving(true);
         try {
-            if (!patch || Object.keys(patch).length === 0) {
-                return { ok: false, error: "No changes detected" };
-            }
-
+            if (!patch || Object.keys(patch).length === 0) return { ok: false, error: "No changes detected" };
             const res = await BookingApi.updateBooking(id, patch);
-            if (res.ok) {
-                const updatedBooking = {
-                    ...res.booking,
-                    _id: res.booking?._id || res.booking?.id || id,
-                };
 
-                setItems((prev) =>
-                    res.booking
-                        ? prev.map((b) => (b._id === id ? updatedBooking : b))
-                        : prev
-                );
+            if (res.ok) {
+                const updatedBooking = { ...res.booking, _id: res.booking?._id || res.booking?.id || id };
+                setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
+
+                // Update cache: replace or remove if status/filter mismatch
+                Object.keys(MEMO_CACHE).forEach(key => {
+                    const cache = MEMO_CACHE[key];
+                    cache.items = cache.items
+                        .map(b => b._id === id ? updatedBooking : b)
+                        .filter(b => {
+                            const p = cache.params;
+                            if (!p) return true;
+                            if (p.status && b.status !== p.status) return false;
+                            if (p.services && b.services !== p.services) return false;
+                            if (p.user && b.user !== p.user) return false;
+                            return true;
+                        });
+                });
 
                 return { ok: true, booking: updatedBooking, message: res.message };
             } else {
@@ -206,25 +180,33 @@ export default function useBookings({
             const msg = err?.message || "Failed to update booking";
             setError(msg);
             return { ok: false, error: msg };
-        } finally {
-            setSaving(false);
-        }
+        } finally { setSaving(false); }
     };
 
-    // --- Update booking status ---
+    // ────────────────────────────── Update Booking Status ──────────────────────────────
     const updateStatus = async (id, newStatus) => {
         setError("");
-        // ❌ remove setSaving(true/false)
         try {
             const res = await BookingApi.updateBookingStatus(id, newStatus);
             if (res.ok) {
-                const updatedBooking = {
-                    ...res.booking,
-                    _id: res.booking._id || res.booking.id,
-                };
-                setItems((prev) =>
-                    prev.map((b) => (b._id === id ? updatedBooking : b))
-                );
+                const updatedBooking = { ...res.booking, _id: res.booking._id || res.booking.id };
+                setItems(prev => prev.map(b => b._id === id ? updatedBooking : b));
+
+                // Update cache: replace or remove if status/filter mismatch
+                Object.keys(MEMO_CACHE).forEach(key => {
+                    const cache = MEMO_CACHE[key];
+                    cache.items = cache.items
+                        .map(b => b._id === id ? updatedBooking : b)
+                        .filter(b => {
+                            const p = cache.params;
+                            if (!p) return true;
+                            if (p.status && b.status !== p.status) return false;
+                            if (p.services && b.services !== p.services) return false;
+                            if (p.user && b.user !== p.user) return false;
+                            return true;
+                        });
+                });
+
                 return { ok: true, booking: updatedBooking };
             } else {
                 const msg = res.error || "Failed to update booking status";
@@ -238,25 +220,11 @@ export default function useBookings({
         }
     };
 
-
-    // --- Export bookings CSV ---
+    // ────────────────────────────── Export CSV ──────────────────────────────
     const exportCSV = async () => {
         if (!activeParams) return { ok: false, error: "No filters applied" };
         return await BookingApi.exportBookings(activeParams);
     };
-
-    // --- Manual refresh ---
-    // --- Manual refresh (force bypass cache) ---
-    const refresh = () => {
-        // 🧹 Invalidate all cached pages
-        for (const key in MEMO_CACHE) {
-            delete MEMO_CACHE[key];
-        }
-
-        // 🔄 Force a fresh fetch from API
-        fetchBookings();
-    };
-
 
     return {
         items,
@@ -280,7 +248,6 @@ export default function useBookings({
         meta,
 
         fetchBookings,
-        refresh,
         create,
         update,
         updateStatus,

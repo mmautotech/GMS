@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { BookingApi } from "../lib/api/bookingApi.js";
 
 const MEMO_CACHE = {};
-const TTL_MS = 60 * 1000; // 30 seconds
+const TTL_MS = 40 * 1000; // 30 seconds
 
 function useBookingsList(fetcher, initialParams = {}) {
     const [items, setItems] = useState([]);

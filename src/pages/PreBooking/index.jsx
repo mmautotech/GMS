@@ -80,21 +80,18 @@ export default function PreBookingPage({ user }) {
   // ------------------ Actions ------------------
   const handleCarIn = useCallback(
     async (id) => {
-      if (!window.confirm("Are you sure you want to mark this car as ARRIVED?")) return;
+      if (!window.confirm("Are you sure you want to mark this car as Arrived?")) return;
 
       setRowLoadingIds(prev => new Set(prev).add(id));
 
       try {
         const res = await updateStatus(id, "arrived");
         if (res.ok) {
-          toast.success(res.message || "Car marked as arrived!");
 
           // Delay navigation slightly to avoid freezing inputs
           setTimeout(() => {
             navigate(`/car-in`, { state: { bookingId: id } });
           }, 50);
-        } else {
-          toast.error(res.error || "Failed to mark as arrived");
         }
       } catch (err) {
         const backendMessage = err?.response?.data?.message || err.message || "Failed to mark as arrived";
@@ -118,11 +115,9 @@ export default function PreBookingPage({ user }) {
       setRowLoadingIds(prev => new Set(prev).add(id));
 
       try {
-        const res = await updateStatus(id, "cancelled");
+
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
-        } else {
-          toast.error(res.error || "Failed to cancel booking");
         }
       } catch (err) {
         const backendMessage = err?.response?.data?.message || err.message || "Failed to cancel booking";
@@ -159,7 +154,7 @@ export default function PreBookingPage({ user }) {
     } else {
       const res = await create(payload);
       if (res.ok) {
-        toast.success("Created!");
+
         reset?.();
         setShowModal(false);
         refresh();
@@ -202,11 +197,21 @@ export default function PreBookingPage({ user }) {
       : { ...preBookingParams, perPage: preBookingParams.limit, page };
   }, [backendParams, preBookingParams, page]);
 
+  // Inside PreBookingPage
+
   // ------------------ Refresh on focus / route ------------------
   useEffect(() => {
-    const handleWindowFocus = () => refresh();
+    let timeoutId;
+    const handleWindowFocus = () => {
+      // throttle refresh on focus
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(refresh, 300);
+    };
     window.addEventListener("focus", handleWindowFocus);
-    return () => window.removeEventListener("focus", handleWindowFocus);
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [refresh]);
 
   useEffect(() => {
@@ -214,25 +219,25 @@ export default function PreBookingPage({ user }) {
   }, [location.pathname, refresh]);
 
   // ------------------ Real-time Socket.IO Updates ------------------
-  const refreshDebounced = useCallback(_.debounce(() => refresh(), 200), [refresh]);
+  const refreshThrottled = useCallback(_.throttle(() => refresh(), 500), [refresh]);
 
   useEffect(() => {
     if (!socket) return;
 
     const handleBookingCreated = (newBooking) => {
       toast.info(`📦 New booking: ${newBooking.vehicleRegNo}`);
-      refreshDebounced();
+      refreshThrottled();
     };
 
     const handleBookingUpdated = (updatedBooking) => {
       toast.info(`✏️ Booking updated: ${updatedBooking.vehicleRegNo}`);
-      refreshDebounced();
+      refreshThrottled();
     };
 
     const handleStatusChanged = ({ status, booking, updatedBy }) => {
       if (!booking || updatedBy === user?.username) return;
       toast.info(`🚗 Booking ${booking.vehicleRegNo} updated by ${updatedBy}`);
-      refreshDebounced();
+      refreshThrottled();
     };
 
     socket.on("booking:created", handleBookingCreated);
@@ -244,7 +249,8 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:updated", handleBookingUpdated);
       socket.off("booking:statusChanged", handleStatusChanged);
     };
-  }, [socket, refreshDebounced, user]);
+  }, [socket, refreshThrottled, user]);
+
 
   // ------------------ UI ------------------
   return (
