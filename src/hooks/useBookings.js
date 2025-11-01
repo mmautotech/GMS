@@ -248,9 +248,11 @@ export default function useBookings({
         meta,
 
         fetchBookings,
+        refresh: fetchBookings,   // <<< add this line
         create,
         update,
         updateStatus,
         exportCSV,
     };
+
 }
