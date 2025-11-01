@@ -106,12 +106,15 @@ function useBookingsList(fetcher, initialParams = {}) {
     }, [fetchBookings, initialParams]);
 
     // Auto-refresh every 30 sec
+    // Auto-refresh every 30 sec — always respect activeParams
     useEffect(() => {
         const interval = setInterval(() => {
-            fetchBookings(initialParams);
+            if (mounted.current) {
+                fetchBookings({ ...(activeParams || initialParams) });
+            }
         }, TTL_MS);
         return () => clearInterval(interval);
-    }, [fetchBookings, initialParams]);
+    }, [fetchBookings, activeParams, initialParams]);
 
     return {
         items,

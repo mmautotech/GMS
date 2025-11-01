@@ -37,6 +37,8 @@ export default function PreBookingPage({ user }) {
   // Use Set for row-level loading
   const [rowLoadingIds, setRowLoadingIds] = useState(new Set());
 
+
+
   // Filters
   const [draft, setDraft] = useState({
     search: "",
@@ -80,7 +82,8 @@ export default function PreBookingPage({ user }) {
   // ------------------ Actions ------------------
   const handleCarIn = useCallback(
     async (id) => {
-      if (!window.confirm("Are you sure you want to mark this car as Arrived?")) return;
+      setPendingAction({ type: "arrived", id });
+
 
       setRowLoadingIds(prev => new Set(prev).add(id));
 
@@ -110,28 +113,35 @@ export default function PreBookingPage({ user }) {
 
   const handleCancelled = useCallback(
     async (id) => {
-      if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
+      setPendingAction({ type: "cancelled", id });
 
-      setRowLoadingIds(prev => new Set(prev).add(id));
+
+      setRowLoadingIds((prev) => new Set(prev).add(id));
 
       try {
+        // ✅ Call your backend updateStatus function and store response in `res`
+        const res = await updateStatus(id, "cancelled");
 
         if (res.ok) {
           toast.success(res.message || "Booking cancelled successfully!");
+          refresh(); // optional: refresh after success
+        } else {
+          toast.error(res.error || "Failed to cancel booking");
         }
       } catch (err) {
-        const backendMessage = err?.response?.data?.message || err.message || "Failed to cancel booking";
+        const backendMessage =
+          err?.response?.data?.message || err.message || "Failed to cancel booking";
         setError(backendMessage);
         toast.error(backendMessage);
       } finally {
-        setRowLoadingIds(prev => {
+        setRowLoadingIds((prev) => {
           const copy = new Set(prev);
           copy.delete(id);
           return copy;
         });
       }
     },
-    [updateStatus, setError]
+    [updateStatus, setError, refresh]
   );
 
   const handleEdit = (booking) => {
@@ -235,9 +245,14 @@ export default function PreBookingPage({ user }) {
     };
 
     const handleStatusChanged = ({ status, booking, updatedBy }) => {
-      if (!booking || updatedBy === user?.username) return;
-      toast.info(`🚗 Booking ${booking.vehicleRegNo} updated by ${updatedBy}`);
-      refreshThrottled();
+      if (!booking) return;
+
+      const isSelf = updatedBy === user?.username;
+      if (!isSelf) {
+        toast.info(`🚗 Booking ${booking.vehicleRegNo} marked as ${status} by ${updatedBy}`);
+      }
+
+      refreshThrottled(); // Always refresh table
     };
 
     socket.on("booking:created", handleBookingCreated);
@@ -250,6 +265,7 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:statusChanged", handleStatusChanged);
     };
   }, [socket, refreshThrottled, user]);
+
 
 
   // ------------------ UI ------------------
