@@ -37,8 +37,6 @@ export default function PreBookingPage({ user }) {
   // Use Set for row-level loading
   const [rowLoadingIds, setRowLoadingIds] = useState(new Set());
 
-
-
   // Filters
   const [draft, setDraft] = useState({
     search: "",
@@ -82,8 +80,7 @@ export default function PreBookingPage({ user }) {
   // ------------------ Actions ------------------
   const handleCarIn = useCallback(
     async (id) => {
-      setPendingAction({ type: "arrived", id });
-
+      if (!window.confirm("Are you sure you want to mark this car as Arrived?")) return;
 
       setRowLoadingIds(prev => new Set(prev).add(id));
 
@@ -113,8 +110,7 @@ export default function PreBookingPage({ user }) {
 
   const handleCancelled = useCallback(
     async (id) => {
-      setPendingAction({ type: "cancelled", id });
-
+      if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
 
       setRowLoadingIds((prev) => new Set(prev).add(id));
 
