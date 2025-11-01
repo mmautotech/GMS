@@ -1,4 +1,3 @@
-// src/Pages/PreBooking/index.js
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -10,13 +9,37 @@ import useServiceOptions from "../../hooks/useServiceOptions.js";
 import useUsers from "../../hooks/useUsers.js";
 
 import ParamsSummary from "../../components/ParamsSummary.jsx";
-import InlineSpinner from "../../components/InlineSpinner.jsx";
 import BookingsTable from "./BookingsTable.jsx";
 import BookingForm from "./BookingForm.jsx";
 import Modal from "../../components/Modal.jsx";
 import { useSocket } from "../../context/SocketProvider.js";
 
-// Dropdown configs
+// ------------------ Local Confirm Dialog ------------------
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+  return (
+    <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+      <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+        <p className="text-lg font-medium text-gray-800 mb-6 text-center">{message}</p>
+        <div className="flex justify-center gap-4">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Yes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------ Constants ------------------
 const SORT_OPTIONS = [
   { label: "Booking Date", value: "createdDate" },
   { label: "Landing Date", value: "scheduledDate" },
@@ -27,15 +50,16 @@ const SORT_OPTIONS = [
 ];
 const LIMIT_OPTIONS = [5, 10, 50, 100];
 
+// ------------------ Component ------------------
 export default function PreBookingPage({ user }) {
   const navigate = useNavigate();
   const location = useLocation();
   const socket = useSocket();
+
   const [showModal, setShowModal] = useState(false);
   const [editingBooking, setEditingBooking] = useState(null);
-
-  // Use Set for row-level loading
   const [rowLoadingIds, setRowLoadingIds] = useState(new Set());
+  const [confirmData, setConfirmData] = useState(null);
 
   // Filters
   const [draft, setDraft] = useState({
@@ -49,7 +73,6 @@ export default function PreBookingPage({ user }) {
     limit: 10,
   });
   const [applied, setApplied] = useState(draft);
-
   const preBookingParams = useMemo(() => applied, [applied]);
 
   const {
@@ -66,79 +89,69 @@ export default function PreBookingPage({ user }) {
   } = usePreBookings(preBookingParams);
 
   const { saving, create, update, setError, updateStatus } = useBookings();
-
-  // Services
-  const { list: serviceOptions, loading: loadingServices, error: servicesError } = useServiceOptions({
-    useSessionCache: true,
-  });
-
-  // Users
-  const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } = useUsers({
-    useSessionCache: true,
-  });
+  const { list: serviceOptions, loading: loadingServices, error: servicesError } = useServiceOptions({ useSessionCache: true });
+  const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } = useUsers({ useSessionCache: true });
 
   // ------------------ Actions ------------------
-  const handleCarIn = useCallback(
-    async (id) => {
-      if (!window.confirm("Are you sure you want to mark this car as Arrived?")) return;
-
-      setRowLoadingIds(prev => new Set(prev).add(id));
-
-      try {
-        const res = await updateStatus(id, "arrived");
-        if (res.ok) {
-
-          // Delay navigation slightly to avoid freezing inputs
-          setTimeout(() => {
-            navigate(`/car-in`, { state: { bookingId: id } });
-          }, 50);
+  const handleCarIn = (id) => {
+    setConfirmData({
+      message: "Are you sure you want to mark this car as Arrived?",
+      onConfirm: async () => {
+        setConfirmData(null);
+        setRowLoadingIds((prev) => new Set(prev).add(id));
+        try {
+          const res = await updateStatus(id, "arrived");
+          if (res.ok) {
+            toast.success("Marked as arrived!");
+            setTimeout(() => {
+              navigate(`/car-in`, { state: { bookingId: id } });
+            }, 100);
+          }
+        } catch (err) {
+          const msg = err?.response?.data?.message || err.message || "Failed to mark as arrived";
+          setError(msg);
+          toast.error(msg);
+        } finally {
+          setRowLoadingIds((prev) => {
+            const copy = new Set(prev);
+            copy.delete(id);
+            return copy;
+          });
         }
-      } catch (err) {
-        const backendMessage = err?.response?.data?.message || err.message || "Failed to mark as arrived";
-        setError(backendMessage);
-        toast.error(backendMessage);
-      } finally {
-        setRowLoadingIds(prev => {
-          const copy = new Set(prev);
-          copy.delete(id);
-          return copy;
-        });
-      }
-    },
-    [updateStatus, setError, navigate]
-  );
+      },
+      onCancel: () => setConfirmData(null),
+    });
+  };
 
-  const handleCancelled = useCallback(
-    async (id) => {
-      if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
-
-      setRowLoadingIds((prev) => new Set(prev).add(id));
-
-      try {
-        // ✅ Call your backend updateStatus function and store response in `res`
-        const res = await updateStatus(id, "cancelled");
-
-        if (res.ok) {
-          toast.success(res.message || "Booking cancelled successfully!");
-          refresh(); // optional: refresh after success
-        } else {
-          toast.error(res.error || "Failed to cancel booking");
+  const handleCancelled = (id) => {
+    setConfirmData({
+      message: "Are you sure you want to CANCEL this booking?",
+      onConfirm: async () => {
+        setConfirmData(null);
+        setRowLoadingIds((prev) => new Set(prev).add(id));
+        try {
+          const res = await updateStatus(id, "cancelled");
+          if (res.ok) {
+            toast.success(res.message || "Booking cancelled successfully!");
+            setTimeout(() => refresh(), 100);
+          } else {
+            toast.error(res.error || "Failed to cancel booking");
+          }
+        } catch (err) {
+          const msg = err?.response?.data?.message || err.message || "Failed to cancel booking";
+          setError(msg);
+          toast.error(msg);
+        } finally {
+          setRowLoadingIds((prev) => {
+            const copy = new Set(prev);
+            copy.delete(id);
+            return copy;
+          });
         }
-      } catch (err) {
-        const backendMessage =
-          err?.response?.data?.message || err.message || "Failed to cancel booking";
-        setError(backendMessage);
-        toast.error(backendMessage);
-      } finally {
-        setRowLoadingIds((prev) => {
-          const copy = new Set(prev);
-          copy.delete(id);
-          return copy;
-        });
-      }
-    },
-    [updateStatus, setError, refresh]
-  );
+      },
+      onCancel: () => setConfirmData(null),
+    });
+  };
 
   const handleEdit = (booking) => {
     setEditingBooking(booking);
@@ -160,7 +173,6 @@ export default function PreBookingPage({ user }) {
     } else {
       const res = await create(payload);
       if (res.ok) {
-
         reset?.();
         setShowModal(false);
         refresh();
@@ -203,13 +215,10 @@ export default function PreBookingPage({ user }) {
       : { ...preBookingParams, perPage: preBookingParams.limit, page };
   }, [backendParams, preBookingParams, page]);
 
-  // Inside PreBookingPage
-
   // ------------------ Refresh on focus / route ------------------
   useEffect(() => {
     let timeoutId;
     const handleWindowFocus = () => {
-      // throttle refresh on focus
       if (timeoutId) clearTimeout(timeoutId);
       timeoutId = setTimeout(refresh, 300);
     };
@@ -242,13 +251,11 @@ export default function PreBookingPage({ user }) {
 
     const handleStatusChanged = ({ status, booking, updatedBy }) => {
       if (!booking) return;
-
       const isSelf = updatedBy === user?.username;
       if (!isSelf) {
         toast.info(`🚗 Booking ${booking.vehicleRegNo} marked as ${status} by ${updatedBy}`);
       }
-
-      refreshThrottled(); // Always refresh table
+      refreshThrottled();
     };
 
     socket.on("booking:created", handleBookingCreated);
@@ -261,8 +268,6 @@ export default function PreBookingPage({ user }) {
       socket.off("booking:statusChanged", handleStatusChanged);
     };
   }, [socket, refreshThrottled, user]);
-
-
 
   // ------------------ UI ------------------
   return (
@@ -417,7 +422,7 @@ export default function PreBookingPage({ user }) {
         +
       </button>
 
-      {/* Modal */}
+      {/* Form Modal */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)}>
         <BookingForm
           loading={saving}
@@ -426,6 +431,15 @@ export default function PreBookingPage({ user }) {
           onCancel={() => setShowModal(false)}
         />
       </Modal>
+
+      {/* Confirm Dialog */}
+      {confirmData && (
+        <ConfirmDialog
+          message={confirmData.message}
+          onConfirm={confirmData.onConfirm}
+          onCancel={confirmData.onCancel}
+        />
+      )}
     </div>
   );
 }

@@ -1,4 +1,3 @@
-// src/pages/CarIn/CarInPage.jsx
 import React, {
     useState,
     useMemo,
@@ -8,7 +7,6 @@ import React, {
 } from "react";
 import { toast } from "react-toastify";
 import { useSocket } from "../../context/SocketProvider.js";
-
 import { useArrivedBookings } from "../../hooks/useBookingsList.js";
 import useBookings from "../../hooks/useBookings.js";
 import useServiceOptions from "../../hooks/useServiceOptions.js";
@@ -22,6 +20,32 @@ import UpsellModal from "./UpsellModal.jsx";
 
 import _ from "lodash";
 
+// ──────────────── Confirm Dialog ────────────────
+function ConfirmDialog({ message, onConfirm, onCancel }) {
+    return (
+        <div className="fixed inset-0 flex items-center justify-center bg-black/40 z-50">
+            <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full">
+                <p className="text-lg font-medium text-gray-800 mb-6 text-center">{message}</p>
+                <div className="flex justify-center gap-4">
+                    <button
+                        onClick={onCancel}
+                        className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        onClick={onConfirm}
+                        className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
+                    >
+                        Yes
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ──────────────── Constants ────────────────
 const SORT_OPTIONS = [
     { label: "Booking Date", value: "createdDate" },
     { label: "Arrival Date", value: "arrivedDate" },
@@ -30,9 +54,9 @@ const SORT_OPTIONS = [
     { label: "Phone Number", value: "ownerNumber" },
     { label: "Post Code", value: "ownerPostalCode" },
 ];
-
 const LIMIT_OPTIONS = [5, 10, 50, 100];
 
+// ──────────────── Main Component ────────────────
 export default function CarInPage({ currentUser }) {
     const socket = useSocket();
     const bookingDetailRef = useRef(null);
@@ -40,8 +64,11 @@ export default function CarInPage({ currentUser }) {
     const [loadingCarOutId, setLoadingCarOutId] = useState(null);
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [activeModal, setActiveModal] = useState(null);
+    const [confirmData, setConfirmData] = useState(null); // popup state
 
-    // Filters
+    // Prevent freezing when typing during refresh
+    const isTypingRef = useRef(false);
+
     const [draft, setDraft] = useState({
         search: "",
         fromDate: "",
@@ -55,7 +82,6 @@ export default function CarInPage({ currentUser }) {
     const [applied, setApplied] = useState(draft);
     const arrivedParams = useMemo(() => applied, [applied]);
 
-    // Bookings (arrived)
     const {
         items: bookings,
         setList: setBookings,
@@ -76,55 +102,59 @@ export default function CarInPage({ currentUser }) {
     const { list: userOptions, map: userMap, loading: loadingUsers, error: usersError } =
         useUsers({ useSessionCache: true });
 
-    // ────────────────────────────── Handlers ──────────────────────────────
+    // ──────────────── Handlers ────────────────
     const handleCarOut = useCallback(
-        async (booking) => {
-            if (!window.confirm("Are you sure you want to mark this car as COMPLETED (Car Out)?"))
-                return;
-
-            setLoadingCarOutId(booking._id);
-            try {
-                const res = await updateStatus(booking._id, "completed");
-
-                if (res.ok) {
-                    toast.success("✅ Car checked out successfully!");
-                } else {
-                    const msg = res.error || "Failed to check out car";
-                    if (msg.toLowerCase().includes("invoice")) {
-                        toast.warn("⚠️ Please generate an invoice before completing this booking!");
-                    } else {
-                        toast.error(msg);
+        (booking) => {
+            setConfirmData({
+                message: "Are you sure you want to mark this car as COMPLETED (Car Out)?",
+                onConfirm: async () => {
+                    setConfirmData(null);
+                    setLoadingCarOutId(booking._id);
+                    try {
+                        const res = await updateStatus(booking._id, "completed");
+                        if (res.ok) toast.success("✅ Car checked out successfully!");
+                        else {
+                            const msg = res.error || "Failed to check out car";
+                            if (msg.toLowerCase().includes("invoice"))
+                                toast.warn("⚠️ Please generate an invoice before completing this booking!");
+                            else toast.error(msg);
+                        }
+                    } catch (err) {
+                        const msg = err?.response?.data?.message || err.message;
+                        if (msg?.toLowerCase()?.includes("invoice"))
+                            toast.warn("⚠️ Please generate an invoice before completing this booking!");
+                        else toast.error(msg || "Failed to check out car");
+                        setError(msg);
+                    } finally {
+                        setLoadingCarOutId(null);
                     }
-                }
-            } catch (err) {
-                const msg = err?.response?.data?.message || err.message;
-                if (msg?.toLowerCase()?.includes("invoice")) {
-                    toast.warn("⚠️ Please generate an invoice before completing this booking!");
-                } else {
-                    toast.error(msg || "Failed to check out car");
-                }
-                setError(msg);
-            } finally {
-                setLoadingCarOutId(null);
-            }
+                },
+                onCancel: () => setConfirmData(null),
+            });
         },
         [updateStatus, setError]
     );
 
     const handleCancelled = useCallback(
-        async (id) => {
-            if (!window.confirm("Are you sure you want to CANCEL this booking?")) return;
-
-            try {
-                const res = await updateStatus(id, "cancelled");
-                if (res.ok) {
-                    setBookings((prev) => prev.filter((b) => b._id !== id));
-                }
-            } catch (err) {
-                const msg = err?.response?.data?.message || err.message;
-                setError(msg);
-                toast.error(msg || "Failed to cancel booking");
-            }
+        (id) => {
+            setConfirmData({
+                message: "Are you sure you want to CANCEL this booking?",
+                onConfirm: async () => {
+                    setConfirmData(null);
+                    try {
+                        const res = await updateStatus(id, "cancelled");
+                        if (res.ok) {
+                            setBookings((prev) => prev.filter((b) => b._id !== id));
+                            toast.info("❌ Booking cancelled successfully");
+                        }
+                    } catch (err) {
+                        const msg = err?.response?.data?.message || err.message;
+                        setError(msg);
+                        toast.error(msg || "Failed to cancel booking");
+                    }
+                },
+                onCancel: () => setConfirmData(null),
+            });
         },
         [updateStatus, setError, setBookings]
     );
@@ -136,13 +166,13 @@ export default function CarInPage({ currentUser }) {
 
     const handleAddUpsell = () => setActiveModal("upsell");
 
-    // ────────────────────────────── Filters ──────────────────────────────
-    const applyFilters = () => {
+    // ──────────────── Filters ────────────────
+    const applyFilters = useCallback(() => {
         setApplied(draft);
         setPage(1);
-    };
+    }, [draft, setPage]);
 
-    const resetFilters = () => {
+    const resetFilters = useCallback(() => {
         const fresh = {
             search: "",
             fromDate: "",
@@ -156,7 +186,7 @@ export default function CarInPage({ currentUser }) {
         setDraft(fresh);
         setApplied(fresh);
         setPage(1);
-    };
+    }, [setPage]);
 
     const params = useMemo(
         () =>
@@ -170,15 +200,13 @@ export default function CarInPage({ currentUser }) {
         [backendParams, arrivedParams, page]
     );
 
-    // ────────────────────────────── Throttled Refresh ──────────────────────────────
-    const refreshThrottled = useCallback(_.throttle(() => refresh(), 500), [refresh]);
+    // ──────────────── Stable Throttled Refresh ────────────────
+    const refreshThrottled = useMemo(
+        () => _.throttle(() => !isTypingRef.current && refresh(), 500),
+        [refresh]
+    );
 
-    // ✅ Handle socket event for car removal
-    const handleRemovedFromCarIn = useCallback(({ _id }) => {
-        setBookings((prev) => prev.filter((b) => b._id !== _id));
-    }, [setBookings]);
-
-    // ────────────────────────────── Socket Events ──────────────────────────────
+    // ──────────────── Socket Events ────────────────
     useEffect(() => {
         if (!socket) return;
 
@@ -205,37 +233,28 @@ export default function CarInPage({ currentUser }) {
             }
         };
 
-        // ✅ Add socket listener for backend removal event
         socket.on("booking:statusChanged", handleStatusChanged);
         socket.on("booking:created", handleBookingCreated);
-        socket.on("booking:removedFromCarIn", handleRemovedFromCarIn);
 
         return () => {
             socket.off("booking:statusChanged", handleStatusChanged);
             socket.off("booking:created", handleBookingCreated);
-            socket.off("booking:removedFromCarIn", handleRemovedFromCarIn);
         };
-    }, [socket, setBookings, handleRemovedFromCarIn]);
+    }, [socket, setBookings]);
 
-    // ────────────────────────────── Focus/Visibility Refresh ──────────────────────────────
+    // ──────────────── Visibility & Focus Refresh ────────────────
     useEffect(() => {
         let timeout;
         const handleFocus = () => {
             clearTimeout(timeout);
-            timeout = setTimeout(() => {
-                refreshThrottled();
-            }, 250);
+            timeout = setTimeout(() => refreshThrottled(), 250);
         };
-
         const handleVisibility = () => {
             if (!document.hidden) refreshThrottled();
         };
-
         refreshThrottled();
-
         window.addEventListener("focus", handleFocus);
         document.addEventListener("visibilitychange", handleVisibility);
-
         return () => {
             clearTimeout(timeout);
             window.removeEventListener("focus", handleFocus);
@@ -243,7 +262,13 @@ export default function CarInPage({ currentUser }) {
         };
     }, [refreshThrottled]);
 
-    // ────────────────────────────── UI ──────────────────────────────
+    // ──────────────── UI ────────────────
+    const handleInputChange = useCallback((key, value) => {
+        isTypingRef.current = true;
+        setDraft((d) => ({ ...d, [key]: value }));
+        setTimeout(() => (isTypingRef.current = false), 600);
+    }, []);
+
     return (
         <div className="p-6 relative min-h-screen bg-gray-50">
             <h1 className="text-3xl font-bold text-blue-900 mb-6">Car-In (Arrived)</h1>
@@ -255,24 +280,24 @@ export default function CarInPage({ currentUser }) {
                         type="text"
                         placeholder="Search..."
                         value={draft.search}
-                        onChange={(e) => setDraft((d) => ({ ...d, search: e.target.value }))}
+                        onChange={(e) => handleInputChange("search", e.target.value)}
                         className="border rounded px-3 py-2 w-full"
                     />
                     <input
                         type="date"
                         value={draft.fromDate}
-                        onChange={(e) => setDraft((d) => ({ ...d, fromDate: e.target.value }))}
+                        onChange={(e) => handleInputChange("fromDate", e.target.value)}
                         className="border rounded px-3 py-2 w-full"
                     />
                     <input
                         type="date"
                         value={draft.toDate}
-                        onChange={(e) => setDraft((d) => ({ ...d, toDate: e.target.value }))}
+                        onChange={(e) => handleInputChange("toDate", e.target.value)}
                         className="border rounded px-3 py-2 w-full"
                     />
                     <select
                         value={draft.services}
-                        onChange={(e) => setDraft((d) => ({ ...d, services: e.target.value }))}
+                        onChange={(e) => handleInputChange("services", e.target.value)}
                         className="border rounded px-3 py-2 w-full"
                         disabled={loadingServices}
                     >
@@ -285,7 +310,7 @@ export default function CarInPage({ currentUser }) {
                     </select>
                     <select
                         value={draft.user}
-                        onChange={(e) => setDraft((d) => ({ ...d, user: e.target.value }))}
+                        onChange={(e) => handleInputChange("user", e.target.value)}
                         className="border rounded px-3 py-2 w-full"
                         disabled={loadingUsers}
                     >
@@ -302,7 +327,7 @@ export default function CarInPage({ currentUser }) {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 flex-1">
                         <select
                             value={draft.sortBy}
-                            onChange={(e) => setDraft((d) => ({ ...d, sortBy: e.target.value }))}
+                            onChange={(e) => handleInputChange("sortBy", e.target.value)}
                             className="border rounded px-3 py-2 w-full"
                         >
                             {SORT_OPTIONS.map((opt) => (
@@ -311,7 +336,7 @@ export default function CarInPage({ currentUser }) {
                         </select>
                         <select
                             value={draft.sortDir}
-                            onChange={(e) => setDraft((d) => ({ ...d, sortDir: e.target.value }))}
+                            onChange={(e) => handleInputChange("sortDir", e.target.value)}
                             className="border rounded px-3 py-2 w-full"
                         >
                             <option value="asc">Ascending</option>
@@ -319,7 +344,7 @@ export default function CarInPage({ currentUser }) {
                         </select>
                         <select
                             value={draft.limit}
-                            onChange={(e) => setDraft((d) => ({ ...d, limit: Number(e.target.value) }))}
+                            onChange={(e) => handleInputChange("limit", Number(e.target.value))}
                             className="border rounded px-3 py-2 w-full"
                         >
                             {LIMIT_OPTIONS.map((opt) => (
@@ -375,7 +400,10 @@ export default function CarInPage({ currentUser }) {
                     <button
                         disabled={!hasPrevPage}
                         onClick={() => hasPrevPage && setPage(page - 1)}
-                        className={`px-3 py-1 rounded ${hasPrevPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                        className={`px-3 py-1 rounded ${hasPrevPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Prev
                     </button>
@@ -383,7 +411,10 @@ export default function CarInPage({ currentUser }) {
                     <button
                         disabled={!hasNextPage}
                         onClick={() => hasNextPage && setPage(page + 1)}
-                        className={`px-3 py-1 rounded ${hasNextPage ? "bg-blue-600 text-white" : "bg-gray-300 text-gray-500 cursor-not-allowed"}`}
+                        className={`px-3 py-1 rounded ${hasNextPage
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                            }`}
                     >
                         Next
                     </button>
@@ -413,12 +444,20 @@ export default function CarInPage({ currentUser }) {
                         setActiveModal("booking");
                     }}
                     onSaved={async () => {
-                        if (bookingDetailRef.current?.refreshUpsells) {
+                        if (bookingDetailRef.current?.refreshUpsells)
                             await bookingDetailRef.current.refreshUpsells();
-                        }
                         await refreshThrottled();
                         setActiveModal("booking");
                     }}
+                />
+            )}
+
+            {/* Confirm Dialog */}
+            {confirmData && (
+                <ConfirmDialog
+                    message={confirmData.message}
+                    onConfirm={confirmData.onConfirm}
+                    onCancel={confirmData.onCancel}
                 />
             )}
         </div>
